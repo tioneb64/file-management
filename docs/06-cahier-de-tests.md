@@ -121,13 +121,59 @@ Lancer §1.2 : les tests J1 sont inclus. Détail de ce que couvre chaque groupe 
 | J1-M09 | Droits insuffisants | Fichier sur lequel le compte n'a pas de droit de lecture | Refus E01 « illisible » avec le message de Windows, code retour 2 | |
 | J1-M10 | Durée sur un gros fichier | Générer 2 000 règles (script du développement, sur demande) et vérifier | Moins de 10 s ; noter la durée | |
 
-## 4. Jalons suivants
+## 4. Jalon J2 — Base de données
+
+Testé le 2026-11-03 sur Windows 10, Python 3.14.10, SQLite 3.50.4 : 151 tests au total (91 précédents + 60 de J2), tous OK en 45 s environ (la durée dépend surtout du coût d'un fsync sur le disque).
+
+Commandes (provisoires) :
+
+```powershell
+C:\Python314\python.exe -m copie --config exemples\production.jsonl --initialiser-base
+C:\Python314\python.exe -m copie --config exemples\production.jsonl --sauvegarder-base D:\Copie\sauvegardes
+C:\Python314\python.exe outils\mesure_base.py --dossier D:\temp [--entrees 1000000] [--json rapports\mesure_base.json]
+```
+
+Pour les essais, remplacer le champ `base` de la copie du fichier d'exemple par un chemin local de la machine (`D:\Copie\test\production.db`).
+
+### 4.1 Tests automatiques (fichier `tests/test_base.py`)
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J2-A01 | Création : schéma, `user_version`, mode WAL, `meta`, trace `initialisation` ; refus d'une base existante ; la base n'est **jamais** créée par `ouvrir` (aucun fichier laissé) | OK | |
+| J2-A02 | Refus : chemin `\\serveur\...`, lecteur réseau mappé (simulé), fichier qui n'est pas une base, base SQLite d'un autre logiciel, base d'un **autre environnement**, schéma plus récent que le moteur | OK | |
+| J2-A03 | Migration de schéma : réussie, manquante (refus), en échec au milieu (rien n'est modifié) | OK | |
+| J2-A04 | Réglages de connexion : `synchronous = FULL`, clés étrangères, attente de 30 s ; ouverture en lecture seule (écriture refusée) | OK | |
+| J2-A05 | Règles : synchronisation idempotente sans tenir compte de la casse, détection d'un changement de paramètres | OK | |
+| J2-A06 | Flag « en cours » : prise puis refus (sans exécution fantôme), deux règles indépendantes, fin d'exécution atomique, erreur mémorisée, **fin tardive d'un processus débloqué sans effet sur le nouveau**, libération d'un orphelin | OK | |
+| J2-A07 | Empreintes : 16 octets, stables, sensibles à chaque composant ; casse, `/` et `\`, accents composés ou décomposés équivalents ; genres V et C distincts ; nom Windows avec caractère isolé | OK | |
+| J2-A08 | Journal d'intention : cycle complet (copie, archivage), doublon refusé, transitions invalides refusées, orphelins → `INCERTAIN`, résolution d'un incertain (tracée, commentaire obligatoire), `vu_jour` au plus une fois par jour | OK | |
+| J2-A09 | Purge : seuls les `TERMINE` anciens sont supprimés, une fois par jour, règles hors liste intactes | OK | |
+| J2-A10 | Sauvegarde d'une base **en cours d'utilisation** : un seul fichier autonome, intègre, restauration par copie | OK | |
+| J2-A11 | **Concurrence (vrais processus)** : 8 processus visent la même règle → un seul gagnant ; 30 demandes sur 10 règles → 10 gagnants ; 4 processus écrivent 200 empreintes → aucune perdue, aucun « database is locked » ; base verrouillée → `BaseIndisponible` après le délai puis retour à la normale | OK | |
+| J2-A12 | **Arrêt brutal** (`os._exit` d'un processus) : transaction non validée disparue, intention validée conservée puis devenue `INCERTAIN` au lancement suivant, confirmation validée conservée | OK | |
+| J2-A13 | Recherche de 1 000 empreintes dans 100 000 entrées en moins de 2 s | OK | |
+| J2-A14 | Commandes `--initialiser-base`, `--sauvegarder-base` : codes retour, messages, paramétrage invalide, commandes exclusives entre elles | OK | |
+
+### 4.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J2-M01 | **Mesure de performance sur le serveur** | `outils\mesure_base.py --dossier D:\temp` (disque local, comme la vraie base) | Recherche de 2 000 empreintes < 0,3 s ; fichier d'environ 30 Mo. **Noter la ligne « une livraison (2 transactions) »** : PC = 71 ms en FULL, 0,6 ms en NORMAL. Si le serveur est au-dessus de 150 ms en FULL, le signaler (voir [03 §4.2 bis](03-base-de-donnees.md)) | |
+| J2-M02 | Création de la base avec le compte de service | Copier `exemples\production.jsonl`, mettre un `base` local, lancer `--initialiser-base` **avec le compte de service Jenkins** | Fichier créé, code 0 ; une seconde exécution refuse (code 2, « existe deja ») | |
+| J2-M03 | Droits : le compte de service n'a pas le droit d'écrire dans le dossier de la base | Retirer l'écriture sur le dossier puis lancer `--initialiser-base` | Refus clair, code 2, aucun fichier partiel | |
+| J2-M04 | Partage et lecteur réseau refusés | `base` en `\\SERVEUR\partage\x.db`, puis sur un lecteur réseau mappé (`net use Z: ...`) | Refus pour les deux (« disque local »), code 2. Le lecteur mappé doit être refusé avec le compte qui lance l'outil | |
+| J2-M05 | Sauvegarde pendant l'écriture | Dans une console, `mesure_base.py --entrees 200000` ; pendant l'exécution, dans une autre, lancer `--sauvegarder-base` sur une base de test en cours d'utilisation (ou sur `mesure.db` si le dossier est conservé) | Sauvegarde créée, sans erreur, un seul fichier `.db` ; aucune erreur dans la console de mesure | |
+| J2-M06 | Restauration | Arrêter les traitements, copier la sauvegarde à la place de la base, relancer la suite de tests J2 sur ce fichier ou ouvrir avec `python -c "from copie import base; b=base.ouvrir(r'D:\\...\\production.db'); print(b.meta('environnement'), b.verifier_integrite())"` | Environnement affiché, liste d'anomalies vide `[]` | |
+| J2-M07 | Antivirus et fichiers `-wal` / `-shm` | Lancer la suite complète deux fois ; surveiller `PermissionError`, `database is locked`, tests lents | Aucune erreur ; sinon demander l'exclusion du dossier de la base à l'équipe sécurité | |
+| J2-M08 | **Coupure de courant** (machine virtuelle de recette, optionnel mais recommandé) | Lancer `mesure_base.py --cycles 500`, puis mettre la VM hors tension brutalement (arrêt forcé sans arrêt du système). Relancer, ouvrir la base de mesure si elle subsiste (`--dossier` fixe, ne pas supprimer) | La base s'ouvre, `verifier_integrite()` vide ; au plus quelques derniers cycles manquants | |
+| J2-M09 | Disque plein (optionnel) | Base sur un petit volume (VHD de 20 Mo) rempli : lancer `mesure_base.py` | Erreur claire (`ErreurBase`/`disk is full`), base non corrompue (`verifier_integrite()` vide) | |
+
+## 5. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J2 Base | Concurrence multi-processus, arrêt brutal, performance sur 1 million d'entrées **sur le serveur** |
 | J3 Journal | Charge concurrente, lecture par Grafana Alloy, contrôle de la ligne JSON |
 | J4 Transfert | Pannes injectées, fichiers verrouillés par un vrai logiciel, droits NTFS, quotas, partages réels |
 | J5 Planification | Horloge simulée, changement d'heure, reprise et acquittement |

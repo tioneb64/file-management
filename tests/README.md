@@ -7,7 +7,9 @@
 | `outils/lancer_tests.ps1` | Lance tous les tests avec le Python choisi ; un avertissement de dépréciation fait échouer. |
 | `outils/controle_serveur.py` | À exécuter **sur le serveur de recette** avec Python 3.14 : vérifie SQLite (WAL, écritures concurrentes), espace disque, verrous, Job Object, remplacement atomique, partage réseau. |
 | `tests/test_parametrage.py` | J1 : lecture et validation du paramétrage, un groupe de tests par code (E, R, P, D, G) et la ligne de commande. |
-| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `__main__.py` (`python -m copie --verifier`). |
+| `tests/test_base.py`, `tests/travailleurs.py` | J2 : base SQLite (schéma, flag atomique, journal d'intention, purge, sauvegarde) ; les tests de concurrence lancent de vrais processus séparés (`multiprocessing` n'est pas utilisable avec `python -m unittest`). |
+| `outils/mesure_base.py` | Mesure sur le serveur : recherche dans un million d'empreintes, taille de la base, coût d'une transaction durable. |
+| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `__main__.py` (`python -m copie --verifier / --initialiser-base / --sauvegarder-base`). |
 | `exemples/` | Fichiers de paramétrage d'essai : `production.jsonl` (valide) et `invalide/production.jsonl` (6 refus). |
 
 ```powershell

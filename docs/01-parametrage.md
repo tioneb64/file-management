@@ -326,7 +326,7 @@ Le résultat est disponible en texte et en JSON (`--format json`) :
 - **G01** couvre tout le contenu d'un programme : `commande` qui n'est pas un tableau non vide de textes non vides (par exemple une simple chaîne), variable inconnue, `timeout_sec` absent, non entier ou ≤ 0. Les champs inconnus d'un programme restent en E06.
 - **Types (E06)** : un booléen n'est pas accepté comme entier, `60.0` n'est pas un entier, un champ présent deux fois sur une ligne est refusé, `NaN` et `Infinity` sont refusés.
 - **Champ absent dans `planification`** : `type` absent est un R01 ; les autres champs requis d'un type sont des P01.
-- **E05** détecte les chemins `\\serveur\...` et `//serveur/...`. Une lettre de lecteur réseau mappé ne peut pas être reconnue sans accéder au disque : ce sera le contrôle d'accès A05.
+- **E05** détecte les chemins `\\serveur\...` et `//serveur/...`. Un lecteur réseau mappé (`Z:`) ne peut pas être reconnu sans interroger Windows : il est refusé par `--initialiser-base` et à l'ouverture de la base (jalon J2), et sera aussi signalé par le contrôle d'accès A05.
 - **R09** : somme, sur toutes les situations (valeurs de secours comprises), de `(tentatives - 1) × delai_sec`.
 - **D04 / D05** : D04 compare `debut` ou `heure` pour les jours communs aux deux règles ; une règle `quotidien` compte pour 86 400 s dans D05 ; une règle `apres_dependances` n'est comparée à rien.
 - **Hors de `--syntaxe-seule`** (non réalisé en J1) : contrôles d'accès A01–A07 (jalon J8) et comparaison avec la version précédente V01–V04 (front-end).

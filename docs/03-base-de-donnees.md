@@ -23,7 +23,7 @@ L'historique détaillé fichier par fichier est dans les **journaux** (Grafana),
 | `synchronous` | `FULL` | Le journal d'intention doit survivre à une coupure de courant |
 | `busy_timeout` | 30 000 ms | Attente si un autre processus écrit |
 | `foreign_keys` | `ON` | |
-| Disque | **Local** | SQLite en WAL n'est pas fiable sur un partage réseau |
+| Disque | **Local** | SQLite en WAL n'est pas fiable sur un partage réseau. Le moteur refuse un chemin `\\serveur\partage\...` **et** un lecteur réseau mappé (`GetDriveTypeW`), à la création comme à l'ouverture |
 
 Une connexion par processus. Transactions courtes. Les écritures utilisent `BEGIN IMMEDIATE`. Si la base reste verrouillée au-delà d'un nombre borné de tentatives : événement `base_indisponible` et arrêt de l'exécution.
 
@@ -164,7 +164,15 @@ Mesures sur un poste de développement (Python 3.12, SQLite 3.45 ; à refaire en
 | **SQLite, clé hachée** | **0,15 s** | **0,13 s** |
 | SQLite, trois colonnes (nom, taille, date) | 0,11 s | 0,17 s |
 
+**Mesure du jalon J2** (poste de développement Windows 10, Python 3.14.10, SQLite 3.50.4, `outils/mesure_base.py`) : un million d'entrées dans `fichiers` = fichier de **29,7 Mo** ; 2 000 recherches (1 000 trouvées, 1 000 absentes) en **0,05 s**. À refaire sur le serveur (cahier de tests J2-M01).
+
 Taille de la base pour un million d'entrées : environ 24 Mo avec la seule clé, 50 Mo avec trois colonnes. La clé hachée divise donc la taille par deux. Avec les colonnes supplémentaires de `fichiers` (règle, état, jour, date), compter 35 à 45 Mo par million de fichiers.
+
+### 4.2 bis Coût d'une transaction durable
+
+Avec `synchronous = FULL`, chaque validation attend l'écriture physique sur le disque. Mesuré sur le poste de développement : **environ 36 ms par transaction**, soit **71 ms par livraison** (transactions A et B) et environ 107 ms avec la transaction C. Avec `synchronous = NORMAL` : 0,6 ms. Pour 1 000 fichiers livrés dans un même lancement, la base représente donc 1 à 2 minutes sur ce poste en FULL.
+
+Ce coût dépend du disque (cache d'écriture du contrôleur, SSD) ; il doit être mesuré sur le serveur (J2-M01). Si ce coût était gênant, la seule transaction qui doit absolument être durable est la **A** (intention, avant la copie) : la perte de B ou de C après une coupure de courant donnerait un fichier `INCERTAIN` (sans doublon, avec décision d'exploitation), jamais un fichier relivré. Cette optimisation n'est **pas** faite : elle sera décidée avec les mesures du serveur.
 
 ### 4.3 États d'un fichier
 
@@ -243,6 +251,8 @@ Les timestamps sont en secondes UTC ; le front-end les convertit pour l'affichag
 **Perte de la base** : le moteur refuse de démarrer sur une base absente (G6) et il faut une action volontaire (`--initialiser-base`). En mode `copie`, une base neuve ferait relivrer tous les fichiers encore présents dans les sources : c'est la raison de la sauvegarde quotidienne. La restauration se fait par copie de la dernière sauvegarde.
 
 ## 8. Initialisation et migration
+
+Réalisé au jalon J2 : `python -m copie --config FICHIER --initialiser-base [--utilisateur U]` et `--sauvegarder-base DOSSIER`. Le fichier de sauvegarde s'appelle `<environnement>_AAAAMMJJ_HHMMSS.db`, il est vérifié (`integrity_check`) avant d'être mis en place et ne dépend d'aucun fichier `-wal`. La restauration est une copie du fichier à la place de la base, moteur arrêté. Le moteur refuse d'ouvrir la base d'un autre environnement (`meta.environnement`) ou un fichier qui n'est pas une base de ce programme.
 
 - `--initialiser-base` : crée le fichier, le schéma, la ligne `meta` (environnement). Refuse si la base existe déjà.
 - `--migrer-ancien copies.conf copies.historique.json` : convertit chaque ligne de l'ancien paramétrage en règle (`mode = copie`, `si_cible_absente = recopier` pour conserver le comportement actuel) et importe l'historique : l'ancien historique contient source, cible, taille et `mtime_ns`, donc l'empreinte de version peut être recalculée et les fichiers déjà copiés ne sont pas relivrés. Chaque import est tracé dans `journal_actions`.
