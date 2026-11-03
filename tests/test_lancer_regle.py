@@ -129,10 +129,10 @@ class TestLancerRegle(CasTemporaire):
         self.assertEqual(code, 2)
         self.assertIn("R06", erreur)
 
-    def test_simulation_seule_refusee(self):
+    def test_simulation_refusee_avec_une_autre_commande(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
-                cli.main(["--config", self.conf, "--simulation"])
+                cli.main(["--config", self.conf, "--verifier", "--simulation"])
 
 
 if __name__ == "__main__":

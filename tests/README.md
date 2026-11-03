@@ -9,11 +9,12 @@
 | `tests/test_parametrage.py` | J1 : lecture et validation du paramétrage, un groupe de tests par code (E, R, P, D, G) et la ligne de commande. |
 | `tests/test_base.py`, `tests/travailleurs.py` | J2 : base SQLite (schéma, flag atomique, journal d'intention, purge, sauvegarde) ; les tests de concurrence lancent de vrais processus séparés (`multiprocessing` n'est pas utilisable avec `python -m unittest`). |
 | `tests/test_chemins_selection.py`, `tests/test_moteur.py`, `tests/test_lancer_regle.py` | J4 : chemins et noms, sélection, copie vérifiée, exécution d'une règle (copie, déplacement, archivage, archive dégradée, espace disque, situations, arrêts brutaux, simulation) et commande `--lancer-regle`. Utilisent de vrais fichiers, de vrais verrous Windows et des pannes injectées. |
+| `tests/test_planification.py`, `tests/test_lancement.py` | J5 : creneaux, regle due, rattrapage et changement d'heure (horloge simulee, fuseau fictif), lancement sequentiel, orphelins, reprise, acquittement, `--etat` et ligne de commande. |
 | `outils/mesure_transfert.py` | Mesure sur le serveur : débit de livraison (copie, déplacement, relance), cible locale ou réseau. |
 | `tests/test_journal.py` | J3 : module `journal_si.py` (format, fichiers, pannes, charge entre processus). |
 | `outils/charge_journal.py` | Test de charge du journal sur le serveur : 8 processus × 10 000 lignes dans un même fichier. |
 | `outils/mesure_base.py` | Mesure sur le serveur : recherche dans un million d'empreintes, taille de la base, coût d'une transaction durable. |
-| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `selection.py`, `chemins.py`, `transfert.py`, `execution.py` (transfert d'une règle), `__main__.py` (`python -m copie --verifier / --initialiser-base / --sauvegarder-base / --lancer-regle`). |
+| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `selection.py`, `chemins.py`, `transfert.py`, `execution.py` (transfert d'une règle), `planification.py`, `lancement.py`, `processus.py`, `__main__.py` (`python -m copie --verifier / --initialiser-base / --sauvegarder-base / --lancer-regle`). |
 | `exemples/` | Fichiers d'essai : paramétrage `production.jsonl` (valide) et `invalide/production.jsonl` (6 refus), sortie du journal `journal/`, configuration `alloy/` (non testée). |
 
 ```powershell

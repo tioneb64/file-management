@@ -105,6 +105,23 @@ Les calculs se font en **heure locale** du serveur d'exécution ; les résultats
 6. **`apres_erreur = arreter`** : après une `ERREUR`, aucun créneau n'est pris tant que la règle n'a pas reçu une reprise ou un acquittement.
 7. **Changement d'heure** : un créneau situé dans l'heure supprimée au passage à l'heure d'été est exécuté à l'instant qui suit ; une heure répétée à l'automne ne donne qu'une exécution. Cas à couvrir par des tests.
 
+### 4.1 Précisions apportées par l'implémentation (J5)
+
+Code : `copie/planification.py` (calcul pur, horloge injectée), `copie/lancement.py` (lancement séquentiel, état), `copie/processus.py`.
+
+- **Sans commande**, `python -m copie --config FICHIER [--regle ID] [--simulation]` est un **lancement** : il synchronise les règles avec la base, libère les exécutions orphelines, évalue chaque règle dans l'ordre du fichier et exécute les règles dues **l'une après l'autre dans ce processus**. Le parallélisme (un processus par règle) et la durée maximale arrivent au jalon J6. Code retour : 0, 4 si au moins un `WARNING`, 1 si au moins une `ERREUR`, 2 si la base est inutilisable.
+- **Dépendances** : tant que le jalon J6 n'est pas fait, une règle qui a un champ `apres` n'est **pas lancée** quand elle est due : événement `regle_non_lancee` (WARNING) et code retour 4. Les règles sans dépendance fonctionnent normalement.
+- **Créneau pris** : l'exécution enregistre le créneau qu'elle prend au moment où elle prend le drapeau (même transaction). Une reprise ou un lancement manuel prend aussi le dernier créneau échu, pour que la règle ne reparte pas aussitôt.
+- **Règle nouvelle** (jamais lancée, `dernier_creneau` vide) : son dernier créneau échu est considéré comme pris au premier lancement qui la voit ; elle démarre au créneau suivant. `--lancer-maintenant` la démarre tout de suite (la règle est enregistrée en base par la commande).
+- **Changement d'heure** : les créneaux sont des heures murales du serveur. Heure supprimée (printemps) : exécution à l'instant qui suit. Heure répétée (automne) : une seule exécution, à la première occurrence. Une règle horaire (00:00 à 23:00) s'exécute 24 fois un jour normal, 23 fois au printemps et 24 fois à l'automne ; une règle toutes les 5 minutes, 288 fois à l'automne (testé avec un fuseau fictif, indépendant du poste).
+- **Orphelins** : une règle dont le drapeau « en cours » est posé par un processus disparu (identifiant **et** date de création, même serveur) est libérée au lancement suivant : exécution `ARRETEE`, règle en `ERREUR`, situation `arret_anormal`, arrêt après erreur si `apres_erreur = arreter`. Un processus vivant, ou d'un autre serveur, n'est jamais touché. Le cas d'une exécution vivante mais trop longue (arrêt de l'arbre de processus) arrive au jalon J6.
+- **Commandes d'exploitation** (`--utilisateur` obligatoire, toutes tracées dans `journal_actions` et dans le journal) :
+  - `--reprise ID` et `--lancer-maintenant ID` : refusées si la règle est en cours ; consommées au démarrage de l'exécution suivante (elles remettent aussi à zéro l'arrêt après erreur).
+  - `--acquitter ID` : règle en `ERREUR` seulement, **commentaire obligatoire**, statut `ACQUITTEE`, pas de nouvelle exécution. **Refusé tant que des livraisons de résultat inconnu existent** : il faut d'abord les trancher.
+  - `--trancher-incertain CLE --decision livre|a_relivrer --commentaire …` : décision sur une livraison de résultat inconnu (§6.3). La clé est donnée par `--etat` (compteur) et par la commande Python du cahier de tests ; elle sera listée par le front-end.
+- **`--etat [--regle ID] [--format json]`** : lecture seule de la base, aucune écriture. Une règle absente de la base est `JAMAIS_LANCEE`. Statut affiché : `INACTIVE`, `EN_COURS`, `EN_ATTENTE`/`BLOQUEE` (jalon J6), sinon le dernier statut. Champs ajoutés au JSON du §6 de la base : `planification` (en clair), `lancement_manuel`, `arret_apres_erreur`, `livraisons_incertaines`, `orphelines`.
+- **Horloge de la base** : toutes les dates de la base sont en secondes UTC prises sur l'horloge du serveur ; la planification, elle, compare des heures murales locales.
+
 ## 5. Exécution d'une règle
 
 Dans le processus fils :

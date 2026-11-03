@@ -265,11 +265,63 @@ Codes retour de `--lancer-regle` : 0 succès, 4 avertissement, 1 erreur, 2 param
 | J4-M15 | Dates de modification d'un autre serveur | Source dont l'horloge avance de plus d'une minute | `fichier_date_future` (WARNING), fichier ignoré | |
 | J4-M16 | Journaux dans Grafana | Après une exécution réelle, consulter les événements `regle_demarree`, `selection`, `fichier_livre`, `regle_terminee` dans Loki | Événements présents et lisibles, libellés corrects | |
 
-## 7. Jalons suivants
+## 7. Jalon J5 — Planification, reprise et état
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 375 tests au total (307 précédents + 68 de J5), tous OK en 4 min 41 s.
+
+La planification est vérifiée avec une **horloge simulée** et un **fuseau fictif (France 2026)** : les tests de changement d'heure donnent le même résultat quel que soit le fuseau du poste. Les tests manuels sur le serveur contrôlent le comportement avec la vraie horloge et le vrai fuseau.
+
+Commandes (provisoires, le lanceur `copie_fichiers.py` reste la v1) :
+
+```powershell
+# lancement de l'environnement : exécute les règles dues, l'une après l'autre
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --simulation [--regle export_clients]
+# état des règles
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --etat [--regle ID] [--format json]
+# exploitation (--utilisateur obligatoire)
+C:\Python314\python.exe -m copie --config ... --reprise ID --utilisateur DOMAINE\benoit --commentaire "source rétablie"
+C:\Python314\python.exe -m copie --config ... --lancer-maintenant ID --utilisateur DOMAINE\benoit
+C:\Python314\python.exe -m copie --config ... --acquitter ID --utilisateur DOMAINE\benoit --commentaire "traité à la main"
+C:\Python314\python.exe -m copie --config ... --trancher-incertain CLE_HEXA --decision a_relivrer --utilisateur DOMAINE\benoit --commentaire "absent de la cible"
+```
+
+### 7.1 Tests automatiques
+
+| ID | Fichier | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|---|
+| J5-A01 | `test_planification.py` | Créneaux : quotidien, intervalle (fin incluse, fin hors pas), jours autorisés, week-end sauté, règle hebdomadaire, dernier créneau échu, prochain créneau, règle sans créneau, libellés en clair | OK | |
+| J5-A02 | `test_planification.py` | Règle due : inactive, nouvelle (créneau considéré pris), en cours, créneau échu / pas encore / déjà pris, reprise et lancement manuel hors créneau, arrêt après erreur, `apres_dependances`, rattrapage (borne exacte à 4 h), validité jusqu'au créneau suivant | OK | |
+| J5-A03 | `test_planification.py` | **Lancements simulés** : 169 exécutions pour une règle toutes les 5 min de 05:00 à 19:00 ; déclencheur irrégulier (aucun double) ; Jenkins arrêté 2 h → **une seule** exécution au retour ; quotidien avec et sans rattrapage ; week-end | OK | |
+| J5-A04 | `test_planification.py` | **Changement d'heure** (fuseau fictif) : heure supprimée → exécution à l'instant suivant ; heure répétée → une seule exécution ; règle horaire : 24 exécutions un jour normal, **23 au printemps, 24 à l'automne** ; règle toutes les 5 min : 288 à l'automne | OK | |
+| J5-A05 | `test_lancement.py` | Lancement séquentiel : règle nouvelle puis créneau, créneau pris en base, ordre des règles et filtre, code retour selon le pire événement, règles avec dépendances non lancées (avertissement), règle orpheline ou modifiée, base indisponible, simulation sans écriture | OK | |
+| J5-A06 | `test_lancement.py` | **Orphelins** : processus disparu libéré (ERREUR, arrêt anormal), `apres_erreur = continuer`, processus vivant intact, identifiant réutilisé avec autre date de création, autre serveur intact | OK | |
+| J5-A07 | `test_lancement.py` | **Reprise** : plus aucun créneau pris après erreur, reprise hors créneau, drapeaux consommés, trace dans `journal_actions`, reprise en échec → nouvelle reprise, lancement manuel, refus si en cours ou règle inconnue, reprise après décision sur une livraison incertaine | OK | |
+| J5-A08 | `test_lancement.py` | **Acquittement** : statut `ACQUITTEE`, trace, la règle repart au créneau suivant, commentaire obligatoire, seulement en `ERREUR`, refusé tant que des livraisons sont incertaines, refusé si en cours | OK | |
+| J5-A09 | `test_lancement.py` | **`--etat`** : règle jamais vue, statuts (SUCCES, ERREUR, INACTIVE, EN_COURS), détails, archive dégradée et actions en attente, orphelines et filtre, rendu texte, aucune écriture en base | OK | |
+| J5-A10 | `test_lancement.py` | **Ligne de commande** de bout en bout : initialisation, lancement, `--lancer-maintenant`, état JSON, reprise, acquittement avec et sans commentaire, `--utilisateur` obligatoire, règle inconnue, décision incertaine, base absente, simulation de lancement | OK | |
+
+### 7.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J5-M01 | **Règle toutes les 5 minutes avec Jenkins** | Job de recette `python -m copie --config ...` toutes les 5 min, règle `intervalle` 300 s, dépôt d'un fichier toutes les 10 min | Une exécution par créneau, jamais deux ; les fichiers sont livrés au créneau qui suit leur arrivée | |
+| J5-M02 | Jenkins arrêté puis relancé | Arrêter le job 30 min, le relancer | La règle part **une seule fois** au retour, pas une fois par créneau manqué | |
+| J5-M03 | Règle quotidienne et rattrapage | Règle `quotidien` à H+10 min avec `rattrapage_sec = 300`, job arrêté pendant l'heure du créneau | Pas de lancement tardif au-delà du rattrapage ; sans rattrapage, lancement tardif | |
+| J5-M04 | **Fuseau et heure du serveur** | Règle `quotidien` à 5 min dans le futur, comparer avec `Get-TimeZone` et `w32tm /query /status` | Elle part à l'heure locale attendue ; noter le fuseau du serveur | |
+| J5-M05 | **Changement d'heure réel** (VM de recette) | Avancer l'horloge de la VM autour du 29 mars et du 25 octobre avec une règle horaire | 23 exécutions au printemps, 24 à l'automne, aucun doublon pendant l'heure répétée | |
+| J5-M06 | Erreur, arrêt, reprise | Règle dont la source est absente → ERREUR ; rétablir la source ; attendre un créneau (rien ne part) ; `--reprise` | Rien ne part sans reprise ; la reprise exécute la règle immédiatement ; statut `SUCCES` | |
+| J5-M07 | Acquittement | Règle en ERREUR, régler à la main, `--acquitter` sans puis avec commentaire | Refus sans commentaire ; avec : statut `ACQUITTEE`, la règle repart au créneau suivant, trace dans `--etat` | |
+| J5-M08 | **Processus tué** | Lancer une règle sur de gros fichiers, tuer `python.exe` (`taskkill /F`), relancer le job | Règle libérée (`arret_anormal`, ERREUR), livraison incertaine ou reconnue livrée, aucun doublon ; `--etat` l'affiche | |
+| J5-M09 | Deux lancements simultanés | Lancer deux fois la commande en même temps sur la même règle | Une seule exécution de la règle ; l'autre lancement l'ignore sans erreur | |
+| J5-M10 | `--etat` depuis le front-end | `Invoke-Command ... -- --etat --format json` depuis un autre poste, `ConvertFrom-Json` | JSON lisible, accents corrects, dates en secondes UTC | |
+| J5-M11 | Règle avec dépendances | Règle avec `apres` : lancement | `regle_non_lancee` (WARNING), code retour 4, rien n'est exécuté (comportement provisoire jusqu'au jalon J6) | |
+| J5-M12 | Compte de service Jenkins | Rejouer J5-M01 et J5-M06 avec le compte de service | Mêmes résultats ; la base, les journaux et le dossier de travail sont accessibles en écriture | |
+
+## 8. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J5 Planification | Horloge simulée, changement d'heure, reprise et acquittement |
 | J6 à J12 | Arrêt d'arbre de processus, dépendances, Jenkins, front-end, migration, recette |

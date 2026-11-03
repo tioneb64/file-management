@@ -7,10 +7,11 @@ branches au jalon J7). Une instance de ExecutionRegle traite UNE regle dans UN p
 import datetime
 import hashlib
 import os
+import socket
 import time
 
 from copie import base as modele_base
-from copie import chemins, selection, transfert
+from copie import chemins, processus, selection, transfert
 from copie.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
@@ -676,10 +677,16 @@ class RegleDejaEnCours(Exception):
     pass
 
 
+def nom_hote():
+    return os.environ.get("COMPUTERNAME") or socket.gethostname()
+
+
 def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=False,
-                 maintenant=None, dormir=time.sleep, build=None):
+                 maintenant=None, dormir=time.sleep, build=None, creneau=None):
     """Prend le flag de la regle, l'execute, libere le flag. Renvoie le Bilan.
-    En simulation : aucune ecriture en base (ouverte en lecture seule), pas de flag."""
+    `declencheur` : planifie | reprise | manuel | dependance ; `creneau` : creneau pris par cette
+    execution (secondes). En simulation : aucune ecriture en base (ouverte en lecture seule),
+    pas de flag."""
     no = base.numero_regle(regle.id)
     if no is None and simulation:
         no = -1                       # regle jamais vue en base : aucune ligne ne correspond
@@ -687,11 +694,14 @@ def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=
         raise modele_base.ErreurBase("regle inconnue de la base : %s (synchroniser d'abord)" % regle.id)
     execution_id = None
     if not simulation:
-        execution_id = base.demarrer_execution(no, declencheur, os.getpid(), hote=os.environ.get("COMPUTERNAME"),
-                                               build=build)
+        execution_id = base.demarrer_execution(no, declencheur, os.getpid(),
+                                               pid_cree_le=processus.date_creation(os.getpid()),
+                                               hote=nom_hote(), build=build, creneau=creneau)
         if execution_id is None:
             raise RegleDejaEnCours(regle.id)
     journal.definir(regle=regle.id, execution_id=execution_id)
+    if declencheur == "reprise":
+        journal.evenement("reprise_demarree", "INFO", message="execution lancee par une reprise")
     journal.evenement("regle_demarree", "INFO", declencheur=declencheur,
                       **({"simulation": True} if simulation else {}))
     debut = time.time()

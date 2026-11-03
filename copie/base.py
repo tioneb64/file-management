@@ -52,6 +52,10 @@ class BaseSurReseau(ErreurBase):
     """SQLite en mode WAL n'est pas fiable sur un partage reseau."""
 
 
+class ActionRefusee(ErreurBase):
+    """Commande d'exploitation impossible dans l'etat actuel de la regle."""
+
+
 class TransitionInvalide(ErreurBase):
     """Changement d'etat d'un fichier qui ne respecte pas le cycle INTENTION > LIVRE > TERMINE."""
 
@@ -263,8 +267,8 @@ class Base(object):
             raise ErreurBase("base ouverte en lecture seule")
         try:
             self.c.execute("BEGIN IMMEDIATE")
-        except sqlite3.OperationalError as e:
-            if _est_verrouillee(e):
+        except sqlite3.Error as e:
+            if isinstance(e, sqlite3.OperationalError) and _est_verrouillee(e):
                 raise BaseIndisponible("base verrouillee : %s" % e)
             raise ErreurBase("transaction impossible : %s" % e)
         try:
@@ -327,9 +331,11 @@ class Base(object):
 
     # ----- flag « en cours » et executions (docs/03, sections 5.1 et 5.2) ---- #
     def demarrer_execution(self, regle_no, declencheur, pid, pid_cree_le=None, hote=None,
-                           build=None, simulation=False):
-        """Prend le flag de la regle et cree l'execution, dans une seule transaction.
-        Renvoie l'id de l'execution, ou None si un autre lancement a deja pris la regle."""
+                           build=None, simulation=False, creneau=None):
+        """Prend le flag de la regle et cree l'execution, dans une seule transaction. Le creneau
+        pris par cette execution est memorise ; les demandes de reprise ou de lancement manuel et
+        l'arret apres erreur sont consommes. Renvoie l'id de l'execution, ou None si un autre
+        lancement a deja pris la regle."""
         maintenant = self.maintenant()
         try:
             with self.transaction() as c:
@@ -340,9 +346,12 @@ class Base(object):
                 execution_id = cur.lastrowid
                 cur = c.execute(
                     "UPDATE regles SET en_cours = 1, execution_id = ?, pid = ?, pid_cree_le = ?, "
-                    "hote = ?, build = ?, debut_traitement = ?, dernier_lancement = ? "
+                    "hote = ?, build = ?, debut_traitement = ?, dernier_lancement = ?, "
+                    "dernier_creneau = COALESCE(?, dernier_creneau), reprise = 0, "
+                    "lancement_manuel = 0, arret_apres_erreur = 0 "
                     "WHERE no = ? AND en_cours = 0",
-                    (execution_id, pid, pid_cree_le, hote, build, maintenant, maintenant, regle_no))
+                    (execution_id, pid, pid_cree_le, hote, build, maintenant, maintenant, creneau,
+                     regle_no))
                 if cur.rowcount != 1:
                     raise _Annuler()
         except _Annuler:
@@ -385,9 +394,11 @@ class Base(object):
                  int(bool(arret_apres_erreur)), regle_no, execution_id))
             return cur.rowcount == 1
 
-    def liberer_flag(self, regle_no, motif):
+    def liberer_flag(self, regle_no, motif, statut_regle="ARRETEE", erreur=None,
+                     arret_apres_erreur=False):
         """Libere une regle dont le processus a disparu ou qu'on debloque : l'execution est
-        marquee ARRETEE. Renvoie True si un flag a ete libere."""
+        marquee ARRETEE. `statut_regle` : statut memorise sur la regle ; `erreur` : {"situation",
+        "message"} memorise comme derniere erreur. Renvoie True si un flag a ete libere."""
         maintenant = self.maintenant()
         with self.transaction() as c:
             ligne = c.execute("SELECT en_cours, execution_id FROM regles WHERE no = ?",
@@ -398,10 +409,92 @@ class Base(object):
                 c.execute("UPDATE executions SET fin = ?, statut = 'ARRETEE', message = ? "
                           "WHERE id = ? AND fin IS NULL", (maintenant, motif, ligne["execution_id"]))
             c.execute("UPDATE regles SET en_cours = 0, execution_id = NULL, pid = NULL, "
-                      "pid_cree_le = NULL, dernier_fin = ?, dernier_statut = 'ARRETEE', "
-                      "dernier_statut_le = ?, dernier_motif = ? WHERE no = ?",
-                      (maintenant, maintenant, motif, regle_no))
+                      "pid_cree_le = NULL, dernier_fin = ?, dernier_statut = ?, "
+                      "dernier_statut_le = ?, dernier_motif = ?, arret_apres_erreur = ? WHERE no = ?",
+                      (maintenant, statut_regle, maintenant, motif, int(bool(arret_apres_erreur)), regle_no))
+            if erreur:
+                c.execute("UPDATE regles SET derniere_erreur_le = ?, derniere_erreur_situation = ?, "
+                          "derniere_erreur_message = ? WHERE no = ?",
+                          (maintenant, erreur.get("situation"), erreur.get("message"), regle_no))
             return True
+
+    # ----- planification et commandes d'exploitation (docs/02, sections 4 et 10) ---- #
+    def definir_creneau(self, regle_no, creneau):
+        """Considere un creneau comme deja pris (regle nouvelle)."""
+        with self.transaction() as c:
+            c.execute("UPDATE regles SET dernier_creneau = ? WHERE no = ? AND dernier_creneau IS NULL",
+                      (creneau, regle_no))
+
+    def toutes_les_regles(self):
+        return [dict(l) for l in self.c.execute("SELECT * FROM regles ORDER BY no").fetchall()]
+
+    def derniere_execution(self, regle_no):
+        ligne = self.c.execute("SELECT * FROM executions WHERE regle_no = ? ORDER BY id DESC LIMIT 1",
+                               (regle_no,)).fetchone()
+        return dict(ligne) if ligne else None
+
+    def nb_actions(self, regle_no):
+        return self.c.execute("SELECT COUNT(*) FROM actions_en_attente WHERE regle_no = ? "
+                              "AND type != 'livraison'", (regle_no,)).fetchone()[0]
+
+    def nb_incertains(self, regle_no):
+        return self.c.execute("SELECT COUNT(*) FROM fichiers WHERE regle_no = ? AND etat = ?",
+                              (regle_no, INCERTAIN)).fetchone()[0]
+
+    def _regle_pour_action(self, c, ident):
+        ligne = c.execute("SELECT * FROM regles WHERE id = ?", (ident,)).fetchone()
+        if ligne is None:
+            raise ActionRefusee("regle inconnue de la base : %s" % ident)
+        return ligne
+
+    def _tracer(self, c, regle_no, action, utilisateur, commentaire, resultat):
+        c.execute("INSERT INTO journal_actions(regle_no, action, utilisateur, commentaire, "
+                  "demandee_le, resultat) VALUES (?, ?, ?, ?, ?, ?)",
+                  (regle_no, action, utilisateur, commentaire, self.maintenant(), resultat))
+
+    def poser_reprise(self, ident, utilisateur, commentaire=None):
+        """--reprise : la regle repart au prochain lancement, quelle que soit l'heure."""
+        with self.transaction() as c:
+            r = self._regle_pour_action(c, ident)
+            if r["en_cours"]:
+                raise ActionRefusee("la regle %s est en cours d'execution" % ident)
+            c.execute("UPDATE regles SET reprise = 1, reprise_par = ?, reprise_le = ? WHERE no = ?",
+                      (utilisateur, self.maintenant(), r["no"]))
+            self._tracer(c, r["no"], "reprise", utilisateur, commentaire, "demandee")
+            return r["no"]
+
+    def poser_lancement_manuel(self, ident, utilisateur, commentaire=None):
+        """--lancer-maintenant : comme la reprise, sans programme de reprise."""
+        with self.transaction() as c:
+            r = self._regle_pour_action(c, ident)
+            if r["en_cours"]:
+                raise ActionRefusee("la regle %s est en cours d'execution" % ident)
+            c.execute("UPDATE regles SET lancement_manuel = 1 WHERE no = ?", (r["no"],))
+            self._tracer(c, r["no"], "lancer_maintenant", utilisateur, commentaire, "demande")
+            return r["no"]
+
+    def acquitter(self, ident, utilisateur, commentaire):
+        """--acquitter : la regle en ERREUR est consideree comme corrigee, sans etre relancee."""
+        if not commentaire or not commentaire.strip():
+            raise ActionRefusee("un commentaire est obligatoire pour acquitter")
+        with self.transaction() as c:
+            r = self._regle_pour_action(c, ident)
+            if r["en_cours"]:
+                raise ActionRefusee("la regle %s est en cours d'execution" % ident)
+            if r["dernier_statut"] != "ERREUR":
+                raise ActionRefusee("la regle %s n'est pas en ERREUR (statut : %s)"
+                                    % (ident, r["dernier_statut"]))
+            n = c.execute("SELECT COUNT(*) FROM fichiers WHERE regle_no = ? AND etat = ?",
+                          (r["no"], INCERTAIN)).fetchone()[0]
+            if n:
+                raise ActionRefusee("%d livraison(s) de resultat inconnu doivent d'abord etre tranchees "
+                                    "(livre ou a_relivrer)" % n)
+            maintenant = self.maintenant()
+            c.execute("UPDATE regles SET dernier_statut = 'ACQUITTEE', dernier_statut_le = ?, "
+                      "dernier_motif = ?, arret_apres_erreur = 0 WHERE no = ?",
+                      (maintenant, "acquittee par %s : %s" % (utilisateur, commentaire), r["no"]))
+            self._tracer(c, r["no"], "acquittement", utilisateur, commentaire, "ok")
+            return r["no"]
 
     # ----- fichiers : journal d'intention (docs/03, section 5.3) ------------- #
     def etat_fichier(self, cle):
