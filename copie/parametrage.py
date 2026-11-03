@@ -130,6 +130,7 @@ class Programme(object):
 class Regle(object):
     def __init__(self, ligne):
         self.ligne = ligne
+        self.brut = ""
         self.id = None
         self.description = ""
         self.actif = True
@@ -602,7 +603,9 @@ def charger(chemin, rapport=None):
             if p.entete is None:
                 return None, rapport
         else:
-            p.regles.append(lire_regle(objet, numero, rapport))
+            regle = lire_regle(objet, numero, rapport)
+            regle.brut = ligne
+            p.regles.append(regle)
 
     if p.entete is None:
         rapport.signaler("E01", "le fichier est vide : l'en-tete est obligatoire")

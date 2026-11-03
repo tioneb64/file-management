@@ -479,6 +479,46 @@ class Base(object):
             "WHERE f.regle_no = ? AND f.etat = ? ORDER BY f.cle", (regle_no, INCERTAIN)).fetchall()
         return [(l["cle"], l["chemin_source"], l["chemin_cible"]) for l in lignes]
 
+    def intentions(self, regle_no):
+        """Livraisons restees a l'etat INTENTION (execution morte en cours de copie), avec les
+        informations notees avant la copie."""
+        lignes = self.c.execute(
+            "SELECT f.cle, a.chemin_source, a.chemin_cible, a.chemin_archive, a.taille, a.mtime_ns, "
+            "a.sha256 FROM fichiers f LEFT JOIN actions_en_attente a ON a.cle = f.cle "
+            "WHERE f.regle_no = ? AND f.etat = ? ORDER BY a.id", (regle_no, INTENTION)).fetchall()
+        return [dict(l) for l in lignes]
+
+    def marquer_incertain(self, cle):
+        with self.transaction() as c:
+            return c.execute("UPDATE fichiers SET etat = ? WHERE cle = ? AND etat = ?",
+                             (INCERTAIN, cle, INTENTION)).rowcount == 1
+
+    def oublier_fichier(self, cle, etats=(INTENTION,)):
+        """Efface la trace d'un fichier (et de son action) : il sera traite comme nouveau.
+        Par defaut seulement une INTENTION dont on SAIT que la copie n'a pas eu lieu."""
+        with self.transaction() as c:
+            marques = ",".join("?" * len(etats))
+            n = c.execute("DELETE FROM fichiers WHERE cle = ? AND etat IN (%s)" % marques,
+                          (cle,) + tuple(etats)).rowcount
+            if n:
+                c.execute("DELETE FROM actions_en_attente WHERE cle = ?", (cle,))
+            return n == 1
+
+    def ajouter_termine(self, regle_no, cle):
+        """Marque une version comme traitee (identite = contenu : evite de relire le fichier)."""
+        maintenant = self.maintenant()
+        with self.transaction() as c:
+            c.execute("INSERT OR IGNORE INTO fichiers(cle, regle_no, etat, vu_jour, livre_le) "
+                      "VALUES (?, ?, ?, ?, ?)", (cle, regle_no, TERMINE, jour_de(maintenant), maintenant))
+
+    def definir_archivage_degrade(self, regle_no, degrade):
+        with self.transaction() as c:
+            c.execute("UPDATE regles SET archivage_degrade = ? WHERE no = ?", (int(bool(degrade)), regle_no))
+
+    def supprimer_action(self, action_id):
+        with self.transaction() as c:
+            c.execute("DELETE FROM actions_en_attente WHERE id = ?", (action_id,))
+
     def resoudre_incertain(self, cle, decision, utilisateur, commentaire):
         """Decision d'exploitation. 'livre' : le fichier est bien arrive (TERMINE) ;
         'a_relivrer' : on oublie la tentative, le fichier sera relivre."""
@@ -509,6 +549,10 @@ class Base(object):
             requete += " AND type = ?"
             params.append(type_)
         return [dict(l) for l in self.c.execute(requete + " ORDER BY id", params).fetchall()]
+
+    def action(self, cle):
+        ligne = self.c.execute("SELECT * FROM actions_en_attente WHERE cle = ?", (cle,)).fetchone()
+        return dict(ligne) if ligne else None
 
     def echec_action(self, action_id, message):
         with self.transaction() as c:

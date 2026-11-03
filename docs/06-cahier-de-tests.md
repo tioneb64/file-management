@@ -205,12 +205,71 @@ C:\Python314\python.exe outils\charge_journal.py --processus 8 --lignes 2000 --t
 | J3-M06 | Accents et caractères spéciaux dans la console Jenkins | Job Jenkins exécutant un script qui appelle `debut(..., console=True)` avec `message="é à ü"` | Les accents s'affichent correctement dans la console et sont intacts dans le fichier | |
 | J3-M07 | Changement de jour | Laisser un programme tourner autour de minuit (ou changer l'heure de la VM de recette) | Deux fichiers `<regle>_<jour>.jsonl`, aucune ligne perdue | |
 
-## 6. Jalons suivants
+## 6. Jalon J4 — Transfert d'une règle
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 307 tests au total (185 précédents + 122 de J4), tous OK en 3 min 35 s (durée dominée par les fsync).
+
+C'est le jalon le plus sensible : **les tests manuels ci-dessous doivent être joués sur le serveur avec de vrais partages, de vrais droits et si possible le vrai logiciel destinataire**, en commençant par des dossiers de test.
+
+Commandes (provisoires) :
+
+```powershell
+# une règle, en simulation puis pour de vrai (la base doit exister : --initialiser-base)
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --lancer-regle export_clients --simulation
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --lancer-regle export_clients
+# débit de transfert
+C:\Python314\python.exe outils\mesure_transfert.py --source D:\temp --fichiers 200 --taille-ko 100 [--cible \\SERVEUR\partage\test]
+# livraisons de résultat inconnu (après un arrêt brutal) : lister, puis trancher
+C:\Python314\python.exe -c "from copie import base; b=base.ouvrir(r'D:\Copie\recette.db'); print([(c.hex(), s, d) for c, s, d in b.incertains(b.numero_regle('export_clients'))])"
+C:\Python314\python.exe -c "from copie import base; b=base.ouvrir(r'D:\Copie\recette.db'); b.resoudre_incertain(bytes.fromhex('CLE'), 'a_relivrer', 'benoit', 'absent de la cible')"
+```
+
+Codes retour de `--lancer-regle` : 0 succès, 4 avertissement, 1 erreur, 2 paramétrage ou base inutilisable.
+
+### 6.1 Tests automatiques
+
+| ID | Fichier | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|---|
+| J4-A01 | `test_chemins_selection.py` | Modèles de nom, suffixes d'horodatage, noms Windows invalides (caractères, noms réservés, point final, 255 caractères) ; archive relative/absolue/datée, exclusion de l'archive toutes dates confondues ; volumes ; espace disponible | OK | |
+| J4-A02 | `test_chemins_selection.py` | Sélection : masque et exclusion sans la casse, récursif, temporaires du moteur, `modifie_depuis` J / J-N, âge minimal et maximal, taille, dates futures, ordre, dossier illisible, liens symboliques, accents et `&` | OK | |
+| J4-A03 | `test_chemins_selection.py` | Copie vérifiée : contenu, date à la nanoseconde, fichier vide et multi-blocs ; source disparue, changée depuis le listage, changée pendant la lecture ; SHA-256 ou taille faux ; destination impossible ; disque plein simulé ; cible existante ; lecture seule ; réliquat de temporaire ; **vrai verrou de fichier Windows** ; suppression contrôlée ; renommage sans écrasement | OK | |
+| J4-A04 | `test_moteur.py` | **Mode copie** : livraison puis aucun doublon, état en base, nouvelle version relivrée, sous-dossiers, renommage, masque/âge/limite/ordre, dossier cible créé, cible ou source inaccessible (tentatives et attentes), dossier temporaire séparé, boucle `aucun_fichier` (y compris fichier qui arrive pendant l'attente), dates futures, `apres_erreur` | OK | |
+| J4-A05 | `test_moteur.py` | Fichier de même nom dans la cible : `erreur`, attente que le destinataire le prenne, `ecraser`, `ignorer`, `suffixe` ; `identite = contenu` (régénéré à l'identique, contenu différent, mode déplacement) ; `si_cible_absente` ignorer / recopier | OK | |
+| J4-A06 | `test_moteur.py` | **Mode déplacement** : original supprimé après vérification (même en lecture seule) ; **original modifié après la copie conservé (G4)** puis nouvelle version livrée ; suppression refusée par un vrai partage de fichier : action différée, puis exécutée au lancement suivant **sans relivrer** ; réussite à la 2e tentative ; arrêt de la règle | OK | |
+| J4-A07 | `test_moteur.py` | **Mode archivage** : archive à plat, relative datée dans la source (non relue), arborescence et renommage d'archive, nom déjà archivé (suffixe / écraser / erreur), autre volume (copie vérifiée puis suppression), original modifié non archivé | OK | |
+| J4-A08 | `test_moteur.py` | **Archive dégradée** : livraison poursuivie, action mémorisée, drapeau en base, avertissement à chaque lancement, aucun fichier témoin ; rétablissement : file vidée et drapeau levé ; original modifié pendant la panne ; arrêt de la règle ; archive ignorée hors mode archivage | OK | |
+| J4-A09 | `test_moteur.py` | **Espace disque** : cible insuffisante, juste assez, calcul sur ce qui sera livré, archive sur le même volume (non contrôlée) ou un autre (contrôlée, dégradée si pleine) | OK | |
+| J4-A10 | `test_moteur.py` | **Situations** : fichier réellement verrouillé puis libéré pendant les tentatives, toujours verrouillé (arrêt de la règle), fichier suivant, fichier disparu, instable, copie ou vérification en échec, niveau `INFO` sans effet sur le statut | OK | |
+| J4-A11 | `test_moteur.py` | **Arrêt brutal** : après la copie (reconnue livrée au lancement suivant, pas de doublon), avant la copie (`livraison_incertaine`, rien relivré, règle bloquée jusqu'à décision, `a_relivrer` / `livre`), `recopier`, mode déplacement, action différée ; défaut interne et Ctrl+C sans drapeau orphelin | OK | |
+| J4-A12 | `test_moteur.py` | **Simulation** : aucun dossier créé, aucune écriture en base, fichiers déjà livrés reconnus, règle inconnue de la base | OK | |
+| J4-A13 | `test_lancer_regle.py` | Commande de bout en bout : livraison, journaux, codes retour 0 / 4 / 1 / 2, simulation, base absente, règle inconnue ou inactive, règle déjà en cours, base d'un autre environnement | OK | |
+
+### 6.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J4-M01 | **Débit** | `outils\mesure_transfert.py --source D:\temp --fichiers 200 --taille-ko 100`, puis avec `--cible \\SERVEUR\partage\test` | `RESULTAT : OK`. **Noter les ms par fichier.** PC : 186 ms (copie), 226 ms (déplacement) en local ; relance 0,1 s. Si le serveur est au-dessus de 500 ms par fichier, le signaler (voir [02 §6.4](02-moteur.md)) | |
+| J4-M02 | Simulation sur données réelles | `--lancer-regle ... --simulation` sur une règle de recette pointant des dossiers réels | Liste des fichiers « à livrer » cohérente ; **aucun fichier créé** (comparer le contenu des dossiers avant/après) ; aucune ligne ajoutée en base | |
+| J4-M03 | Livraison réelle en mode copie | Règle de recette `copie` sur 20 fichiers réels | Fichiers livrés avec taille, SHA-256 et **date de modification** identiques (`Get-FileHash`, `LastWriteTime`) ; relance : 0 livré, 20 ignorés | |
+| J4-M04 | Modes déplacement et archivage | Mêmes essais en `deplacement` puis `archivage` (archive relative datée, puis archive sur un autre volume, puis sur un partage) | Originaux supprimés / archivés ; arborescence correcte ; archive jamais relue comme source ; chronométrer l'archivage sur le même volume (instantané) et sur un autre | |
+| J4-M05 | **Vrai verrou par un vrai logiciel** | Ouvrir un fichier de la source dans le logiciel producteur ou dans Excel (verrou exclusif), lancer la règle ; le fermer pendant une attente | `tentative_echouee` (WARNING) puis livraison réussie après fermeture ; sinon `fichier_verrouille` après les tentatives et **aucun fichier partiel dans la cible** | |
+| J4-M06 | Suppression impossible d'un original | Mode déplacement, ouvrir l'original dans une application qui interdit la suppression | Livré, `suppression_echec` (WARNING), action en attente ; après fermeture, le lancement suivant le supprime **sans relivrer** | |
+| J4-M07 | Droits NTFS | Retirer au compte de service : (a) l'écriture dans la cible, (b) l'écriture dans l'archive, (c) la lecture de la source | (a) `cible_inaccessible`, ERREUR, rien copié ; (b) archive dégradée, livraison poursuivie, WARNING ; (c) `source_inaccessible`, ERREUR | |
+| J4-M08 | Coupure réseau pendant une copie | Lancer sur de gros fichiers (500 Mo) vers un partage, couper le réseau (désactiver la carte de la VM) en cours de copie, le rétablir | Erreur proprement journalisée ; **jamais de fichier partiel sous le nom définitif** ; après rétablissement, la livraison reprend sans doublon | |
+| J4-M09 | **Arrêt brutal du processus** | Lancer sur 300 fichiers de 50 Mo, tuer `python.exe` (`taskkill /F`) en cours de copie, relancer | Au plus un fichier `livraison_incertaine` ou reconnu livré (`livraison_reprise`), **aucun doublon dans la cible** ; décision avec les commandes ci-dessus puis relance : tout est livré une seule fois | |
+| J4-M10 | Disque presque plein / quota | Cible sur un petit volume (VHD de 100 Mo) ou avec un quota FSRM pour le compte de service | `espace_insuffisant_cible` avant toute copie ; avec quota, l'espace « disponible pour l'appelant » est bien celui du quota | |
+| J4-M11 | Chemins longs, accents, caractères spéciaux | Fichiers `é à ü & ( ) n°1.xml`, chemins de plus de 260 caractères (source et cible), noms réservés (`CON.txt`) | Accents et `&` livrés intacts ; chemins longs : **noter si Python 3.14 les gère** (clé `LongPathsEnabled`) ; nom réservé : situation `copie_echec` | |
+| J4-M12 | **Logiciel destinataire réel** | Cible = dossier surveillé par le vrai logiciel, avec puis sans `dossier_temporaire` | Le logiciel ne prend **jamais** un fichier incomplet ni un `.copie_en_cours` ; noter s'il prend les fichiers (sinon `si_existe_cible` à régler) | |
+| J4-M13 | Fichier de même nom non encore pris | Livrer deux versions successives d'un fichier avant que le destinataire ait pris la première | `fichier_existe_cible` (ERREUR) par défaut ; avec `tentatives = 6, delai_sec = 60`, attente puis livraison | |
+| J4-M14 | Antivirus | Livrer 200 fichiers ; chercher `tentative_echouee` dans les journaux | Noter le nombre de tentatives échouées (verrou temporaire de l'antivirus sur le fichier créé) ; si fréquent, prévoir plus de tentatives | |
+| J4-M15 | Dates de modification d'un autre serveur | Source dont l'horloge avance de plus d'une minute | `fichier_date_future` (WARNING), fichier ignoré | |
+| J4-M16 | Journaux dans Grafana | Après une exécution réelle, consulter les événements `regle_demarree`, `selection`, `fichier_livre`, `regle_terminee` dans Loki | Événements présents et lisibles, libellés corrects | |
+
+## 7. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J4 Transfert | Pannes injectées, fichiers verrouillés par un vrai logiciel, droits NTFS, quotas, partages réels |
 | J5 Planification | Horloge simulée, changement d'heure, reprise et acquittement |
 | J6 à J12 | Arrêt d'arbre de processus, dépendances, Jenkins, front-end, migration, recette |

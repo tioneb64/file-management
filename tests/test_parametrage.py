@@ -139,13 +139,13 @@ class TestFichier(CasParametrage):
 class TestVolume(CasParametrage):
     def test_deux_mille_regles_en_quelques_secondes(self):
         import time
-        regles = [regle(id="r%d" % i, source="D:\s%d" % i, cible="D:\c%d" % i) for i in range(2000)]
+        regles = [regle(id="r%d" % i, source="D:\\s%d" % i, cible="D:\\c%d" % i) for i in range(2000)]
         debut = time.time()
         self.assertAucun(regles)
         self.assertLess(time.time() - debut, 10)
 
     def test_beaucoup_de_regles_sur_la_meme_cible(self):
-        regles = [regle(id="r%d" % i, source="D:\s%d" % i) for i in range(150)]
+        regles = [regle(id="r%d" % i, source="D:\\s%d" % i) for i in range(150)]
         _, rapport = self.verifier(regles)
         self.assertEqual(rapport.codes().count("R11"), 150 * 149 // 2)
 
