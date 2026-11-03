@@ -319,6 +319,19 @@ Le résultat est disponible en texte et en JSON (`--format json`) :
  "avertissements": [{"code": "D04", "regle": "import_catalogue", "message": "démarre à 06:00, avant export_clients (07:00)"}]}
 ```
 
+### 7.4 Précisions apportées par l'implémentation (J1)
+
+- **Fenêtre de sélection (R08)** : `J` = 1 jour, `J-N` = N + 1 jours (de minuit il y a N jours à maintenant), `age_maximum_sec` arrondi au jour supérieur. `retention_historique_jours` doit être **strictement supérieure** à la plus grande des deux fenêtres.
+- **D06** : une liste `apres` vide avec `condition` égale à `["succes"]` est acceptée (c'est ce qu'écrit le front-end par défaut) ; elle est refusée si `condition` est autre chose que `["succes"]`.
+- **G01** couvre tout le contenu d'un programme : `commande` qui n'est pas un tableau non vide de textes non vides (par exemple une simple chaîne), variable inconnue, `timeout_sec` absent, non entier ou ≤ 0. Les champs inconnus d'un programme restent en E06.
+- **Types (E06)** : un booléen n'est pas accepté comme entier, `60.0` n'est pas un entier, un champ présent deux fois sur une ligne est refusé, `NaN` et `Infinity` sont refusés.
+- **Champ absent dans `planification`** : `type` absent est un R01 ; les autres champs requis d'un type sont des P01.
+- **E05** détecte les chemins `\\serveur\...` et `//serveur/...`. Une lettre de lecteur réseau mappé ne peut pas être reconnue sans accéder au disque : ce sera le contrôle d'accès A05.
+- **R09** : somme, sur toutes les situations (valeurs de secours comprises), de `(tentatives - 1) × delai_sec`.
+- **D04 / D05** : D04 compare `debut` ou `heure` pour les jours communs aux deux règles ; une règle `quotidien` compte pour 86 400 s dans D05 ; une règle `apres_dependances` n'est comparée à rien.
+- **Hors de `--syntaxe-seule`** (non réalisé en J1) : contrôles d'accès A01–A07 (jalon J8) et comparaison avec la version précédente V01–V04 (front-end).
+- **Non vérifié** : le fait que `dossier_temporaire` soit sur le même volume que `cible` ne peut être contrôlé qu'avec accès aux disques ; il le sera en A02.
+
 ## 8. Changements par rapport aux exemples des échanges précédents
 
 | Avant | Maintenant |

@@ -1,0 +1,4 @@
+{"version": 1, "environnement": "production", "base": "D:\\Copie\\production.db"}
+{"id": "export clients", "source": "\\\\SRV-PROD01\\exports\\clients", "cible": "D:\\SFTP\\out\\clients", "mode": "copie", "planification": {"type": "intervalle", "frequence_sec": 300, "debut": "05:00", "fin": "19:00"}}
+{"id": "export_produits", "source": "\\\\SRV-PROD01\\exports\\produits", "cible": "D:\\SFTP\\out\\produits", "mode": "suppression", "selection": {"maske": "*"}, "planification": {"type": "quotidien", "heure": "06:00"}}
+{"id": "import_catalogue", "source": "D:\\Echanges\\catalogue", "cible": "D:\\ERP\\catalogue", "mode": "deplacement", "planification": {"type": "quotidien", "heure": "25:00"}, "apres": ["export_clients", "fantome"]}

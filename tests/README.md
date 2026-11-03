@@ -6,7 +6,9 @@
 | `tests/outils.py` | Classe de base `CasTemporaire` : dossier temporaire par test, création de fichiers datés. |
 | `outils/lancer_tests.ps1` | Lance tous les tests avec le Python choisi ; un avertissement de dépréciation fait échouer. |
 | `outils/controle_serveur.py` | À exécuter **sur le serveur de recette** avec Python 3.14 : vérifie SQLite (WAL, écritures concurrentes), espace disque, verrous, Job Object, remplacement atomique, partage réseau. |
-| `copie/` | Package de la v2 (vide pour l'instant, rempli à partir de J1). |
+| `tests/test_parametrage.py` | J1 : lecture et validation du paramétrage, un groupe de tests par code (E, R, P, D, G) et la ligne de commande. |
+| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `__main__.py` (`python -m copie --verifier`). |
+| `exemples/` | Fichiers de paramétrage d'essai : `production.jsonl` (valide) et `invalide/production.jsonl` (6 refus). |
 
 ```powershell
 .\outils\lancer_tests.ps1 -Python C:\Python314\python.exe
