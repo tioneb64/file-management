@@ -1,0 +1,52 @@
+// Exemple de configuration Grafana Alloy pour lire les journaux de copie_fichiers.
+// NON TESTE : a valider avec l'equipe de la plateforme de surveillance (version d'Alloy,
+// adresse de Loki, chemins reels). Le format lu est celui du module journal_si.py
+// (docs/02-moteur.md, section 11) ; un exemple de fichier est dans exemples/journal/.
+
+// Un fichier par regle et par jour : <dossier_logs>\<regle>_<AAAA-MM-JJ>.jsonl
+local.file_match "copie_fichiers" {
+  path_targets = [{"__path__" = "D:/Copie/logs/*.jsonl"}]
+  sync_period  = "10s"
+}
+
+loki.source.file "copie_fichiers" {
+  targets    = local.file_match.copie_fichiers.targets
+  forward_to = [loki.process.copie_fichiers.receiver]
+}
+
+loki.process "copie_fichiers" {
+  // Chaque ligne est un objet JSON : on en extrait l'horodatage et quatre libelles.
+  stage.json {
+    expressions = {
+      horodatage    = "horodatage",
+      niveau        = "niveau",
+      application   = "application",
+      environnement = "environnement",
+      regle         = "regle",
+    }
+  }
+
+  // L'horodatage de la ligne (UTC, millisecondes) devient l'heure de l'evenement dans Loki.
+  stage.timestamp {
+    source = "horodatage"
+    format = "RFC3339Nano"
+  }
+
+  // Peu de valeurs differentes par libelle. Ne jamais mettre le nom d'un fichier en libelle.
+  stage.labels {
+    values = {
+      application   = "",
+      environnement = "",
+      regle         = "",
+      niveau        = "",
+    }
+  }
+
+  forward_to = [loki.write.principal.receiver]
+}
+
+loki.write "principal" {
+  endpoint {
+    url = "http://loki.exemple:3100/loki/api/v1/push"
+  }
+}

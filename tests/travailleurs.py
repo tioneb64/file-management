@@ -27,6 +27,18 @@ def ecrire(chemin, no, debut, n):
                    for i in range(debut, debut + n))
 
 
+def journaliser(dossier, numero, n, taille_message=100):
+    """Ecrit n evenements numerotes dans le MEME fichier que les autres processus."""
+    import journal_si
+    journal_si.debut("charge", "test", dossier=dossier, evenement_debut="demarre")
+    message = "x" * int(taille_message)
+    for i in range(int(n)):
+        journal_si.evenement("ligne", regle="r1", processus=int(numero), numero=i, message=message)
+    ecrites = int(n) - journal_si.pannes()
+    journal_si.fin()
+    return ecrites
+
+
 def lancer_en_parallele(travail, liste_arguments):
     """Demarre tous les processus ensemble, attend, renvoie la liste des entiers rendus."""
     processus = [subprocess.Popen([sys.executable, "-m", "tests.travailleurs", travail]

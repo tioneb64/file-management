@@ -328,6 +328,20 @@ Les programmes n'appellent que ces trois fonctions. Le fonctionnement interne (a
 | `duree_depassee`, `arret_anormal` | ERREUR | Durée, action appliquée |
 | `base_indisponible` | ERREUR | Message |
 
+### 11.5 Précisions apportées par l'implémentation (J3)
+
+Le module est le fichier autonome [journal_si.py](../journal_si.py), à la racine du dépôt : un autre programme du S.I. peut le copier tel quel.
+
+- **Appel** : `debut(application, environnement, dossier=…, verbeux=False, console=False, dossier_secours=None, evenement_debut="debut", evenement_fin="fin", **contexte)`, `evenement(nom, niveau="INFO", **champs)`, `fin(statut="OK", compteurs=None, **champs)`. Le moteur passe `evenement_debut="debut_lancement"` et `evenement_fin="fin_lancement"`. `definir(regle=…, execution_id=…)` ajoute des champs à tous les événements suivants (un processus fils d'exécution y met sa règle). Dossier par défaut : variable d'environnement `JOURNAL_SI_DOSSIER`, sinon `logs`.
+- **`fin`** ajoute `duree_ms` (depuis `debut`), `statut` et `compteurs`, et son niveau suit le statut (`ERREUR` → ERREUR, `WARNING` → WARNING, le reste INFO). Elle ferme les fichiers.
+- **Fichiers** : le jour du nom de fichier est le **jour local** du serveur ; l'horodatage de chaque ligne reste en UTC. Un événement sans `regle` va dans `_orchestrateur_<jour>.jsonl`. Le nom de règle est assaini (`[A-Za-z0-9_.-]`, le reste devient `_`) pour qu'il ne sorte jamais du dossier.
+- **Ordre des champs** : `horodatage`, `niveau`, `application`, `environnement`, variables Jenkins (`job`, `build`, `build_url`, `noeud`, seulement si présentes), `regle`, `execution_id`, `evenement`, puis les champs de l'appelant. Un champ de l'appelant qui porte le nom d'un champ réservé est conservé sous `x_<nom>` (il n'écrase jamais le champ du module).
+- **Écriture atomique** : sous Windows, la ligne est écrite avec `WriteFile` sur un handle ouvert avec `FILE_APPEND_DATA` seul : le système place chaque écriture à la fin du fichier, même entre processus. **L'option `O_APPEND` du C ne suffit pas** : mesurée sur le poste de développement avec 8 processus écrivant 16 000 lignes de 3,5 Ko, il reste 9 098 lignes dont 1 460 corrompues (les autres sont perdues ou mélangées). Le fichier est ouvert avec un partage complet (lecture, écriture, suppression) : Alloy peut le lire et la purge peut le supprimer.
+- **Bornage** : un champ texte de plus de 4 000 caractères est coupé et suffixé `...[tronque, N caracteres]` (sorties de programmes). Les valeurs non convertibles en JSON (`Path`, `bytes`, ensembles, dates) sont converties ; un nom de fichier Windows avec un caractère isolé ne fait pas échouer l'écriture.
+- **Panne (G7)** : jamais d'exception. En cas d'échec (dossier absent et non créable, disque plein, droits), la ligne est écrite sur la sortie d'erreur et dans `journal_si_secours_<jour>.jsonl` (dossier `dossier_secours`, sinon dossier temporaire du compte), `pannes()` compte les incidents et la prochaine écriture retente le dossier normal. Le moteur doit ajouter un WARNING au bilan quand `pannes() > 0`.
+- **Console** : avec `console=True`, chaque événement est aussi écrit en une ligne lisible sur la sortie standard (console Jenkins).
+- **Exemple de sortie** : [exemples/journal/](../exemples/journal/) ; **exemple de configuration Alloy** (non testé) : [exemples/alloy/copie_fichiers.alloy](../exemples/alloy/copie_fichiers.alloy).
+
 ## 12. Intégration Jenkins
 
 Un job par environnement, déclenché toutes les N minutes, **builds simultanés autorisés**. Exemple indicatif de `Jenkinsfile` (la Shared Library `journal-si` reste à créer) :

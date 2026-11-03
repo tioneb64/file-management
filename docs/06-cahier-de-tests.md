@@ -168,13 +168,49 @@ Pour les essais, remplacer le champ `base` de la copie du fichier d'exemple par 
 | J2-M08 | **Coupure de courant** (machine virtuelle de recette, optionnel mais recommandé) | Lancer `mesure_base.py --cycles 500`, puis mettre la VM hors tension brutalement (arrêt forcé sans arrêt du système). Relancer, ouvrir la base de mesure si elle subsiste (`--dossier` fixe, ne pas supprimer) | La base s'ouvre, `verifier_integrite()` vide ; au plus quelques derniers cycles manquants | |
 | J2-M09 | Disque plein (optionnel) | Base sur un petit volume (VHD de 20 Mo) rempli : lancer `mesure_base.py` | Erreur claire (`ErreurBase`/`disk is full`), base non corrompue (`verifier_integrite()` vide) | |
 
-## 5. Jalons suivants
+## 5. Jalon J3 — Journalisation
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 185 tests au total (151 précédents + 34 de J3), tous OK.
+
+Le module est [journal_si.py](../journal_si.py) ; exemple de sortie dans `exemples\journal\`, exemple Alloy (non testé) dans `exemples\alloy\`.
+
+```powershell
+C:\Python314\python.exe outils\charge_journal.py --dossier D:\Copie\logs_test --json rapports\charge_journal.json
+C:\Python314\python.exe outils\charge_journal.py --processus 8 --lignes 2000 --taille 3500
+```
+
+### 5.1 Tests automatiques (fichier `tests/test_journal.py`)
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J3-A01 | Format : champs de base dans l'ordre, horodatage UTC au millième (`2026-11-03T06:30:12.481Z`), variables Jenkins ajoutées si présentes et absentes sinon, UTF-8 sans échappement des accents, retours à la ligne dans un message, champs réservés non écrasables (`x_…`), valeurs non sérialisables, nom Windows avec caractère isolé, texte trop long coupé | OK | |
+| J3-A02 | Niveaux (inconnu → INFO), `DEBUG` seulement en mode verbeux, contexte défini une fois (`definir`), contexte passé à `debut` | OK | |
+| J3-A03 | Fichiers : un par règle et par jour, fichier `_orchestrateur_` sans règle, changement de jour, nom de règle assaini (jamais hors du dossier), dossier créé, dossier par défaut par variable d'environnement | OK | |
+| J3-A04 | `fin` : bilan, durée, niveau selon le statut, fichiers fermés puis rouverts ; lecture du fichier pendant qu'il est ouvert (comme Alloy) ; suppression d'un autre fichier pendant l'exécution | OK | |
+| J3-A05 | **Pannes (G7)** : dossier impossible, secours impossible, `stderr` fermé, sérialisation qui échoue → jamais d'exception, ligne retrouvée sur `stderr` et dans le fichier de secours, `pannes()` correct, reprise automatique quand le dossier revient | OK | |
+| J3-A06 | Console : une ligne lisible par événement avec `console=True`, silence sinon | OK | |
+| J3-A07 | Interface de module (`debut`, `evenement`, `fin`, `definir`, `pannes`) | OK | |
+| J3-A08 | **Charge** : 8 processus × 1 000 lignes dans le même fichier, puis 6 × 300 lignes de 3,5 Ko : aucune ligne corrompue, perdue ou mélangée, séquence de chaque processus complète et dans l'ordre | OK | |
+| J3-A09 | **Critère de sortie** `outils\charge_journal.py` : 8 processus × 10 000 lignes → 80 000 lignes valides, 0 corrompue, 21 Mo, 10 s (7 800 lignes/s) | OK | |
+
+### 5.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J3-M01 | **Charge sur le disque réel des journaux** | `outils\charge_journal.py --dossier <dossier de journaux réel>` avec le compte de service, puis avec `--taille 3500 --lignes 2000` | `RESULTAT : OK`, 0 ligne corrompue. Noter la durée et les lignes/s. Si l'antivirus ralentit fortement (< 1 000 lignes/s), le signaler | |
+| J3-M02 | Écriture atomique réellement vérifiée sur Windows Server 2016 | Même test ; en cas d'échec : joindre la sortie | Aucune corruption. (Sur le PC, `O_APPEND` seul corrompt les lignes ; le module utilise `FILE_APPEND_DATA`.) | |
+| J3-M03 | Dossier de journaux sur un **partage réseau** (information) | Même test avec `--dossier \\SERVEUR\partage\tmp` | Noter le résultat. Si des lignes sont corrompues, le dossier de journaux doit rester **local** (Alloy lit sur le serveur) | |
+| J3-M04 | Panne de journalisation | Retirer le droit d'écriture du compte sur le dossier de journaux puis lancer un petit programme utilisant le module (`python -c "import journal_si as j; j.debut('t','recette',dossier=r'D:\\Copie\\logs'); j.evenement('essai'); print(j.pannes())"`) | Aucune exception, message sur la console, ligne dans `journal_si_secours_<jour>.jsonl` du dossier temporaire du compte, `pannes()` affiche `2` | |
+| J3-M05 | Lecture par **Grafana Alloy** | Avec l'équipe de surveillance : déposer `exemples\journal\*.jsonl` dans le dossier lu, adapter `exemples\alloy\copie_fichiers.alloy` | Les événements apparaissent dans Loki avec les libellés `application`, `environnement`, `regle`, `niveau` et l'heure de la ligne ; les champs sont consultables (`| json`) ; **validation formelle du format par l'équipe** | |
+| J3-M06 | Accents et caractères spéciaux dans la console Jenkins | Job Jenkins exécutant un script qui appelle `debut(..., console=True)` avec `message="é à ü"` | Les accents s'affichent correctement dans la console et sont intacts dans le fichier | |
+| J3-M07 | Changement de jour | Laisser un programme tourner autour de minuit (ou changer l'heure de la VM de recette) | Deux fichiers `<regle>_<jour>.jsonl`, aucune ligne perdue | |
+
+## 6. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J3 Journal | Charge concurrente, lecture par Grafana Alloy, contrôle de la ligne JSON |
 | J4 Transfert | Pannes injectées, fichiers verrouillés par un vrai logiciel, droits NTFS, quotas, partages réels |
 | J5 Planification | Horloge simulée, changement d'heure, reprise et acquittement |
 | J6 à J12 | Arrêt d'arbre de processus, dépendances, Jenkins, front-end, migration, recette |
