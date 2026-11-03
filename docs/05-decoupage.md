@@ -111,6 +111,8 @@ Dès que le format de journal (J3) et les sorties du moteur (J8) sont figés, tr
 
 ## 5. Stratégie de tests
 
+**Méthode retenue** : le développement exécute tout sur le poste du responsable applicatif (Windows 10, Python 3.14.10). À chaque jalon, les tests sont ajoutés au [cahier de tests](06-cahier-de-tests.md), qui sert ensuite de fiche de passage sur le serveur de recette (Windows Server 2016). Un jalon n'est « terminé » que lorsque ses tests automatiques passent sur le poste et que ses tests manuels sont décrits dans le cahier.
+
 | Niveau | Outil | Contenu |
 |---|---|---|
 | Unitaire | `unittest` | Fonctions pures : sélection, planification, empreintes, résolution des chemins, validation |
