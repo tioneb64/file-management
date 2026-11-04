@@ -31,7 +31,7 @@ CHAMPS_RESERVES = ("horodatage", "niveau", "application", "environnement", "job"
                    "build_url", "noeud", "regle", "execution_id", "evenement")
 VARIABLES_JENKINS = (("job", "JOB_NAME"), ("build", "BUILD_NUMBER"), ("build_url", "BUILD_URL"),
                      ("noeud", "NODE_NAME"))
-LONGUEUR_MAX_TEXTE = 4000        # un champ texte plus long est coupe (sorties de programmes)
+LONGUEUR_MAX_TEXTE = 8192        # un champ texte plus long est coupe (sorties de programmes)
 FICHIER_SANS_REGLE = "_orchestrateur"
 _INTERDITS = re.compile(r"[^A-Za-z0-9_.-]")
 

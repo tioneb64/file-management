@@ -129,7 +129,8 @@ def _lancer_regle(args, parametrage):
         if not args.simulation:
             b.synchroniser_regles([(r.id, lancement.empreinte_regle(r)) for r in parametrage.regles if r.id])
         try:
-            bilan = lancer_regle(regle, entete, b, journal, declencheur="manuel", simulation=args.simulation)
+            bilan = lancer_regle(regle, entete, b, journal, declencheur="manuel", simulation=args.simulation,
+                                 simulation_programmes=args.simulation_programmes)
         except RegleDejaEnCours:
             _terminer_journal(journal, "ERREUR", {}, CODE_ERREUR)
             print("ERREUR : la regle %s est deja en cours d'execution" % regle.id, file=sys.stderr)
@@ -150,7 +151,8 @@ def _lancement(args, parametrage):
         return erreur
     journal = _journal(parametrage)
     with b:
-        resultat = lancement.lancer(parametrage, b, journal, filtre=args.regle, simulation=args.simulation)
+        resultat = lancement.lancer(parametrage, b, journal, filtre=args.regle, simulation=args.simulation,
+                                    simulation_programmes=args.simulation_programmes)
         statut = {0: "SUCCES", 1: "WARNING", 2: "ERREUR"}[resultat.niveau]
         _terminer_journal(journal, statut, resultat.compteurs, resultat.code_retour)
     if resultat.interrompu:
@@ -243,6 +245,8 @@ def main(argv=None):
                    help="limite le lancement ou l'etat a cette regle (repetable)")
     p.add_argument("--simulation", action="store_true",
                    help="affiche ce qui serait fait, n'ecrit rien (planification ignoree)")
+    p.add_argument("--simulation-programmes", action="store_true",
+                   help="avec --simulation : appelle quand meme les programmes (COPIE_SIMULATION=1)")
     p.add_argument("--decision", choices=("livre", "a_relivrer"),
                    help="avec --trancher-incertain : le fichier est bien arrive, ou il faut le relivrer")
     p.add_argument("--utilisateur", help="compte a tracer (obligatoire pour les commandes d'exploitation)")
@@ -263,6 +267,8 @@ def main(argv=None):
                               or args.trancher_incertain or args.executer_regle)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
+    if args.simulation_programmes and not args.simulation:
+        p.error("--simulation-programmes s'utilise avec --simulation")
     if args.regle and not (lancement_ou_regle or args.etat):
         p.error("--regle s'utilise avec un lancement ou --etat")
     if args.executer_regle and args.execution_id is None:

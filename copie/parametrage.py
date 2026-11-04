@@ -34,6 +34,13 @@ VARIABLES_DATE = ("AAAA", "MM", "JJ", "hh", "mm", "ss")
 VARIABLES_RENOMMAGE = VARIABLES_DATE + ("nom", "ext")
 VARIABLES_PROGRAMME = ("environnement", "regle", "source", "cible", "archive", "fichier", "nom",
                        "fichier_cible", "liste", "liste_json", "date")
+_COMMUNES = ("environnement", "regle", "source", "cible", "archive", "date")
+_FICHIER = ("fichier", "nom", "fichier_cible")
+_LISTE = ("liste", "liste_json")
+# {fichier} n'a de sens qu'autour d'un fichier, {liste} qu'autour d'un lot
+VARIABLES_PAR_POINT = {"avant_lot": _COMMUNES + _LISTE, "avant_fichier": _COMMUNES + _FICHIER,
+                       "apres_fichier": _COMMUNES + _FICHIER, "apres_lot": _COMMUNES + _LISTE,
+                       "sur_erreur": _COMMUNES + _LISTE, "reprise": _COMMUNES}
 
 # situation -> (tentatives, delai_sec, niveau_final, suites autorisees, suite par defaut)
 # Valeurs de secours : docs/01-parametrage.md, section 6.
@@ -473,9 +480,10 @@ def _lire_programme(nom, valeur, ligne, regle, rapport):
         commande = None
     else:
         for element in commande:
-            for variable in variables_inconnues(element, VARIABLES_PROGRAMME):
-                lecteur.signaler("G01", "programmes.%s.commande : variable inconnue {%s}"
-                                 % (nom, variable))
+            for variable in variables_inconnues(element, VARIABLES_PAR_POINT[nom]):
+                lecteur.signaler("G01", "programmes.%s.commande : variable {%s} inconnue ou sans objet a ce "
+                                 "point d'appel (autorisees : %s)"
+                                 % (nom, variable, ", ".join(VARIABLES_PAR_POINT[nom])))
     timeout = valeur.get("timeout_sec")
     if "timeout_sec" not in valeur:
         lecteur.signaler("G01", "programmes.%s.timeout_sec est obligatoire" % nom)

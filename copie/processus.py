@@ -87,9 +87,10 @@ class JobObject(object):
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
     JobObjectExtendedLimitInformation = 9
 
-    def __init__(self):
+    def __init__(self, kill_on_close=True):
         self.handle = None
         self.actif = False
+        self.kill_on_close = kill_on_close
         if os.name != "nt":
             return
         import ctypes
@@ -123,7 +124,7 @@ class JobObject(object):
         if not handle:
             return
         infos = EXTENDED()
-        infos.Basic.LimitFlags = self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        infos.Basic.LimitFlags = self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE if self.kill_on_close else 0
         if not k32.SetInformationJobObject(handle, self.JobObjectExtendedLimitInformation,
                                            ctypes.byref(infos), ctypes.sizeof(infos)):
             k32.CloseHandle(handle)

@@ -131,7 +131,7 @@ class TestFormat(CasJournal):
         self.demarrer()
         self.j.evenement("sortie", message="x" * 100_000)
         message = self.lignes()[1]["message"]
-        self.assertLess(len(message), 4100)
+        self.assertLess(len(message), 8300)
         self.assertIn("tronque, 100000", message)
 
     def test_niveaux(self):

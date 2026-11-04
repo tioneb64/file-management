@@ -11,7 +11,7 @@ import socket
 import time
 
 from copie import base as modele_base
-from copie import chemins, processus, selection, transfert
+from copie import chemins, processus, programmes, selection, transfert
 from copie.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
@@ -57,6 +57,10 @@ class IgnorerFichier(Exception):
     """Interne : si_existe_cible = ignorer."""
 
 
+class ErreurProgramme(ErreurTransfert):
+    """Un programme externe a echoue (code retour inattendu, duree depassee, lancement impossible)."""
+
+
 def situation_copie(erreur):
     """Situation (docs/01 section 6) correspondant a un echec de copie."""
     if isinstance(erreur, SourceDisparue):
@@ -74,7 +78,12 @@ def situation_copie(erreur):
 
 class ExecutionRegle(object):
     def __init__(self, regle, entete, base, regle_no, journal, simulation=False, maintenant=None,
-                 dormir=time.sleep):
+                 dormir=time.sleep, declencheur=None, simulation_programmes=False, execution_id=None):
+        self.declencheur = declencheur
+        self.simulation_programmes = simulation_programmes
+        self.execution_id = execution_id
+        self.resultats = []                       # un element par fichier traite (liste de apres_lot)
+        self._res = {}
         self.regle = regle
         self.entete = entete
         self.base = base
@@ -145,16 +154,130 @@ class ExecutionRegle(object):
     def executer(self):
         try:
             self._preparer_chemins()
+            self._appel_reprise()
             self._intentions_interrompues()
             self._controles_prealables()
             self._actions_en_attente()
             a_livrer = self._selectionner()
             if a_livrer:
+                a_livrer = self._avant_lot(a_livrer)
+            if a_livrer:
                 self._livrer_tout(a_livrer)
+                self._apres_lot()
         except ArretRegle as a:
             self.bilan.motif = a.message
             self.bilan.situation_finale = a.situation
-        return self._conclure()
+        bilan = self._conclure()
+        if bilan.statut == "ERREUR":
+            self._sur_erreur(bilan)
+        return bilan
+
+    # ------------------------------------------------------------------ #
+    # Programmes externes (docs/02, section 9)
+    # ------------------------------------------------------------------ #
+    def _dossier_travail(self):
+        if self.entete.dossier_travail:
+            return self.entete.dossier_travail
+        import tempfile
+        return os.path.join(tempfile.gettempdir(), "copie_travail")
+
+    def _variables_programme(self, point, c, destination, statut, chemin_liste, chemin_json):
+        r = self.regle
+        archive = self.archive_dir or ""
+        valeurs = {"environnement": self.entete.environnement, "regle": r.id, "source": self.source,
+                   "cible": self.cible, "archive": archive, "date": self.debut.strftime("%Y-%m-%d"),
+                   "fichier": c.chemin if c else "", "nom": c.nom if c else "",
+                   "fichier_cible": destination or "", "liste": chemin_liste or "",
+                   "liste_json": chemin_json or ""}
+        environnement = {
+            "COPIE_ENVIRONNEMENT": valeurs["environnement"], "COPIE_REGLE": r.id,
+            "COPIE_EXECUTION_ID": str(self.execution_id if self.execution_id is not None else ""),
+            "COPIE_SOURCE": self.source, "COPIE_CIBLE": self.cible, "COPIE_ARCHIVE": archive,
+            "COPIE_MODE": r.mode, "COPIE_FICHIER": valeurs["fichier"],
+            "COPIE_FICHIER_CIBLE": valeurs["fichier_cible"], "COPIE_LISTE": valeurs["liste"],
+            "COPIE_LISTE_JSON": valeurs["liste_json"],
+            "COPIE_REPRISE": "1" if self.declencheur == "reprise" else "0",
+            "COPIE_SIMULATION": "1" if self.simulation else "0", "COPIE_POINT_APPEL": point,
+            "COPIE_STATUT": statut or ""}
+        return valeurs, environnement
+
+    def _programme(self, point, c=None, destination=None, liste=None, statut=None, **champs):
+        """Appelle le programme du point d'appel `point`, avec les tentatives de la situation
+        `programme_<point>`. Renvoie son code retour (0 ou 1), ou None s'il n'y a pas de
+        programme. Leve EchecSituation pour tout autre code, une duree depassee ou un lancement
+        impossible."""
+        programme = self.regle.programmes.get(point)
+        if programme is None:
+            return None
+        if self.simulation and not self.simulation_programmes:
+            self._log("programme_non_appele", "DEBUG", point=point)
+            return None
+        travail = self._dossier_travail()
+        fichiers_liste = programmes.ecrire_listes(travail, self.execution_id, point, liste) if liste is not None else (None, None)
+        valeurs, environnement = self._variables_programme(point, c, destination, statut, *fichiers_liste)
+
+        def operation():
+            res = programmes.executer(programme, point, valeurs, environnement, travail)
+            ok = res.accepte(point)
+            self._log("programme_appele", "INFO" if ok else "WARNING", point=point, commande=res.argv,
+                      code=res.code, duree_ms=res.duree_ms, depasse=res.depasse or None,
+                      sortie=res.sortie, **champs)
+            if ok:
+                return res.code
+            raise ErreurProgramme("programme %s : %s" % (point, res.explication(point)))
+        try:
+            return self._essayer(operation, lambda e: "programme_" + point, **champs)
+        finally:
+            if liste is not None:
+                programmes.supprimer_listes(*fichiers_liste)
+
+    def _appel_reprise(self):
+        if self.declencheur != "reprise":
+            return
+        try:
+            self._programme("reprise")
+        except EchecSituation as e:
+            self._arreter(e)
+
+    def _avant_lot(self, a_livrer):
+        """Renvoie la liste a livrer : inchangee, vide (le programme a repondu « rien a faire ») ou
+        relue (le programme a pu ajouter, retirer ou modifier des fichiers)."""
+        try:
+            code = self._programme("avant_lot", liste=[programmes.entree_fichier(c) for c in a_livrer])
+        except EchecSituation as e:
+            self._arreter(e)
+        if code is None:
+            return a_livrer
+        if code == 1:
+            self.bilan.motif = "avant_lot : rien a faire"
+            self._log("avant_lot_rien_a_faire", "INFO", message="le programme avant_lot demande de ne rien livrer")
+            return []
+        return self._selectionner()               # le programme a tourne : la source est relue
+
+    def _apres_lot(self):
+        if not self.resultats:
+            return
+        try:
+            self._programme("apres_lot", liste=self.resultats, statut=STATUTS[self.rang])
+        except EchecSituation as e:
+            self._signaler(e.situation, e.message)
+
+    def _sur_erreur(self, bilan):
+        """Notification : le resultat du programme est seulement journalise."""
+        programme = self.regle.programmes.get("sur_erreur")
+        if programme is None or (self.simulation and not self.simulation_programmes):
+            return
+        liste = programmes.ecrire_listes(self._dossier_travail(), self.execution_id, "sur_erreur", self.resultats)
+        try:
+            valeurs, environnement = self._variables_programme("sur_erreur", None, None, bilan.statut, *liste)
+            environnement["COPIE_SITUATION"] = (bilan.erreur or {}).get("situation") or bilan.situation_finale or ""
+            environnement["COPIE_MESSAGE"] = bilan.motif or ""
+            res = programmes.executer(programme, "sur_erreur", valeurs, environnement, self._dossier_travail())
+            self._log("programme_appele", "INFO" if res.code == 0 and not res.depasse and not res.erreur else "WARNING",
+                      point="sur_erreur", commande=res.argv, code=res.code, duree_ms=res.duree_ms,
+                      depasse=res.depasse or None, sortie=res.sortie or res.erreur)
+        finally:
+            programmes.supprimer_listes(*liste)
 
     def _preparer_chemins(self):
         regle = self.regle
@@ -530,17 +653,50 @@ class ExecutionRegle(object):
         raise CibleExiste("un fichier de ce nom attend deja dans la cible : %s" % destination)
 
     def _livrer(self, c):
-        regle = self.regle
         champs = {"fichier": c.chemin}
-        cle = self._cle_version(c)
+        self._res = {"resultat": "ignore"}
         try:
-            self._livrer_version(c, cle, champs)
+            if not self._avant_fichier(c, champs):
+                return
+            self._livrer_version(c, self._cle_version(c), champs)
         except IgnorerFichier as i:
             self.bilan.compteurs["ignores"] += 1
             self._log("fichier_ignore", "INFO", cible=str(i), message="un fichier de ce nom existe deja dans la cible",
                       **champs)
         except EchecSituation as e:
+            if self._res["resultat"] != "livre":
+                self._res["resultat"] = "erreur"
+            self._res["message"] = e.message
             self._echec_fichier(e, **champs)
+        finally:
+            self.resultats.append(programmes.entree_fichier(c, **self._res))
+
+    def _avant_fichier(self, c, champs):
+        """Programme avant_fichier. Renvoie False si le fichier doit etre ignore. Le programme peut
+        modifier la source sur place : taille et date sont relues AVANT de calculer l'empreinte."""
+        code = self._programme("avant_fichier", c=c, destination=self._destination_theorique(c), **champs)
+        if code is None:
+            return True
+        if code == 1:
+            self.bilan.compteurs["ignores"] += 1
+            self._log("fichier_ignore", "INFO", message="le programme avant_fichier demande d'ignorer ce fichier",
+                      **champs)
+            return False
+        avant = self._cle_version(c)
+        try:
+            st = os.stat(c.chemin)
+        except FileNotFoundError:
+            self.bilan.compteurs["ignores"] += 1
+            self._log("fichier_ignore", "INFO", message="fichier disparu apres avant_fichier", **champs)
+            return False
+        c.taille, c.mtime_ns = st.st_size, st.st_mtime_ns
+        apres = self._cle_version(c)
+        if apres != avant:
+            self._log("fichier_modifie_par_programme", "INFO", taille=c.taille, **champs)
+            if self.base.etat_fichier(apres) is not None:        # cette version a deja ete livree
+                self.bilan.compteurs["ignores"] += 1
+                return False
+        return True
 
     def _echec_fichier(self, echec, **champs):
         cfg = self._signaler(echec.situation, echec.message, **champs)
@@ -569,6 +725,8 @@ class ExecutionRegle(object):
             self.bilan.compteurs["livres"] += 1
             self.bilan.compteurs["octets"] += c.taille
             self._log("fichier_a_livrer", "INFO", cible=destination, taille=c.taille, **champs)
+            self._res.update(resultat="a_livrer", cible=destination)
+            self._programme("apres_fichier", c=c, destination=destination, **champs)
             return
 
         destination_archive = self._destination_archive(c) if regle.mode == "archivage" else None
@@ -599,6 +757,15 @@ class ExecutionRegle(object):
         self.bilan.compteurs["octets"] += copie.taille
         self._log("fichier_livre", "INFO", cible=destination, taille=copie.taille,
                   sha256=copie.sha256, duree_ms=int((time.time() - debut) * 1000), **champs)
+        self._res.update(resultat="livre", cible=destination, taille=copie.taille)
+
+        try:
+            self._programme("apres_fichier", c=c, destination=destination, **champs)
+        except EchecSituation:
+            # l'original n'est ni supprime ni archive : le fichier est livre, plus aucune action n'est due
+            if suivante:
+                self.base.terminer_fichier(cle_principale)
+            raise
 
         if suivante:
             self._action_du_mode(c, cle_principale, suivante, destination_archive, champs)
@@ -685,7 +852,7 @@ def nom_hote():
 
 def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=False,
                  maintenant=None, dormir=time.sleep, build=None, creneau=None, execution_existante=None,
-                 journaliser_fin=True):
+                 journaliser_fin=True, simulation_programmes=False):
     """Prend le flag de la regle, l'execute, libere le flag. Renvoie le Bilan.
     `declencheur` : planifie | reprise | manuel | dependance ; `creneau` : creneau pris par cette
     execution (secondes). En simulation : aucune ecriture en base (ouverte en lecture seule),
@@ -710,7 +877,9 @@ def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=
     journal.evenement("regle_demarree", "INFO", declencheur=declencheur,
                       **({"simulation": True} if simulation else {}))
     debut = time.time()
-    execution = ExecutionRegle(regle, entete, base, no, journal, simulation, maintenant, dormir)
+    execution = ExecutionRegle(regle, entete, base, no, journal, simulation, maintenant, dormir,
+                               declencheur=declencheur, simulation_programmes=simulation_programmes,
+                               execution_id=execution_id)
     try:
         bilan = execution.executer()
     except Exception as e:                          # defaut du programme : jamais de flag orphelin

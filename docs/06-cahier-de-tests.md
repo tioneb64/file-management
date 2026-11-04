@@ -361,7 +361,51 @@ C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --etat   
 | J6-M12 | Console Jenkins | Observer la console du job pendant un lancement avec plusieurs règles | Les lignes des fils s'affichent avec les accents corrects ; le code retour du lancement apparaît dans `fin_lancement` | |
 | J6-M13 | Compte de service | Rejouer J6-M02 et J6-M07 avec le compte de service Jenkins | Les fils démarrent sous le même compte, avec les mêmes droits sur les partages | |
 
-## 9. Jalons suivants
+## 9. Jalon J7 — Programmes externes
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 470 tests au total (422 précédents + 48 de J7), tous OK en 6 min 28 s.
+
+Comportement détaillé au [§9.1 de 02-moteur](02-moteur.md). Les programmes d'essai sont de petits scripts Python ; les essais manuels du serveur utilisent **vos vrais programmes** (PowerShell, exécutables, scripts de validation, notification).
+
+```powershell
+# simulation avec appel des programmes (ils reçoivent COPIE_SIMULATION=1)
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --simulation --simulation-programmes --regle export_clients
+```
+
+### 9.1 Tests automatiques
+
+| ID | Fichier | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|---|
+| J7-A01 | `test_programmes.py` | **Lancement** : code retour, sortie standard et d'erreur réunies, **un élément = un argument** (espaces, `&`, guillemets, `%PATH%`), variables d'environnement, répertoire courant, entrée standard fermée, accents UTF-8 et page OEM, sortie tronquée à 8 Ko, programme introuvable, durée dépassée | OK | |
+| J7-A02 | `test_programmes.py` | **Arrêt de l'arbre** : un programme qui lance un petit-fils dès sa première instruction est arrêté avec lui, 3 essais sur 3 | OK | |
+| J7-A03 | `test_programmes.py` | Listes de fichiers : texte et JSON, accents, dates, suppression ensuite | OK | |
+| J7-A04 | `test_programmes.py` | **`avant_lot`** : liste reçue, code 1 (rien à faire, sans erreur), autre code (règle en erreur, rien copié), programme introuvable et durée dépassée, **source relue** (fichier ajouté ou retiré par le programme), non appelé sans fichier, tentatives et délais | OK | |
+| J7-A05 | `test_programmes.py` | **`avant_fichier`** : variables par fichier, nom piégé intact, code 1 (ignoré, sans trace), autre code (arrêt ou fichier suivant), **programme qui modifie la source sur place : livré modifié, jamais retraité** | OK | |
+| J7-A06 | `test_programmes.py` | **`apres_fichier`** : appelé après la livraison et **avant** la suppression, échec → original conservé et plus aucune suppression tardive (déplacement et archivage), codes 0 et 1, fichier suivant | OK | |
+| J7-A07 | `test_programmes.py` | **`apres_lot`** : résultat de chaque fichier (livré, ignoré, erreur avec message), statut du lot, non appelé sans fichier traité, échec signalé sans annuler la livraison | OK | |
+| J7-A08 | `test_programmes.py` | **`sur_erreur`** : appelé avec situation et message, pas en cas de succès ou d'avertissement, son échec n'aggrave rien, appelé après une erreur de programme | OK | |
+| J7-A09 | `test_programmes.py` | **`reprise`** : appelé en premier et seulement pour une reprise (pas pour un créneau ni un lancement manuel), échec → règle arrêtée avant toute copie | OK | |
+| J7-A10 | `test_programmes.py` | Simulation : programmes non appelés ; avec `--simulation-programmes` appelés avec `COPIE_SIMULATION=1`, rien n'est livré | OK | |
+| J7-A11 | `test_programmes.py`, `test_parametrage.py` | Journal `programme_appele` (commande, code, durée, sortie) ; variables autorisées par point d'appel (G01) ; programme lancé depuis un fils réel de l'orchestrateur | OK | |
+
+### 9.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J7-M01 | **Vos vrais programmes** | Brancher les programmes de production (validation, notification, nettoyage) sur une règle de recette, un point d'appel à la fois | Appelés au bon moment, avec les bons arguments ; sorties lisibles dans le journal (`programme_appele`) | |
+| J7-M02 | **PowerShell** | `commande`: `["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "D:\\Scripts\\valider.ps1", "-Liste", "{liste}"]` | Le script lit la liste, le code retour 0/1 est respecté (`exit 1`) ; accents des sorties corrects dans le journal | |
+| J7-M03 | Accents dans la sortie | Programme qui affiche `é à ü` : un script PowerShell, un exécutable natif, un script Python | Accents lisibles dans le journal pour les trois (sinon noter la page de code utilisée) | |
+| J7-M04 | Nom de fichier piégé | Fichier `Facture & (copie) n°1.xml` avec un programme `avant_fichier` qui écrit `%1` dans un fichier | Nom intact ; **ne pas utiliser de `.bat`** pour ces fichiers | |
+| J7-M05 | Arbre de processus sur le serveur | Programme qui lance un processus fils long, `timeout_sec = 5` | À l'échéance : plus aucun processus (`tasklist`), situation `programme_<point>` | |
+| J7-M06 | `avant_fichier` qui modifie la source | Programme qui ajoute une ligne au fichier source | Le fichier livré contient la modification ; au lancement suivant il n'est pas retraité | |
+| J7-M07 | `apres_fichier` en échec | Programme qui sort avec 5 en mode `deplacement` | Original conservé dans la source, fichier livré dans la cible, règle en ERREUR (`arreter_regle`) ; pas de suppression au lancement suivant | |
+| J7-M08 | `reprise` | Règle en erreur, programme de nettoyage branché sur `reprise`, puis `--reprise` | Le programme nettoie avant toute copie ; il n'est pas appelé aux exécutions suivantes | |
+| J7-M09 | `sur_erreur` et supervision | Programme qui envoie un message (messagerie, canal de supervision) | Message reçu avec la situation et le message d'erreur ; une panne du programme de notification n'empêche rien | |
+| J7-M10 | Droits du compte de service | Rejouer J7-M01 et J7-M02 avec le compte de service Jenkins | Les programmes s'exécutent avec les droits du compte de service ; noter tout refus | |
+| J7-M11 | Antivirus et PowerShell | Chronométrer un appel de script PowerShell | Durée raisonnable (quelques secondes) ; sinon augmenter `timeout_sec` | |
+| J7-M12 | Sécurité du paramétrage | Relire qui peut écrire dans le dossier de paramétrage | Seul le groupe d'administrateurs AD : qui modifie `programmes` fait exécuter un programme par le compte de service | |
+
+## 10. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 

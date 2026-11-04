@@ -115,7 +115,7 @@ def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None, mainten
 
 def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant=None,
            fuseau=planification.FUSEAU, build=None, dormir=time.sleep, maintenant_dt=None,
-           direct=False, pas_sec=0.2, rappel=None):
+           direct=False, pas_sec=0.2, rappel=None, simulation_programmes=False):
     """Lancement d'un environnement : renvoie un objet Lancement (compteurs et code retour).
     Chaque regle due est executee dans un processus fils, en parallele, apres evaluation de ses
     dependances. `direct` : sans processus fils (tests avec horloge simulee).
@@ -137,7 +137,7 @@ def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant
         else:
             for regle in _regles_a_traiter(parametrage, filtre):
                 lancement.compteurs["regles"] += 1
-                _traiter(regle, entete, base, journal, lancement, maintenant_dt)
+                _traiter(regle, entete, base, journal, lancement, maintenant_dt, simulation_programmes)
     except modele_base.ErreurBase as e:
         lancement.interrompu = str(e)
         lancement.noter("ERREUR")
@@ -145,13 +145,13 @@ def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant
     return lancement
 
 
-def _traiter(regle, entete, base, journal, lancement, maintenant_dt):
+def _traiter(regle, entete, base, journal, lancement, maintenant_dt, simulation_programmes=False):
     """Simulation d'une regle (planification ignoree, aucune ecriture)."""
     if not regle.actif:
         lancement.compteurs["non_dues"] += 1
         return
     bilan = lancer_regle(regle, entete, base, journal, declencheur="simulation", simulation=True,
-                         maintenant=maintenant_dt)
+                         maintenant=maintenant_dt, simulation_programmes=simulation_programmes)
     lancement.compteurs["lancees"] += 1
     lancement.compteurs[bilan.statut] += 1
     lancement.noter({"SUCCES": "INFO", "WARNING": "WARNING", "ERREUR": "ERREUR"}[bilan.statut])

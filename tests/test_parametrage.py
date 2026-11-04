@@ -474,10 +474,23 @@ class TestProgrammes(CasParametrage):
         self.assertEqual(p.regles[0].programmes["apres_lot"].timeout_sec, 60)
         self.assertIsNone(p.regles[0].programmes["reprise"])
 
-    def test_toutes_les_variables_connues(self):
-        variables = ["environnement", "regle", "source", "cible", "archive", "fichier", "nom",
-                     "fichier_cible", "liste", "liste_json", "date"]
-        self.assertAucun([self.prog(commande=["x"] + ["{%s}" % v for v in variables])])
+    def test_variables_selon_le_point_d_appel(self):
+        communes = ["environnement", "regle", "source", "cible", "archive", "date"]
+        fichier, liste = ["fichier", "nom", "fichier_cible"], ["liste", "liste_json"]
+        attendu = {"avant_lot": communes + liste, "avant_fichier": communes + fichier,
+                   "apres_fichier": communes + fichier, "apres_lot": communes + liste,
+                   "sur_erreur": communes + liste, "reprise": communes}
+        for point, variables in attendu.items():
+            commande = ["x"] + ["{%s}" % v for v in variables]
+            self.assertAucun([regle(programmes={point: {"commande": commande, "timeout_sec": 5}})])
+
+    def test_variable_sans_objet_a_ce_point_d_appel(self):
+        for point, variable in (("avant_lot", "fichier"), ("apres_lot", "nom"), ("reprise", "liste"),
+                                ("avant_fichier", "liste_json"), ("apres_fichier", "liste")):
+            programme = {"commande": ["x", "{%s}" % variable], "timeout_sec": 5}
+            _, rapport = self.verifier([regle(programmes={point: programme})])
+            self.assertEqual(rapport.codes(), ["G01"], (point, variable))
+            self.assertIn("sans objet", rapport.diagnostics[0].message)
 
     def test_g01(self):
         for modif in ({"commande": "python x.py"}, {"commande": []}, {"commande": [""]},

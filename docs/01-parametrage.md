@@ -158,7 +158,7 @@ Chaque situation anormale a sa réaction. Le champ `situations` est un objet don
 ```
 
 - `commande` : **tableau** de textes. Le premier élément est l'exécutable. Aucun shell n'est utilisé.
-- Variables remplacées dans chaque élément : `{environnement}` `{regle}` `{source}` `{cible}` `{archive}` `{fichier}` `{nom}` `{fichier_cible}` `{liste}` `{liste_json}` `{date}`.
+- Variables remplacées dans chaque élément : `{environnement}` `{regle}` `{source}` `{cible}` `{archive}` `{date}` à tous les points d'appel ; `{fichier}` `{nom}` `{fichier_cible}` seulement pour `avant_fichier` et `apres_fichier` ; `{liste}` `{liste_json}` seulement pour `avant_lot`, `apres_lot` et `sur_erreur`. Une variable sans objet à un point d'appel est refusée (G01).
 - Les mêmes informations sont transmises en variables d'environnement (`COPIE_REGLE`, `COPIE_FICHIER`, `COPIE_LISTE`, `COPIE_REPRISE`, `COPIE_SIMULATION`, …).
 - Comportement, codes retour : §9 de [02-moteur](02-moteur.md).
 - Éviter les fichiers `.bat` qui reçoivent des noms de fichiers : `cmd.exe` réinterprète `&`, `^`, `%`.
