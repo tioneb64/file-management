@@ -532,10 +532,43 @@ C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recet
 | J11-M09 | Fin de migration | Renommage des lanceurs (étape 7), jobs Jenkins inchangés | `python copie_fichiers.py --config … --verifier` répond ; `copie_fichiers_v1.py` conservé | |
 | J11-M10 | **Restauration de la base** | Restaurer la dernière sauvegarde dans un dossier de recette et ouvrir (J2-M06) après quelques jours de production v2 | La base restaurée connaît les fichiers livrés ; un lancement ne relivre rien | |
 
-## 13. Jalons suivants
+## 13. Jalon J12 — Purge des journaux et des archives
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 634 tests au total (602 précédents + 32 de J12), tous OK en 8 min 16 s.
+
+Spécification : [02-moteur §11.2](02-moteur.md). La purge **supprime des données** : toujours commencer par la liste (sans `--appliquer`).
+
+```powershell
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger --regle r1 --appliquer
+```
+
+### 13.1 Tests automatiques (fichier `tests/test_purge.py`)
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J12-A01 | **Journaux** : rien sans rétention ; rétention d'en-tête et de règle ; limite exacte conservée ; journal d'une règle inconnue, journaux de secours et autres fichiers conservés ; filtre `--regle` ; le plan ne supprime rien ; fichier en lecture seule supprimé | OK | |
+| J12-A02 | **Contrôle R13** : refus hors archivage, avec archive sans date, valeur invalide | OK | |
+| J12-A03 | **Archives** : seuls les dossiers plus anciens que la rétention (jour, mois, année/mois/jour) ; dossiers non datés ou à date impossible jamais touchés ; contenu en lecture seule ; parents vides retirés ; archive absolue ailleurs | OK | |
+| J12-A04 | **Garde-fous** : racine = source, dans ou contenant la cible, racine de disque refusées ; modèle sans variable / répétée / inconnue ; dossier visé par une action en attente protégé ; lien symbolique jamais suivi ; suppression hors racine refusée ; une erreur (fichier verrouillé) n'arrête pas les suivantes | OK | |
+| J12-A05 | **Purge de la base** : une fois par jour, événement `purge_base` ; un échec n'est qu'un avertissement | OK | |
+| J12-A06 | **Commande** : sans `--appliquer` rien n'est supprimé ; avec, suppression et trace au journal ; rien à purger ; règle non purgeable = code 4 ; base absente = code 2 ; `--appliquer` sans `--purger` refusé ; Jenkinsfile.purge accepté par l'analyseur d'arguments | OK | |
+
+### 13.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J12-M01 | **Liste sans suppression** | Dossier de recette avec des journaux et des archives de dates variées ; `--purger` | La liste correspond à ce qui dépasse la rétention ; rien n'a disparu | |
+| J12-M02 | Suppression réelle | Même jeu, `--purger --appliquer` | Seuls les éléments listés disparaissent ; événements `purge_supprime` dans le journal | |
+| J12-M03 | **Droits** | Compte de service sans droit de suppression sur un dossier d'archive | `purge_echec`, code 4, les autres éléments sont purgés | |
+| J12-M04 | **Archive sur partage réseau** | Archive absolue `\\serveur\partage\…\{AAAA}-{MM}-{JJ}` | Même résultat qu'en local ; aucun dossier hors de la racine touché | |
+| J12-M05 | Job Jenkins | Créer le job `Jenkinsfile.purge` (sans `--appliquer`) | Liste visible dans le journal du build ; statut SUCCESS (UNSTABLE si avertissement) | |
+| J12-M06 | Purge de la base | Deux lancements le même jour, puis le lendemain | `purge_base` une seule fois par jour | |
+
+## 14. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J6 à J12 | Arrêt d'arbre de processus, dépendances, Jenkins, front-end, migration, recette |
+| J10 | Front-end PowerShell (en attente des maquettes) |

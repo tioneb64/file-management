@@ -52,6 +52,11 @@ def _controler_regle_seule(r, rapport, periode_declencheur_sec):
         elif r.selection.recursif and (cible + os.sep).startswith(source + os.sep):
             signaler("R03", "en mode recursif, la cible ne peut pas etre dans la source")
 
+    if r.retention_archive_jours is not None and (
+            r.mode != "archivage" or not r.archive or "{AAAA}" not in r.archive):
+        signaler("R13", "retention_archive_jours n'est possible qu'en mode archivage avec une archive datee "
+                 "(par exemple .\\archive\\{AAAA}-{MM}-{JJ}) : la date du dossier est la seule date d'archivage fiable")
+
     fenetre = r.selection.fenetre_jours()
     if fenetre is not None and r.retention_historique_jours <= fenetre:
         signaler("R08", "retention_historique_jours (%d) doit etre superieure a la fenetre de "

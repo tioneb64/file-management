@@ -55,6 +55,7 @@ Colonne « Droits » : **lecture** = tout compte, **écriture** = administrateur
 | `--lancer-maintenant ID --utilisateur U` | écriture | Idem, sans programme de reprise | `commande`, `regle` |
 | `--acquitter ID --utilisateur U --commentaire C` | écriture | Règle en `ERREUR` considérée comme corrigée (commentaire obligatoire) | `commande`, `regle` |
 | `--debloquer ID --utilisateur U [--commentaire C]` | écriture | Arrête l'exécution en cours (processus et descendants) et libère la règle | `commande`, `regle`, `execution_id`, `pid`, `processus_arrete`, `drapeau_libere`, `reprise_necessaire` |
+| `--purger [--regle ID] [--appliquer]` | écriture | Sans `--appliquer` : liste ce qui serait purgé (journaux et archives), **ne supprime rien**. Avec : supprime. Code 4 si une règle n'est pas purgeable ou si une suppression échoue | `commande`, `appliquee`, `a_purger` (`type`, `regle`, `chemin`, `date`, `octets`, `fichiers`), `octets`, `ignores` (`chemin`, `raison`), `erreurs_regles`, `resultat` (avec `--appliquer` : `journaux`, `archives`, `octets`, `erreurs`) |
 | `--trancher-incertain CLE --decision livre\|a_relivrer --utilisateur U --commentaire C` | écriture | Décide du sort d'une livraison de résultat inconnu | `commande`, `decision` |
 | `--lancer-regle ID [--simulation]` | écriture | Exécute une seule règle maintenant | `regle`, `statut`, `compteurs`, `simulation` |
 | *(aucune)* `[--regle ID] [--simulation]` | écriture | Lancement : toutes les règles dues (utilisé par Jenkins) | `statut`, `compteurs`, `simulation` |

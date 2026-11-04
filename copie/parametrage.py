@@ -83,6 +83,7 @@ class Entete(object):
         self.dossier_travail = None
         self.parallele_max = None
         self.retention_executions_jours = 365
+        self.retention_journaux_jours = None      # None : les journaux ne sont jamais purges
         self.marge_espace_mo = 64
 
 
@@ -150,6 +151,8 @@ class Regle(object):
         self.selection = Selection()
         self.identite = "version"
         self.retention_historique_jours = 90
+        self.retention_journaux_jours = None      # None : valeur de l'en-tete, sinon jamais purges
+        self.retention_archive_jours = None       # None : l'archive n'est jamais purgee
         self.si_cible_absente = "ignorer"
         self.si_existe_cible = "erreur"
         self.si_existe_archive = "suffixe"
@@ -304,6 +307,7 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
     e.dossier_travail = lecteur.valeur("dossier_travail", "texte_ou_null", None)
     e.parallele_max = lecteur.entier("parallele_max", None, minimum=1, nullable=True)
     e.retention_executions_jours = lecteur.entier("retention_executions_jours", 365, minimum=1)
+    e.retention_journaux_jours = lecteur.entier("retention_journaux_jours", None, minimum=1, nullable=True)
     e.marge_espace_mo = lecteur.entier("marge_espace_mo", 64, minimum=0)
     lecteur.inconnus()
 
@@ -539,6 +543,8 @@ def lire_regle(objet, ligne, rapport):
 
     r.identite = lecteur.choix("identite", IDENTITES, "version")
     r.retention_historique_jours = lecteur.entier("retention_historique_jours", 90, minimum=1)
+    r.retention_journaux_jours = lecteur.entier("retention_journaux_jours", None, minimum=1, nullable=True)
+    r.retention_archive_jours = lecteur.entier("retention_archive_jours", None, minimum=1, nullable=True)
     r.si_cible_absente = lecteur.choix("si_cible_absente", SI_CIBLE_ABSENTE, "ignorer")
     r.si_existe_cible = lecteur.choix("si_existe_cible", SI_EXISTE_CIBLE, "erreur")
     r.si_existe_archive = lecteur.choix("si_existe_archive", SI_EXISTE_ARCHIVE, "suffixe")

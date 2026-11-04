@@ -362,7 +362,15 @@ Les programmes n'appellent que ces trois fonctions. Le fonctionnement interne (a
 
 - `<dossier_logs>\<regle>_<AAAA-MM-JJ>.jsonl` : un fichier par règle et par jour. `<dossier_logs>\_orchestrateur_<AAAA-MM-JJ>.jsonl` pour le lancement.
 - UTF-8, une ligne = un événement, écrite en **un seul appel d'écriture** en mode ajout. Plusieurs processus peuvent écrire dans le même fichier ; un test de charge (8 processus × 10 000 lignes, aucune ligne corrompue) fait partie des critères de sortie.
-- La purge des anciens fichiers est un module séparé, paramétré par `id` de règle.
+- La purge des anciens fichiers est un module séparé (`copie/purge.py`, commande `--purger`), paramétré par règle (`retention_journaux_jours`, `retention_archive_jours`).
+
+**Purge (J12)** — opération destructive, donc prudente :
+
+- Rien n'est jamais purgé sans réglage explicite. `--purger` **liste** seulement ; `--purger --appliquer` supprime. Chaque suppression est tracée (`purge_supprime`) ; un échec isolé (`purge_echec`, fichier verrouillé) n'arrête pas les suivantes et donne le code 4.
+- **Journaux** : d'après la date du nom de fichier. Le journal d'une règle absente du paramétrage, et `journal_si_secours_*`, sont conservés (signalés dans `ignores`).
+- **Archives** : seuls les dossiers dont le nom suit le modèle d'archive (`{AAAA}`, `{MM}`, `{JJ}`) sont candidats, d'après la **date de leur nom** (dossier mensuel : dernier jour du mois). Jamais : la source, la cible, un dossier qui les contient, la racine d'un disque, un lien symbolique ou une jonction, un dossier vers lequel des actions sont encore en attente, ni rien hors de la racine de l'archive. Les dossiers parents devenus vides sont retirés.
+- **Base** : à chaque lancement (une fois par jour), les fichiers `TERMINE` plus vieux que `retention_historique_jours` et les exécutions plus vieilles que `retention_executions_jours` sont supprimés (`purge_base`) ; un échec n'est qu'un avertissement (`purge_base_echec`).
+- Job Jenkins : `jenkins/Jenkinsfile.purge` (quotidien, **sans** `--appliquer` tant que la liste n'a pas été relue).
 
 ### 11.3 Format
 

@@ -3,7 +3,7 @@
 Sans commande : lancement (les regles dues, en parallele, apres evaluation de leurs dependances).
 Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER], --initialiser-base,
 --sauvegarder-base DOSSIER, --etat, --reprise ID, --lancer-maintenant ID, --acquitter ID,
---debloquer ID, --trancher-incertain CLE, --lancer-regle ID (une seule regle, planification
+--debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --lancer-regle ID (une seule regle, planification
 ignoree). Avec --format json, TOUTES les commandes ecrivent un seul objet JSON UTF-8 sur la
 sortie standard (contrat : docs/07-contrat-moteur-frontend.md).
 Le lanceur copie_fichiers.py (v1) reste en place tant que la v2 n'est pas livree.
@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-from copie import __version__, base, lancement
+from copie import __version__, base, lancement, purge
 from copie.controles import verifier_fichier
 from copie.diagnostic import VERSION_CONTRAT
 
@@ -284,6 +284,42 @@ def _etat(args, parametrage):
     return CODE_OK
 
 
+def _purger(args, parametrage):
+    """Purge des journaux et des archives. Sans --appliquer : liste seulement (rien n'est supprime)."""
+    b, erreur = _ouvrir_base(args, parametrage, lecture_seule=True)
+    if b is None:
+        return erreur
+    with b:
+        plan = purge.planifier(parametrage, b, filtre=args.regle)
+    resultat = None
+    if args.appliquer and plan.elements:
+        journal = _journal(args, parametrage)
+        resultat = purge.appliquer(plan, journal)
+        statut = "WARNING" if resultat["erreurs"] else "SUCCES"
+        _terminer_journal(journal, statut, {k: resultat[k] for k in ("journaux", "archives")}, CODE_OK)
+    octets = sum(e.octets for e in plan.elements)
+    details = {"commande": "purger", "appliquee": bool(args.appliquer), "a_purger": [e.en_dict() for e in plan.elements],
+               "octets": octets, "ignores": plan.ignores, "erreurs_regles": plan.erreurs}
+    if resultat is not None:
+        details["resultat"] = resultat
+    code = CODE_OK
+    if plan.erreurs or (resultat and resultat["erreurs"]):
+        code = CODE_AVERTISSEMENT
+    if args.appliquer:
+        message = "%d journal(aux) et %d archive(s) supprime(s) (%.1f Mo)." % (
+            resultat["journaux"] if resultat else 0, resultat["archives"] if resultat else 0,
+            (resultat["octets"] if resultat else 0) / 1048576.0)
+    else:
+        message = "%d element(s) a purger (%.1f Mo) ; rien n'est supprime sans --appliquer." % (
+            len(plan.elements), octets / 1048576.0)
+    if args.format != "json":
+        for e in plan.elements:
+            print("  %-8s %s  %s" % (e.type, e.date.isoformat(), e.chemin))
+        for e in plan.erreurs:
+            print("AVERTISSEMENT : %s" % e, file=sys.stderr)
+    return _repondre(args, code, message, **details)
+
+
 # --------------------------------------------------------------------------- #
 # Exploitation
 # --------------------------------------------------------------------------- #
@@ -362,6 +398,8 @@ def _arguments(argv=None):
                           help="arrete l'execution en cours de la regle (et son arbre de processus) et libere son drapeau")
     commande.add_argument("--trancher-incertain", metavar="CLE",
                           help="decide du sort d'une livraison de resultat inconnu (avec --decision)")
+    commande.add_argument("--purger", action="store_true",
+                          help="journaux et archives plus anciens que leur retention (liste ; --appliquer pour supprimer)")
     commande.add_argument("--migrer-ancien", metavar="COPIES.CONF",
                           help="convertit l'ancien fichier copies.conf en parametrage v2 (regles inactives)")
     commande.add_argument("--importer-historique", metavar="HISTORIQUE.JSON",
@@ -383,6 +421,7 @@ def _arguments(argv=None):
                    help="affiche ce qui serait fait, n'ecrit rien (planification ignoree)")
     p.add_argument("--simulation-programmes", action="store_true",
                    help="avec --simulation : appelle quand meme les programmes (COPIE_SIMULATION=1)")
+    p.add_argument("--appliquer", action="store_true", help="avec --purger : supprime vraiment")
     p.add_argument("--decision", choices=("livre", "a_relivrer"),
                    help="avec --trancher-incertain : le fichier est bien arrive, ou il faut le relivrer")
     p.add_argument("--utilisateur", help="compte a tracer (obligatoire pour les commandes d'exploitation)")
@@ -406,13 +445,15 @@ def _main(argv=None):
     lancement_ou_regle = not (args.verifier or args.initialiser_base or args.sauvegarder_base or args.etat
                               or args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
                               or args.trancher_incertain or args.executer_regle or args.migrer_ancien
-                              or args.importer_historique)
+                              or args.importer_historique or args.purger)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
     if args.simulation_programmes and not args.simulation:
         p.error("--simulation-programmes s'utilise avec --simulation")
-    if args.regle and not (lancement_ou_regle or args.etat):
-        p.error("--regle s'utilise avec un lancement ou --etat")
+    if args.regle and not (lancement_ou_regle or args.etat or args.purger):
+        p.error("--regle s'utilise avec un lancement, --etat ou --purger")
+    if args.appliquer and not args.purger:
+        p.error("--appliquer s'utilise avec --purger")
     if args.precedent and not args.verifier:
         p.error("--precedent s'utilise avec --verifier")
     if args.executer_regle and args.execution_id is None:
@@ -448,6 +489,8 @@ def _main(argv=None):
         return _etat(args, parametrage)
     if args.importer_historique:
         return _importer_historique(args, parametrage)
+    if args.purger:
+        return _purger(args, parametrage)
     if exploitation:
         return _exploitation(args, parametrage)
     if args.executer_regle:

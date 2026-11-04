@@ -16,6 +16,7 @@
 | `tests/test_jenkins.py` | J9 : `journal_si.py` en ligne de commande (evenements de job), coherence statique des Jenkinsfile et de la bibliotheque Groovy (non executee), builds simultanes et abandon d'un build avec de vrais processus. |
 | `jenkins/` | Jenkinsfile (transfert, sauvegarde, verification) et bibliotheque partagee `journal-si` (`vars/journalSI.groovy`, `vars/copieFichiers.groovy`). |
 | `tests/test_migration.py` | J11 : conversion de `copies.conf`, import de l'historique, parcours reel ancien script -> nouveau (rien n'est relivre), comparateur de dossiers, lanceur v2. |
+| `tests/test_purge.py` | J12 : purge des journaux (retention d'en-tete et de regle, limite exacte, regles inconnues), des archives datees (jour, mois, sous-dossiers, garde-fous, liens, actions en attente), de la base, commande `--purger`. |
 | `outils/comparer_dossiers.py` | Recette : compare deux dossiers cibles (presence, taille, SHA-256, dates) pour prouver que la v2 livre comme l'ancien script. |
 | `outils/mesure_transfert.py` | Mesure sur le serveur : débit de livraison (copie, déplacement, relance), cible locale ou réseau. |
 | `tests/test_journal.py` | J3 : module `journal_si.py` (format, fichiers, pannes, charge entre processus). |

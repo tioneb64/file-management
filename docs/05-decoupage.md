@@ -109,6 +109,13 @@ Dès que le format de journal (J3) et les sorties du moteur (J8) sont figés, tr
 4. Bascule règle par règle, journaux surveillés.
 5. Sauvegarde quotidienne de la base en place avant la bascule.
 
+### J12 — Purge des journaux et des archives
+
+1. Rétentions par règle (`retention_journaux_jours`, `retention_archive_jours`) et d'en-tête ; contrôle R13.
+2. `copie/purge.py` : plan (liste) puis application, garde-fous, tracé ; commande `--purger [--appliquer]`.
+3. Purge de la base à chaque lancement (une fois par jour) ; `jenkins/Jenkinsfile.purge`.
+4. Le paramétrage depuis le front-end suivra J10 (les champs sont de simples champs de règle).
+
 ## 5. Stratégie de tests
 
 **Méthode retenue** : le développement exécute tout sur le poste du responsable applicatif (Windows 10, Python 3.14.10). À chaque jalon, les tests sont ajoutés au [cahier de tests](06-cahier-de-tests.md), qui sert ensuite de fiche de passage sur le serveur de recette (Windows Server 2016). Un jalon n'est « terminé » que lorsque ses tests automatiques passent sur le poste et que ses tests manuels sont décrits dans le cahier.

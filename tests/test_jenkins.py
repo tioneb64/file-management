@@ -177,7 +177,7 @@ class TestFichiersJenkins(unittest.TestCase):
     def test_les_fichiers_existent(self):
         noms = {os.path.relpath(f, JENKINS) for f in fichiers_jenkins()}
         self.assertEqual(noms, {"Jenkinsfile.transfert", "Jenkinsfile.sauvegarde", "Jenkinsfile.verification",
-                                os.path.join("vars", "journalSI.groovy"), os.path.join("vars", "copieFichiers.groovy")})
+                                "Jenkinsfile.purge", os.path.join("vars", "journalSI.groovy"), os.path.join("vars", "copieFichiers.groovy")})
 
     def test_delimiteurs_equilibres_et_pas_de_tabulation(self):
         for chemin in fichiers_jenkins():
@@ -240,7 +240,7 @@ class TestFichiersJenkins(unittest.TestCase):
         self.assertRegex(texte, r"always\s*\{\s*script\s*\{\s*journalSI\.finJob")
 
     def test_jobs_de_sauvegarde_et_de_verification_ne_sont_pas_simultanes(self):
-        for nom in ("Jenkinsfile.sauvegarde", "Jenkinsfile.verification"):
+        for nom in ("Jenkinsfile.sauvegarde", "Jenkinsfile.verification", "Jenkinsfile.purge"):
             texte = lire(os.path.join(JENKINS, nom))
             self.assertIn("disableConcurrentBuilds()", sans_commentaires_ni_chaines(texte), nom)
             self.assertIn("journalSI.finJob", texte)

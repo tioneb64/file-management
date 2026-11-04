@@ -26,6 +26,7 @@
 | `dossier_travail` | chemin | non | Listes de fichiers transmises aux programmes, résultats. Défaut : `travail` à côté de la base |
 | `parallele_max` | entier ou `null` | non | Nombre maximum de règles en parallèle. `null` (défaut) : pas de limite |
 | `retention_executions_jours` | entier | non | Durée de conservation des exécutions en base. Défaut : `365` |
+| `retention_journaux_jours` | entier | non | Durée de conservation des fichiers de journaux (`<règle>_<AAAA-MM-JJ>.jsonl`, `_orchestrateur_…`), d'après la **date inscrite dans leur nom**. Absent : jamais purgés. Peut être surchargé par règle |
 | `marge_espace_mo` | entier | non | Espace libre à conserver en plus de la taille des fichiers à livrer, pour la cible et l'archive. Défaut : `64` |
 
 ## 3. Règle : référence des champs
@@ -79,6 +80,8 @@ Le dossier d'archive est **toujours exclu** du parcours de la source.
 |---|---|---|---|
 | `identite` | texte | `version` | `version` : un fichier est identique s'il a même nom, même taille et même date de modification. `contenu` : identique s'il a même nom et même SHA-256 (voir le point à valider n° 1 de la vue d'ensemble) |
 | `retention_historique_jours` | entier | `90` | Durée pendant laquelle un fichier **non revu** reste mémorisé. Doit être **supérieure** à la fenêtre `modifie_depuis` |
+| `retention_journaux_jours` | entier | *(en-tête)* | Durée de conservation des journaux de **cette** règle. Absent : valeur de l'en-tête, sinon jamais purgés |
+| `retention_archive_jours` | entier | *(aucune)* | Mode `archivage` seulement : les **dossiers d'archive datés** dont la date (fin de période) dépasse cette durée sont supprimés avec leur contenu. Absent : l'archive n'est **jamais** purgée. Exige une archive datée (R13) |
 | `si_cible_absente` | texte | `ignorer` | Mode `copie` : `ignorer` si la copie a disparu de la cible (le destinataire l'a prise) ; `recopier` pour une synchronisation |
 | `si_existe_cible` | texte | `erreur` | Un fichier du même nom attend déjà dans la cible : `erreur`, `ecraser`, `ignorer`, `suffixe` (horodatage ajouté au nom) |
 | `si_existe_archive` | texte | `suffixe` | Même cas dans l'archive : `suffixe`, `ecraser`, `erreur` |
@@ -277,6 +280,7 @@ Ces contrôles sont réalisés **par le moteur** (`copie_fichiers.py --verifier`
 | R06 | refus | Valeur hors liste (mode, niveaux, `suite` non autorisée pour la situation, `ordre`, `identite`…) |
 | R07 | refus | Nombres hors bornes (`tentatives` < 1, `delai_sec` < 0, `age_minimum_sec` ≥ `age_maximum_sec`…) |
 | R08 | refus | `retention_historique_jours` doit être supérieure à la fenêtre de sélection, quand il y en a une (`modifie_depuis = J-N`, ou `age_maximum_sec`) |
+| R13 | refus | `retention_archive_jours` sans mode `archivage`, ou avec une archive sans date (`{AAAA}` absent) : la date du dossier est la seule date d'archivage fiable (un déplacement conserve la date de modification d'origine) |
 | R09 | avert. | `duree_max_sec` inférieure à la somme des attentes prévues dans `situations` |
 | R10 | avert. | Deux règles avec la même source, cible et masque |
 | R11 | avert. | Deux règles écrivent dans la même cible sans dépendance entre elles |

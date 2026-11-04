@@ -30,6 +30,7 @@ CODES = {
     "R10": (AVERTISSEMENT, "deux regles identiques (source, cible, masque)"),
     "R11": (AVERTISSEMENT, "deux regles ecrivent dans la meme cible sans dependance"),
     "R12": (AVERTISSEMENT, "variable inconnue dans un modele"),
+    "R13": (REFUS, "retention_archive_jours exige le mode archivage et une archive datee"),
     "P01": (REFUS, "planification invalide"),
     "P02": (AVERTISSEMENT, "frequence inferieure a la periode du declencheur"),
     "D01": (REFUS, "dependance vers une regle inexistante"),

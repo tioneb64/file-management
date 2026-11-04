@@ -114,6 +114,24 @@ def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None, mainten
             journal.evenement("arret_anormal", "ERREUR", regle=ligne["id"], message=message)
 
 
+def purger_base(parametrage, base, journal, lancement):
+    """Purge de la base (fichiers termines, executions anciennes), une fois par jour. Un echec n'arrete
+    pas le lancement : simple avertissement."""
+    retentions = {}
+    for r in parametrage.regles:
+        no = base.numero_regle(r.id) if r.id else None
+        if no is not None:
+            retentions[no] = r.retention_historique_jours
+    try:
+        bilan = base.purger(retentions, parametrage.entete.retention_executions_jours)
+    except modele_base.ErreurBase as e:
+        lancement.noter("WARNING")
+        journal.evenement("purge_base_echec", "WARNING", message=str(e))
+        return
+    if bilan is not None:
+        journal.evenement("purge_base", "INFO", **bilan)
+
+
 def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant=None,
            fuseau=planification.FUSEAU, build=None, dormir=time.sleep, maintenant_dt=None,
            direct=False, pas_sec=0.2, rappel=None, simulation_programmes=False):
@@ -131,6 +149,7 @@ def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant
     try:
         if not simulation:
             synchroniser(parametrage, base, journal, lancement)
+            purger_base(parametrage, base, journal, lancement)
             nettoyer_orphelins(parametrage, base, journal, lancement, maintenant=maintenant)
             Orchestrateur(parametrage, base, journal, lancement, filtre=filtre, maintenant=maintenant,
                           fuseau=fuseau, build=build, direct=direct, maintenant_dt=maintenant_dt,
