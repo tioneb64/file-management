@@ -16,6 +16,7 @@ from copie.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTrans
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
 RANG = {"INFO": 0, "WARNING": 1, "ERREUR": 2}
+NIVEAU_STATUT = {"SUCCES": "INFO", "WARNING": "WARNING", "ERREUR": "ERREUR"}
 STATUTS = ("SUCCES", "WARNING", "ERREUR")
 EXCEPTIONS_RETENTABLES = (ErreurTransfert, OSError)
 MARGE_OCTETS = 1024 * 1024
@@ -30,6 +31,7 @@ class Bilan(object):
                           "en_attente": 0, "octets": 0}
         self.erreur = None                  # {"situation", "message"} de la premiere ERREUR
         self.arret_apres_erreur = False
+        self.duree_ms = 0
 
 
 class EchecSituation(Exception):
@@ -682,18 +684,21 @@ def nom_hote():
 
 
 def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=False,
-                 maintenant=None, dormir=time.sleep, build=None, creneau=None):
+                 maintenant=None, dormir=time.sleep, build=None, creneau=None, execution_existante=None,
+                 journaliser_fin=True):
     """Prend le flag de la regle, l'execute, libere le flag. Renvoie le Bilan.
     `declencheur` : planifie | reprise | manuel | dependance ; `creneau` : creneau pris par cette
     execution (secondes). En simulation : aucune ecriture en base (ouverte en lecture seule),
-    pas de flag."""
+    pas de flag. `execution_existante` : l'orchestrateur a deja pris le drapeau et cree l'execution
+    (on ne fait que l'executer) ; `journaliser_fin` : faux pour un fils, dont l'orchestrateur
+    journalise la fin."""
     no = base.numero_regle(regle.id)
     if no is None and simulation:
         no = -1                       # regle jamais vue en base : aucune ligne ne correspond
     elif no is None:
         raise modele_base.ErreurBase("regle inconnue de la base : %s (synchroniser d'abord)" % regle.id)
-    execution_id = None
-    if not simulation:
+    execution_id = execution_existante
+    if not simulation and execution_id is None:
         execution_id = base.demarrer_execution(no, declencheur, os.getpid(),
                                                pid_cree_le=processus.date_creation(os.getpid()),
                                                hote=nom_hote(), build=build, creneau=creneau)
@@ -725,9 +730,10 @@ def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=
                                 compteurs=bilan.compteurs, situation_finale=bilan.situation_finale,
                                 message=bilan.motif, erreur=bilan.erreur,
                                 arret_apres_erreur=bilan.arret_apres_erreur)
-    journal.evenement("regle_terminee", {"SUCCES": "INFO", "WARNING": "WARNING", "ERREUR": "ERREUR"}[bilan.statut],
-                      statut=bilan.statut, motif=bilan.motif, compteurs=bilan.compteurs,
-                      duree_ms=int((time.time() - debut) * 1000),
-                      **({"simulation": True} if simulation else {}))
+    bilan.duree_ms = int((time.time() - debut) * 1000)
+    if journaliser_fin:
+        journal.evenement("regle_terminee", NIVEAU_STATUT[bilan.statut],
+                          statut=bilan.statut, motif=bilan.motif, compteurs=bilan.compteurs,
+                          duree_ms=bilan.duree_ms, **({"simulation": True} if simulation else {}))
     journal.definir(regle=None, execution_id=None)
     return bilan

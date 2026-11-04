@@ -52,6 +52,7 @@ class CasLancement(CasMoteur):
         return p
 
     def lancer_env(self, **kw):
+        kw.setdefault("direct", True)                  # sans processus fils : l'horloge simulee reste valable
         return lancement.lancer(self.parametrage(), self.b, self.journal, maintenant=self.ts,
                                 maintenant_dt=lambda: self.maintenant, dormir=self.pauses.append, **kw)
 
@@ -122,18 +123,6 @@ class TestLancementSequentiel(CasLancement):
         self.heure(7, 1)
         r = self.lancer_env()
         self.assertEqual((r.compteurs["SUCCES"], r.compteurs["ERREUR"], r.code_retour), (1, 1, 1))
-
-    def test_regle_avec_dependances_non_lancee_avertissement(self):
-        self.brute(id="amont", cible=self.chemin("d1"))
-        self.brute(id="aval", cible=self.chemin("d2"), apres=["amont"],
-                   planification={"type": "apres_dependances"})
-        self.brute(id="aval_horaire", cible=self.chemin("d3"), apres=["amont"])
-        self.lancer_env()
-        self.heure(7, 1)
-        r = self.lancer_env()
-        self.assertEqual(r.compteurs["non_lancees"], 1)           # seule celle qui a un creneau est due
-        self.assertEqual(r.code_retour, 4)
-        self.assertIn("J6", self.evenements("regle_non_lancee")[0]["message"])
 
     def test_regle_orpheline_et_regle_modifiee(self):
         self.brute()

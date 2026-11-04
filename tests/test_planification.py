@@ -181,9 +181,14 @@ class TestEvaluer(unittest.TestCase):
         self.assertIn("reprise ou acquittement", d.motif)
         self.assertTrue(self.evaluer(r, dict(bloquee, reprise=1), paris(2026, 11, 3, 7, 30)).due)
 
-    def test_regle_apres_dependances_jamais_planifiee(self):
-        d = self.evaluer(regle({"type": "apres_dependances"}, apres=["autre"]), etat(), paris(2026, 11, 3, 8))
-        self.assertEqual((d.due, d.motif), (False, "attend ses dependances"))
+    def test_regle_apres_dependances_sans_horaire(self):
+        r = regle({"type": "apres_dependances"}, apres=["autre"])
+        d = self.evaluer(r, etat(), paris(2026, 11, 3, 8))
+        self.assertEqual((d.due, d.declencheur, d.creneau), (True, "dependance", None))     # l'evaluation des dependances decide
+        d = self.evaluer(r, etat(dernier_creneau=None, dernier_lancement=None), paris(2026, 11, 3, 8))
+        self.assertEqual((d.due, d.nouvelle), (True, False))                                  # ref = 0 : pas de regle "nouvelle"
+        d = self.evaluer(r, etat(arret_apres_erreur=1), paris(2026, 11, 3, 8))
+        self.assertFalse(d.due)
 
     def test_rattrapage(self):
         r = regle({"type": "quotidien", "heure": "07:15", "rattrapage_sec": 14400})

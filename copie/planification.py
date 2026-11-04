@@ -101,13 +101,15 @@ def evaluer(regle, etat, maintenant, fuseau=FUSEAU):
         return Decision(True, "reprise", echu, "reprise demandee")
     if etat["lancement_manuel"]:
         return Decision(True, "manuel", echu, "lancement manuel demande")
-    if etat["dernier_creneau"] is None and etat["dernier_lancement"] is None:
+    apres_dependances = planification is not None and planification.type == "apres_dependances"
+    if not apres_dependances and etat["dernier_creneau"] is None and etat["dernier_lancement"] is None:
         # jamais vue : son dernier creneau echu est considere comme deja pris (docs/02, section 4.5)
         return Decision(False, motif="regle nouvelle", creneau=echu, nouvelle=True)
-    if planification is None or planification.type == "apres_dependances":
-        return Decision(False, motif="attend ses dependances")
     if etat["arret_apres_erreur"]:
         return Decision(False, motif="arretee apres une erreur : reprise ou acquittement requis")
+    if apres_dependances or planification is None:
+        # pas d'horaire : candidate a chaque lancement, l'evaluation des dependances decide
+        return Decision(True, "dependance", None, "attend ses dependances")
     if echu is None:
         return Decision(False, motif="aucun creneau")
     if planification.rattrapage_sec is not None and maintenant - echu > planification.rattrapage_sec:

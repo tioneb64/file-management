@@ -13,9 +13,8 @@ import time
 
 from copie import base as modele_base
 from copie import planification, processus
-from copie.execution import RegleDejaEnCours, lancer_regle, nom_hote
-
-NIVEAU_DEPENDANCES = "WARNING"
+from copie.execution import lancer_regle, nom_hote
+from copie.orchestrateur import Orchestrateur
 
 
 def empreinte_regle(regle):
@@ -26,7 +25,8 @@ def empreinte_regle(regle):
 class Lancement(object):
     def __init__(self):
         self.compteurs = {"regles": 0, "lancees": 0, "SUCCES": 0, "WARNING": 0, "ERREUR": 0,
-                          "non_dues": 0, "non_lancees": 0, "orphelines": 0, "nettoyees": 0}
+                          "non_dues": 0, "non_lancees": 0, "orphelines": 0, "nettoyees": 0,
+                          "en_attente": 0, "bloquees": 0, "depassees": 0}
         self.niveau = 0                    # 0 INFO, 1 WARNING, 2 ERREUR : pire evenement du lancement
         self.interrompu = None             # message si le lancement a du s'arreter (base indisponible)
 
@@ -63,7 +63,36 @@ def synchroniser(parametrage, base, journal, lancement):
     return numeros
 
 
-def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None):
+def _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant):
+    """Une execution d'un AUTRE lancement, vivante mais au-dela de `duree_max_sec` : on applique
+    `si_duree_depassee` (on ne tient pas son Job Object : arret de l'arbre par taskkill /T)."""
+    if regle is None or not ligne["debut_traitement"] or ligne["debut_traitement"] + regle.duree_max_sec >= maintenant:
+        return
+    message = "duree maximale depassee (%d s) pour l'execution %s" % (regle.duree_max_sec, ligne["execution_id"])
+    if regle.si_duree_depassee == "alerter":
+        lancement.noter("WARNING")
+        lancement.compteurs["depassees"] += 1
+        journal.evenement("duree_depassee", "WARNING", regle=ligne["id"], message=message + " : l'execution continue",
+                          action="alerter")
+        return
+    processus.tuer_arbre(ligne["pid"])
+    lancement.compteurs["depassees"] += 1
+    if regle.si_duree_depassee == "relancer" and (ligne["relances"] or 0) < regle.relances_max:
+        base.liberer_flag(ligne["no"], message + " : relance", statut_regle="ARRETEE")
+        base.incrementer_relances(ligne["no"])
+        base.poser_lancement_manuel(ligne["id"], "orchestrateur", "relance apres depassement de duree")
+        lancement.noter("WARNING")
+        journal.evenement("duree_depassee", "WARNING", regle=ligne["id"], message=message + " : arret puis relance",
+                          action="relancer")
+        return
+    base.liberer_flag(ligne["no"], message, statut_regle="ERREUR", arret_apres_erreur=regle.apres_erreur == "arreter",
+                      erreur={"situation": "duree_depassee", "message": message})
+    lancement.noter("ERREUR")
+    journal.evenement("duree_depassee", "ERREUR", regle=ligne["id"], message=message + " : arbre de processus arrete",
+                      action="erreur")
+
+
+def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None, maintenant=time.time):
     """Libere les regles dont le processus a disparu (meme serveur) : execution en ERREUR,
     situation `arret_anormal` (docs/02, section 2, etape 3)."""
     hote = hote or nom_hote()
@@ -71,9 +100,10 @@ def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None):
     for ligne in base.toutes_les_regles():
         if not ligne["en_cours"] or (ligne["hote"] and ligne["hote"] != hote):
             continue
-        if processus.vivant(ligne["pid"], ligne["pid_cree_le"]):
-            continue
         regle = regles.get(ligne["id"].lower())
+        if processus.vivant(ligne["pid"], ligne["pid_cree_le"]):
+            _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant())
+            continue
         arret = regle is None or regle.apres_erreur == "arreter"
         message = "processus %s disparu pendant l'execution %s" % (ligne["pid"], ligne["execution_id"])
         if base.liberer_flag(ligne["no"], message, statut_regle="ERREUR", arret_apres_erreur=arret,
@@ -84,9 +114,13 @@ def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None):
 
 
 def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant=None,
-           fuseau=planification.FUSEAU, build=None, dormir=time.sleep, maintenant_dt=None):
-    """Lancement sequentiel. Renvoie un objet Lancement (compteurs et code retour).
-    Simulation : planification ignoree, aucune ecriture, toutes les regles actives sont simulees."""
+           fuseau=planification.FUSEAU, build=None, dormir=time.sleep, maintenant_dt=None,
+           direct=False, pas_sec=0.2, rappel=None):
+    """Lancement d'un environnement : renvoie un objet Lancement (compteurs et code retour).
+    Chaque regle due est executee dans un processus fils, en parallele, apres evaluation de ses
+    dependances. `direct` : sans processus fils (tests avec horloge simulee).
+    Simulation : planification ignoree, aucune ecriture, toutes les regles actives sont simulees
+    l'une apres l'autre dans ce processus."""
     maintenant = maintenant or time.time
     if maintenant_dt is None:
         def maintenant_dt():
@@ -96,11 +130,14 @@ def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant
     try:
         if not simulation:
             synchroniser(parametrage, base, journal, lancement)
-            nettoyer_orphelins(parametrage, base, journal, lancement)
-        for regle in _regles_a_traiter(parametrage, filtre):
-            lancement.compteurs["regles"] += 1
-            _traiter(regle, entete, base, journal, lancement, simulation, maintenant, fuseau, build,
-                     dormir, maintenant_dt)
+            nettoyer_orphelins(parametrage, base, journal, lancement, maintenant=maintenant)
+            Orchestrateur(parametrage, base, journal, lancement, filtre=filtre, maintenant=maintenant,
+                          fuseau=fuseau, build=build, direct=direct, maintenant_dt=maintenant_dt,
+                          dormir=dormir, pas_sec=pas_sec, rappel=rappel).executer()
+        else:
+            for regle in _regles_a_traiter(parametrage, filtre):
+                lancement.compteurs["regles"] += 1
+                _traiter(regle, entete, base, journal, lancement, maintenant_dt)
     except modele_base.ErreurBase as e:
         lancement.interrompu = str(e)
         lancement.noter("ERREUR")
@@ -108,43 +145,13 @@ def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant
     return lancement
 
 
-def _traiter(regle, entete, base, journal, lancement, simulation, maintenant, fuseau, build, dormir,
-             maintenant_dt):
+def _traiter(regle, entete, base, journal, lancement, maintenant_dt):
+    """Simulation d'une regle (planification ignoree, aucune ecriture)."""
     if not regle.actif:
         lancement.compteurs["non_dues"] += 1
         return
-    declencheur, creneau = "simulation", None
-    if not simulation:
-        no = base.numero_regle(regle.id)
-        etat = base.regle(no) if no is not None else None
-        decision = planification.evaluer(regle, etat, maintenant(), fuseau)
-        if decision.nouvelle:
-            if decision.creneau is not None and no is not None:
-                base.definir_creneau(no, decision.creneau)
-            lancement.compteurs["non_dues"] += 1
-            journal.evenement("regle_nouvelle", "INFO", regle=regle.id,
-                              message="regle nouvelle : elle demarrera au prochain creneau "
-                                      "(ou immediatement avec --lancer-maintenant)")
-            return
-        if not decision.due:
-            lancement.compteurs["non_dues"] += 1
-            journal.evenement("regle_non_due", "DEBUG", regle=regle.id, motif=decision.motif)
-            return
-        if regle.apres:
-            lancement.compteurs["non_lancees"] += 1
-            lancement.noter(NIVEAU_DEPENDANCES)
-            journal.evenement("regle_non_lancee", NIVEAU_DEPENDANCES, regle=regle.id,
-                              message="regle avec dependances : evaluation des dependances prevue "
-                                      "au jalon J6, la regle n'est pas lancee")
-            return
-        declencheur, creneau = decision.declencheur, decision.creneau
-    try:
-        bilan = lancer_regle(regle, entete, base, journal, declencheur=declencheur, simulation=simulation,
-                             maintenant=maintenant_dt, dormir=dormir, build=build, creneau=creneau)
-    except RegleDejaEnCours:
-        lancement.compteurs["non_dues"] += 1
-        journal.evenement("regle_non_due", "INFO", regle=regle.id, motif="deja en cours")
-        return
+    bilan = lancer_regle(regle, entete, base, journal, declencheur="simulation", simulation=True,
+                         maintenant=maintenant_dt)
     lancement.compteurs["lancees"] += 1
     lancement.compteurs[bilan.statut] += 1
     lancement.noter({"SUCCES": "INFO", "WARNING": "WARNING", "ERREUR": "ERREUR"}[bilan.statut])

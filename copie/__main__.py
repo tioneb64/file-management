@@ -69,6 +69,41 @@ def _journal(parametrage, console=True):
     return journal
 
 
+def _executer_fils(args, parametrage):
+    """Commande INTERNE lancee par l'orchestrateur : execute une regle dans ce processus. Le drapeau
+    « en cours » et l'execution ont deja ete pris par l'orchestrateur, qui nous place dans son Job
+    Object puis nous donne le feu vert sur l'entree standard."""
+    from copie import orchestrateur
+    from copie.execution import lancer_regle
+    if sys.stdin.readline().strip() != "go":
+        return CODE_ERREUR
+    entete = parametrage.entete
+    regle = next((r for r in parametrage.regles if r.id and r.id.lower() == args.executer_regle.lower()), None)
+    if regle is None:
+        print("ERREUR : regle inconnue : %s" % args.executer_regle, file=sys.stderr)
+        return CODE_CONFIG
+    b, erreur = _ouvrir_base(parametrage)
+    if b is None:
+        return erreur
+    import journal_si
+    journal = journal_si.Journal()
+    journal.debut("copie_fichiers", entete.environnement, dossier=entete.dossier_logs, console=True,
+                  evenement_debut="processus_regle_demarre", regle=regle.id)
+    with b:
+        ligne = b.execution(args.execution_id)
+        if ligne is None or ligne["fin"] is not None or ligne["regle_no"] != b.numero_regle(regle.id):
+            print("ERREUR : execution %s inconnue ou deja terminee pour la regle %s"
+                  % (args.execution_id, regle.id), file=sys.stderr)
+            return CODE_CONFIG
+        bilan = lancer_regle(regle, entete, b, journal, declencheur=ligne["declencheur"],
+                             build=ligne["build"], execution_existante=args.execution_id,
+                             journaliser_fin=False)
+        orchestrateur.ecrire_resultat(entete, orchestrateur.resultat_depuis_bilan(bilan, regle.id,
+                                                                                   args.execution_id))
+    journal.fermer()
+    return CODE_OK
+
+
 def _terminer_journal(journal, statut, compteurs, code):
     journal.fin(statut=statut, compteurs=compteurs, code_retour=code)
     if journal.pannes():
@@ -201,6 +236,9 @@ def main(argv=None):
                           help="decide du sort d'une livraison de resultat inconnu (avec --decision)")
     commande.add_argument("--lancer-regle", metavar="ID",
                           help="execute une seule regle maintenant, planification ignoree")
+    commande.add_argument("--executer-regle", metavar="ID",
+                          help="INTERNE : execution d'une regle par un fils de l'orchestrateur")
+    p.add_argument("--execution-id", type=int, metavar="N", help="INTERNE : avec --executer-regle")
     p.add_argument("--regle", action="append", metavar="ID",
                    help="limite le lancement ou l'etat a cette regle (repetable)")
     p.add_argument("--simulation", action="store_true",
@@ -222,11 +260,13 @@ def main(argv=None):
         p.error("--periode-declencheur-sec doit etre superieur a 0")
     lancement_ou_regle = not (args.verifier or args.initialiser_base or args.sauvegarder_base or args.etat
                               or args.reprise or args.lancer_maintenant or args.acquitter
-                              or args.trancher_incertain)
+                              or args.trancher_incertain or args.executer_regle)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
     if args.regle and not (lancement_ou_regle or args.etat):
         p.error("--regle s'utilise avec un lancement ou --etat")
+    if args.executer_regle and args.execution_id is None:
+        p.error("--executer-regle exige --execution-id")
     exploitation = args.reprise or args.lancer_maintenant or args.acquitter or args.trancher_incertain
     if exploitation and not args.utilisateur:
         p.error("--utilisateur est obligatoire pour cette commande")
@@ -244,6 +284,8 @@ def main(argv=None):
         return _etat(args, parametrage)
     if exploitation:
         return _exploitation(args, parametrage)
+    if args.executer_regle:
+        return _executer_fils(args, parametrage)
     if args.lancer_regle:
         return _lancer_regle(args, parametrage)
     return _lancement(args, parametrage)

@@ -348,7 +348,8 @@ class Base(object):
                     "UPDATE regles SET en_cours = 1, execution_id = ?, pid = ?, pid_cree_le = ?, "
                     "hote = ?, build = ?, debut_traitement = ?, dernier_lancement = ?, "
                     "dernier_creneau = COALESCE(?, dernier_creneau), reprise = 0, "
-                    "lancement_manuel = 0, arret_apres_erreur = 0 "
+                    "lancement_manuel = 0, arret_apres_erreur = 0, attente = NULL, "
+                    "attente_motif = NULL, attente_depuis = NULL "
                     "WHERE no = ? AND en_cours = 0",
                     (execution_id, pid, pid_cree_le, hote, build, maintenant, maintenant, creneau,
                      regle_no))
@@ -380,7 +381,7 @@ class Base(object):
             cur = c.execute(
                 "UPDATE regles SET en_cours = 0, execution_id = NULL, pid = NULL, "
                 "pid_cree_le = NULL, dernier_fin = ?, dernier_statut = ?, dernier_statut_le = ?, "
-                "dernier_motif = ?, dernier_succes = COALESCE(?, dernier_succes), "
+                "dernier_motif = ?, dernier_succes = COALESCE(?, dernier_succes), relances = 0, "
                 "derniere_erreur_le = CASE WHEN ? = 'ERREUR' THEN ? ELSE derniere_erreur_le END, "
                 "derniere_erreur_situation = CASE WHEN ? = 'ERREUR' THEN ? "
                 "ELSE derniere_erreur_situation END, "
@@ -393,6 +394,45 @@ class Base(object):
                  statut, (erreur or {}).get("message"),
                  int(bool(arret_apres_erreur)), regle_no, execution_id))
             return cur.rowcount == 1
+
+    def attacher_processus(self, execution_id, pid, pid_cree_le):
+        """Memorise le processus qui execute reellement la regle (le fils de l'orchestrateur)."""
+        with self.transaction() as c:
+            c.execute("UPDATE regles SET pid = ?, pid_cree_le = ? WHERE execution_id = ? AND en_cours = 1",
+                      (pid, pid_cree_le, execution_id))
+            c.execute("UPDATE executions SET pid = ? WHERE id = ?", (pid, execution_id))
+
+    def execution(self, execution_id):
+        ligne = self.c.execute("SELECT * FROM executions WHERE id = ?", (execution_id,)).fetchone()
+        return dict(ligne) if ligne else None
+
+    def incrementer_relances(self, regle_no):
+        with self.transaction() as c:
+            c.execute("UPDATE regles SET relances = relances + 1 WHERE no = ?", (regle_no,))
+
+    def forcer_warning(self, execution_id, regle_no):
+        """Une duree maximale depassee avec `alerter` rend un succes WARNING."""
+        with self.transaction() as c:
+            c.execute("UPDATE executions SET statut = 'WARNING' WHERE id = ? AND statut = 'SUCCES'",
+                      (execution_id,))
+            c.execute("UPDATE regles SET dernier_statut = 'WARNING' WHERE no = ? AND dernier_statut = 'SUCCES'",
+                      (regle_no,))
+
+    def definir_attente(self, regle_no, attente, motif=None, depuis=None):
+        """attente : None, 'EN_ATTENTE' ou 'BLOQUEE' (docs/02, section 3.1). `depuis` : creneau concerne."""
+        with self.transaction() as c:
+            c.execute("UPDATE regles SET attente = ?, attente_motif = ?, attente_depuis = ? WHERE no = ?",
+                      (attente, motif, depuis, regle_no))
+
+    def a_termine_apres(self, regle_no, ref):
+        """La regle a termine au moins une execution apres l'instant `ref` (condition `termine`)."""
+        return self.c.execute("SELECT 1 FROM executions WHERE regle_no = ? AND fin > ? LIMIT 1",
+                              (regle_no, ref)).fetchone() is not None
+
+    def a_livre_apres(self, regle_no, ref):
+        """Au moins une execution terminee apres `ref` a livre un fichier (condition `fichiers`)."""
+        return self.c.execute("SELECT 1 FROM executions WHERE regle_no = ? AND fin > ? AND nb_livres > 0 "
+                              "LIMIT 1", (regle_no, ref)).fetchone() is not None
 
     def liberer_flag(self, regle_no, motif, statut_regle="ARRETEE", erreur=None,
                      arret_apres_erreur=False):

@@ -318,7 +318,50 @@ C:\Python314\python.exe -m copie --config ... --trancher-incertain CLE_HEXA --de
 | J5-M11 | Règle avec dépendances | Règle avec `apres` : lancement | `regle_non_lancee` (WARNING), code retour 4, rien n'est exécuté (comportement provisoire jusqu'au jalon J6) | |
 | J5-M12 | Compte de service Jenkins | Rejouer J5-M01 et J5-M06 avec le compte de service | Mêmes résultats ; la base, les journaux et le dossier de travail sont accessibles en écriture | |
 
-## 8. Jalons suivants
+## 8. Jalon J6 — Orchestrateur, parallélisme et dépendances
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 422 tests au total (375 précédents + 47 de J6), tous OK en 5 min 9 s.
+
+Le comportement attendu est décrit au [§3.3 de 02-moteur](02-moteur.md). Commande : la même que pour J5 (lancement sans commande) ; chaque règle due s'exécute maintenant dans **son propre processus** `python.exe` (visible dans le gestionnaire de tâches).
+
+```powershell
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl
+C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --etat      # EN_ATTENTE / BLOQUEE y apparaissent
+```
+
+### 8.1 Tests automatiques
+
+| ID | Fichier | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|---|
+| J6-A01 | `test_orchestrateur.py` | **Chaîne** a → b → c dans un seul lancement ; attente sans alerte d'une règle sans horaire ; la règle part dès que sa dépendance a fini ; une exécution de la dépendance ne déclenche la suite qu'une fois ; règle horaire qui dépend d'une autre | OK | |
+| J6-A02 | `test_orchestrateur.py` | **EN_ATTENTE** : dépendance plus tardive (un avertissement par créneau, pas de répétition, la règle part ensuite même après son heure), rattrapage dépassé (retour à l'état précédent), conditions `fichiers` et `termine`, dépendance en cours dans un autre lancement | OK | |
+| J6-A03 | `test_orchestrateur.py` | **BLOQUEE** : dépendance en erreur, **erreur non propagée** (statut de la règle inchangé), un événement par créneau, reprise de la règle en erreur → toute la chaîne repart, blocage en cascade, acquittement qui débloque, avertissement qui ne bloque pas, niveau `si_condition_non_remplie`, visible dans `--etat` | OK | |
+| J6-A04 | `test_orchestrateur.py` | Plusieurs règles indépendantes ; une règle en erreur ne bloque pas les autres | OK | |
+| J6-A05 | `test_orchestrateur.py` | **Processus fils réels** : un processus par règle (identifiants distincts), résultat transmis par la base et le fichier JSON (supprimé ensuite), fin journalisée par l'orchestrateur, erreur d'un fils, **exécution simultanée** (intervalles qui se chevauchent), `parallele_max = 1` (aucun chevauchement), chaîne en processus réels | OK | |
+| J6-A06 | `test_orchestrateur.py` | **Durée maximale** : `erreur` (fils arrêté, `duree_depassee`), `alerter` (WARNING, exécution terminée), `relancer` (relances épuisées → ERREUR ; relance qui peut réussir) | OK | |
+| J6-A07 | `test_orchestrateur.py` | **Fins anormales** : fils mort sans résultat, fils qui a écrit en base sans JSON, fils qui attend le « go », fils tué de l'extérieur, interruption de l'orchestrateur (fils arrêtés, drapeaux libérés), **arrêt de l'arbre complet (petit-fils compris)**, commande interne refusée si exécution inconnue ou parent disparu | OK | |
+| J6-A08 | `test_orchestrateur.py` | **Exécution d'un autre lancement trop longue** : `erreur`, `alerter`, `relancer`, pas de dépassement avant la durée maximale | OK | |
+| J6-A09 | `test_orchestrateur.py` | Job Object (arrêt du processus et de ses descendants, fermeture), `tuer_arbre`, un processus ne s'arrête jamais lui-même, fichier résultat atomique | OK | |
+
+### 8.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J6-M01 | **Délai de démarrage d'un fils** | Lancement avec une règle qui a un fichier à livrer ; comparer l'heure de `debut_lancement` et de `processus_regle_demarre` dans les journaux | Quelques secondes au plus (PC : 1 à 3 s). Noter la valeur ; si elle dépasse 5 s, l'antivirus analyse sans doute `python.exe` à chaque lancement | |
+| J6-M02 | Parallélisme réel | Trois règles de recette sur de gros fichiers (500 Mo), lancer, observer le gestionnaire de tâches | Trois `python.exe` fils en même temps, plus l'orchestrateur ; fin des trois règles ; code retour 0 | |
+| J6-M03 | `parallele_max` | `parallele_max: 2` dans l'en-tête, quatre règles | Jamais plus de deux fils simultanés | |
+| J6-M04 | **Arrêt d'un build Jenkins** | Lancer le job sur de gros fichiers, l'**abandonner** depuis Jenkins | Plus aucun `python.exe` du lancement ; règles en `ERREUR` (`arret_anormal`, orchestrateur interrompu) ; au lancement suivant, livraison incertaine ou reprise sans doublon | |
+| J6-M05 | Job Object sur Windows Server 2016 | Lancer une règle dont la durée maximale est de 5 s sur de gros fichiers | Le fils disparaît à l'échéance (`duree_depassee`), aucun processus orphelin ; si les journaux indiquent un arrêt par `taskkill`, noter-le (Job Object indisponible sous Jenkins) | |
+| J6-M06 | Durée dépassée : `relancer` et `alerter` | Rejouer J6-M05 avec chaque politique | `relancer` : nouvelle exécution puis ERREUR après `relances_max` ; `alerter` : l'exécution continue, un seul WARNING, code retour 4 | |
+| J6-M07 | **Chaîne réelle** | Reproduire une chaîne de production (par exemple les règles 8, 9 et 10 → 11) en recette avec leurs dépendances | Ordre respecté, la règle 11 part dans le même lancement que la dernière de ses dépendances | |
+| J6-M08 | Panne dans la chaîne | Mettre la règle 9 en erreur (source indisponible) | La règle 11 est `BLOQUEE` (`--etat` nomme la règle 9), un seul avertissement par créneau, les autres règles continuent | |
+| J6-M09 | Reprise en cascade | Rétablir la source de la règle 9 puis `--reprise 9` | La règle 9 repart immédiatement, puis la règle 11, dans le même lancement ; plus de blocage | |
+| J6-M10 | Deux builds simultanés | Autoriser les builds concurrents, déclencher deux lancements à quelques secondes d'écart avec des règles longues | Chaque règle n'est exécutée qu'une fois ; l'autre lancement l'ignore (« déjà en cours ») ; les dépendances en cours sont `EN_ATTENTE` | |
+| J6-M11 | Exécution trop longue d'un autre lancement | Lancer une règle longue (durée maximale courte) ; déclencher un second lancement | Le second lancement arrête l'arbre de processus de la règle (`taskkill /T`) et la met en `ERREUR` (`duree_depassee`) | |
+| J6-M12 | Console Jenkins | Observer la console du job pendant un lancement avec plusieurs règles | Les lignes des fils s'affichent avec les accents corrects ; le code retour du lancement apparaît dans `fin_lancement` | |
+| J6-M13 | Compte de service | Rejouer J6-M02 et J6-M07 avec le compte de service Jenkins | Les fils démarrent sous le même compte, avec les mêmes droits sur les partages | |
+
+## 9. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
