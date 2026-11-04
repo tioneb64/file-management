@@ -22,7 +22,8 @@ python copie_fichiers.py --config D:\Parametrage\production.jsonl [options]
 | `--debloquer ID --utilisateur U [--commentaire C]` | Arrête l'exécution en cours (processus **et descendants**) et libère le flag « en cours » |
 | `--executer-regle ID --execution-id N` | **Interne** : exécution d'une règle dans un processus fils |
 | `--sauvegarder-base DOSSIER` | Sauvegarde cohérente de la base (API de sauvegarde SQLite) |
-| `--migrer-ancien conf [historique]` | Convertit un ancien `copies.conf` (et son historique) en fichier de paramétrage et en entrées de base |
+| `--migrer-ancien COPIES.CONF --environnement E --base B [--sortie F] [--frequence-sec N] [--actives]` | Convertit un ancien `copies.conf` en fichier de paramétrage (règles inactives). Pas de `--config`. Voir [09-migration-et-recette](09-migration-et-recette.md) |
+| `--importer-historique HISTORIQUE.JSON --utilisateur U` | Importe l'historique de l'ancien script en entrées de base : ses fichiers ne seront pas relivrés |
 | `--essais`, `--delai`, `--retention`, `-v` | Options du script actuel : supprimées ou remplacées par le paramétrage |
 
 | Code | Signification | Statut Jenkins |

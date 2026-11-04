@@ -637,6 +637,16 @@ class Base(object):
                 c.execute("DELETE FROM actions_en_attente WHERE cle = ?", (cle,))
             return n == 1
 
+    def importer_termines(self, regle_no, lignes):
+        """Import en bloc (migration) : lignes = [(cle, vu_jour, livre_le)], versions deja livrees.
+        Idempotent. Renvoie le nombre de lignes reellement ajoutees."""
+        with self.transaction() as c:
+            avant = c.total_changes
+            c.executemany("INSERT OR IGNORE INTO fichiers(cle, regle_no, etat, vu_jour, livre_le) "
+                          "VALUES (?, ?, ?, ?, ?)",
+                          [(cle, regle_no, TERMINE, vu, livre) for cle, vu, livre in lignes])
+            return c.total_changes - avant
+
     def ajouter_termine(self, regle_no, cle):
         """Marque une version comme traitee (identite = contenu : evite de relire le fichier)."""
         maintenant = self.maintenant()

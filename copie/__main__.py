@@ -126,6 +126,53 @@ def _commande_base(args, parametrage):
 
 
 # --------------------------------------------------------------------------- #
+# Migration de l'ancien script
+# --------------------------------------------------------------------------- #
+def _migrer_ancien(args):
+    from copie import migration
+    if not args.environnement or not args.base:
+        return _repondre(args, CODE_CONFIG, "--migrer-ancien exige --environnement et --base")
+    sortie = args.sortie or (args.environnement + ".jsonl")
+    try:
+        compte = migration.convertir_conf(args.migrer_ancien, args.environnement, args.base, sortie,
+                                          frequence_sec=args.frequence_sec, actives=args.actives)
+    except migration.ErreurMigration as e:
+        return _repondre(args, CODE_CONFIG, str(e))
+    rapport = compte["verification"]
+    code = CODE_CONFIG if not rapport.ok else CODE_AVERTISSEMENT if rapport.avertissements else CODE_OK
+    message = "%d regle(s) ecrite(s) dans %s (%s)" % (len(compte["regles"]), sortie,
+                                                       "actives" if args.actives else "INACTIVES")
+    if args.format == "json":
+        details = rapport.en_dict()
+        details.update(fichier=sortie, regles=compte["regles"], notes=compte["notes"])
+        for cle in ("version_contrat", "ok", "code_retour", "message"):
+            details.pop(cle, None)
+        return _repondre(args, code, message, **details)
+    print(message)
+    for note in compte["notes"]:
+        print("  - " + note)
+    print(rapport.en_texte())
+    return code
+
+
+def _importer_historique(args, parametrage):
+    from copie import migration
+    b, erreur = _ouvrir_base(args, parametrage)
+    if b is None:
+        return erreur
+    with b:
+        try:
+            compte = migration.importer_historique(parametrage, b, args.importer_historique, args.utilisateur,
+                                                   args.commentaire)
+        except (migration.ErreurMigration, base.ErreurBase) as e:
+            return _repondre(args, CODE_CONFIG, str(e), etiquette="REFUSE")
+    message = ("%d fichier(s) importe(s) sur %d entree(s) de l'historique (%d deja connu(s), %d sans regle "
+               "correspondante)" % (compte["importees"], compte["entrees"], compte["deja_connues"], compte["sans_regle"]))
+    code = CODE_AVERTISSEMENT if compte["sans_regle"] else CODE_OK
+    return _repondre(args, code, message, commande="importer_historique", **compte)
+
+
+# --------------------------------------------------------------------------- #
 # Fils d'une regle (interne)
 # --------------------------------------------------------------------------- #
 def _executer_fils(args, parametrage):
@@ -297,7 +344,7 @@ def _exploitation(args, parametrage):
 # --------------------------------------------------------------------------- #
 def _arguments(argv=None):
     p = argparse.ArgumentParser(prog="copie", description="copie_fichiers v2 %s" % __version__)
-    p.add_argument("--config", required=True, help="fichier de parametrage (.jsonl)")
+    p.add_argument("--config", help="fichier de parametrage (.jsonl) ; absent seulement avec --migrer-ancien")
     commande = p.add_mutually_exclusive_group()
     commande.add_argument("--verifier", action="store_true", help="valide le parametrage (et les acces)")
     commande.add_argument("--initialiser-base", action="store_true",
@@ -315,11 +362,21 @@ def _arguments(argv=None):
                           help="arrete l'execution en cours de la regle (et son arbre de processus) et libere son drapeau")
     commande.add_argument("--trancher-incertain", metavar="CLE",
                           help="decide du sort d'une livraison de resultat inconnu (avec --decision)")
+    commande.add_argument("--migrer-ancien", metavar="COPIES.CONF",
+                          help="convertit l'ancien fichier copies.conf en parametrage v2 (regles inactives)")
+    commande.add_argument("--importer-historique", metavar="HISTORIQUE.JSON",
+                          help="importe l'historique de l'ancien script : ses fichiers ne seront pas relivres")
     commande.add_argument("--lancer-regle", metavar="ID",
                           help="execute une seule regle maintenant, planification ignoree")
     commande.add_argument("--executer-regle", metavar="ID",
                           help="INTERNE : execution d'une regle par un fils de l'orchestrateur")
     p.add_argument("--execution-id", type=int, metavar="N", help="INTERNE : avec --executer-regle")
+    p.add_argument("--environnement", help="avec --migrer-ancien : nom de l'environnement (= nom du fichier)")
+    p.add_argument("--base", help="avec --migrer-ancien : chemin de la base SQLite (disque local)")
+    p.add_argument("--sortie", help="avec --migrer-ancien : fichier de parametrage a ecrire (defaut : <environnement>.jsonl)")
+    p.add_argument("--frequence-sec", type=int, default=3600, metavar="N",
+                   help="avec --migrer-ancien : frequence de la planification par defaut (defaut : 3600)")
+    p.add_argument("--actives", action="store_true", help="avec --migrer-ancien : regles actives (defaut : inactives)")
     p.add_argument("--regle", action="append", metavar="ID",
                    help="limite le lancement ou l'etat a cette regle (repetable)")
     p.add_argument("--simulation", action="store_true",
@@ -348,7 +405,8 @@ def _main(argv=None):
         p.error("--periode-declencheur-sec doit etre superieur a 0")
     lancement_ou_regle = not (args.verifier or args.initialiser_base or args.sauvegarder_base or args.etat
                               or args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
-                              or args.trancher_incertain or args.executer_regle)
+                              or args.trancher_incertain or args.executer_regle or args.migrer_ancien
+                              or args.importer_historique)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
     if args.simulation_programmes and not args.simulation:
@@ -359,13 +417,19 @@ def _main(argv=None):
         p.error("--precedent s'utilise avec --verifier")
     if args.executer_regle and args.execution_id is None:
         p.error("--executer-regle exige --execution-id")
+    if not args.config and not args.migrer_ancien:
+        p.error("--config est obligatoire")
+    if args.frequence_sec < 1:
+        p.error("--frequence-sec doit etre superieur a 0")
     exploitation = (args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
-                    or args.trancher_incertain)
+                    or args.trancher_incertain or args.importer_historique)
     if exploitation and not args.utilisateur:
         p.error("--utilisateur est obligatoire pour cette commande")
 
     if args.format == "json":
         os.environ["COPIE_SANS_CONSOLE"] = "1"      # les fils ne doivent pas polluer la sortie JSON
+    if args.migrer_ancien:
+        return _migrer_ancien(args)
     parametrage, rapport = verifier_fichier(args.config, args.periode_declencheur_sec)
     if args.verifier:
         return _verifier(args, parametrage, rapport)
@@ -382,6 +446,8 @@ def _main(argv=None):
         return _commande_base(args, parametrage)
     if args.etat:
         return _etat(args, parametrage)
+    if args.importer_historique:
+        return _importer_historique(args, parametrage)
     if exploitation:
         return _exploitation(args, parametrage)
     if args.executer_regle:

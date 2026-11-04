@@ -15,11 +15,13 @@
 | `tests/test_acces.py`, `tests/test_contrat.py` | J8 : controles d'acces A01-A07, comparaison de versions V01-V04, `--debloquer` (processus reels), contrat JSON avec le front-end (cles exactes, UTF-8, aucune pollution de la sortie). |
 | `tests/test_jenkins.py` | J9 : `journal_si.py` en ligne de commande (evenements de job), coherence statique des Jenkinsfile et de la bibliotheque Groovy (non executee), builds simultanes et abandon d'un build avec de vrais processus. |
 | `jenkins/` | Jenkinsfile (transfert, sauvegarde, verification) et bibliotheque partagee `journal-si` (`vars/journalSI.groovy`, `vars/copieFichiers.groovy`). |
+| `tests/test_migration.py` | J11 : conversion de `copies.conf`, import de l'historique, parcours reel ancien script -> nouveau (rien n'est relivre), comparateur de dossiers, lanceur v2. |
+| `outils/comparer_dossiers.py` | Recette : compare deux dossiers cibles (presence, taille, SHA-256, dates) pour prouver que la v2 livre comme l'ancien script. |
 | `outils/mesure_transfert.py` | Mesure sur le serveur : débit de livraison (copie, déplacement, relance), cible locale ou réseau. |
 | `tests/test_journal.py` | J3 : module `journal_si.py` (format, fichiers, pannes, charge entre processus). |
 | `outils/charge_journal.py` | Test de charge du journal sur le serveur : 8 processus × 10 000 lignes dans un même fichier. |
 | `outils/mesure_base.py` | Mesure sur le serveur : recherche dans un million d'empreintes, taille de la base, coût d'une transaction durable. |
-| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `selection.py`, `chemins.py`, `transfert.py`, `execution.py` (transfert d'une règle), `planification.py`, `lancement.py`, `orchestrateur.py`, `dependances.py`, `programmes.py`, `acces.py`, `comparaison.py`, `processus.py`, `__main__.py` (`python -m copie --verifier / --initialiser-base / --sauvegarder-base / --lancer-regle`). |
+| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `selection.py`, `chemins.py`, `transfert.py`, `execution.py` (transfert d'une règle), `planification.py`, `lancement.py`, `orchestrateur.py`, `dependances.py`, `programmes.py`, `acces.py`, `comparaison.py`, `migration.py`, `processus.py`, `__main__.py` (`python -m copie --verifier / --initialiser-base / --sauvegarder-base / --lancer-regle`). |
 | `exemples/` | Fichiers d'essai : paramétrage `production.jsonl` (valide) et `invalide/production.jsonl` (6 refus), sortie du journal `journal/`, configuration `alloy/` (non testée). |
 
 ```powershell
