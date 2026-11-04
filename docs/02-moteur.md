@@ -13,13 +13,13 @@ python copie_fichiers.py --config D:\Parametrage\production.jsonl [options]
 | *(aucune commande)* | **Lancement** : orchestrateur, évalue et exécute les règles à lancer |
 | `--regle ID` (répétable) | Limite le lancement aux règles indiquées |
 | `--simulation` | Affiche ce qui serait fait : aucune copie, aucune écriture en base (ouverte en lecture seule), planification ignorée, programmes non appelés (sauf `--simulation-programmes`, qui leur transmet `COPIE_SIMULATION=1`) |
-| `--verifier [--syntaxe-seule] [--periode-declencheur-sec N] [--format json]` | Validation du paramétrage et des accès. Voir le §7 de [01-parametrage](01-parametrage.md). `--periode-declencheur-sec` permet le contrôle P02 |
+| `--verifier [--syntaxe-seule] [--precedent FICHIER] [--periode-declencheur-sec N]` | Validation du paramétrage et des accès (A01 à A07, avec le compte qui exécute la commande), comparaison avec la version précédente (V01 à V04). Voir le §7 de [01-parametrage](01-parametrage.md). `--periode-declencheur-sec` permet le contrôle P02 |
 | `--initialiser-base` | Crée la base d'un nouvel environnement. **La base n'est jamais créée automatiquement** |
 | `--etat [--regle ID] [--format json]` | État des règles (lecture de la base) |
 | `--reprise ID --utilisateur U [--commentaire C]` | Pose le flag de reprise (§10) |
 | `--lancer-maintenant ID --utilisateur U` | Lance la règle au prochain lancement, sans programme de reprise |
 | `--acquitter ID --utilisateur U --commentaire C` | Considère la règle comme corrigée, sans la relancer. Le commentaire est obligatoire |
-| `--debloquer ID --utilisateur U` | Arrête une exécution bloquée et libère le flag « en cours » |
+| `--debloquer ID --utilisateur U [--commentaire C]` | Arrête l'exécution en cours (processus **et descendants**) et libère le flag « en cours » |
 | `--executer-regle ID --execution-id N` | **Interne** : exécution d'une règle dans un processus fils |
 | `--sauvegarder-base DOSSIER` | Sauvegarde cohérente de la base (API de sauvegarde SQLite) |
 | `--migrer-ancien conf [historique]` | Convertit un ancien `copies.conf` (et son historique) en fichier de paramétrage et en entrées de base |
@@ -339,6 +339,11 @@ Cas d'exploitation :
 | Règle qui ne répond plus | Déblocage, puis reprise |
 | Test ou rattrapage | Lancer maintenant |
 | Rejouer des fichiers archivés | Prévu dans un second temps |
+
+### 10.1 Précisions apportées par l'implémentation (J8)
+
+- **`--format json`** est accepté par toutes les commandes : un seul objet JSON UTF-8 sur la sortie standard. Contrat complet, champs et exemples : [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md).
+- **`--debloquer ID`** : la règle doit être en cours **sur ce serveur** (sinon refus : lancer la commande depuis le serveur concerné). Le processus n'est arrêté que s'il est **encore celui de l'exécution** (identifiant et date de création) : un identifiant réutilisé par un autre programme n'est jamais touché, et le processus courant non plus. Arbre arrêté par `taskkill /T`. Si le processus ne disparaît pas dans les 10 s, le déblocage est refusé et le drapeau reste posé. Sinon : exécution `ARRETEE`, règle en `ERREUR` (situation `deblocage`), arrêt après erreur selon `apres_erreur` (le message précise qu'une reprise est alors nécessaire), trace dans `journal_actions` (compte, commentaire) et événement `deblocage`. Si un orchestrateur suivait cette exécution, il journalise la fin de la règle.
 
 ## 11. Journalisation
 

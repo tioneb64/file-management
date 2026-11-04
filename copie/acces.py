@@ -1,0 +1,175 @@
+"""Controles d'acces (docs/01-parametrage.md, section 7.3) : A01 a A07.
+
+A executer SUR LE SERVEUR D'EXECUTION avec le COMPTE DE SERVICE : les droits et les quotas
+verifies sont ceux du compte qui lancera les regles. Aucun fichier n'est conserve : les essais
+d'ecriture creent puis suppriment `.test_ecriture_<pid>`, et aucun dossier n'est cree (un
+dossier absent est juge d'apres son plus proche parent existant).
+"""
+import datetime
+import os
+import shutil
+
+from copie import base as modele_base
+from copie import chemins
+
+MO = 1024 * 1024
+
+
+def essai_ecriture(dossier):
+    """(ok, detail) : un fichier d'essai est cree puis supprime dans un dossier EXISTANT."""
+    if not os.path.isdir(dossier):
+        return False, "%s n'est pas un dossier" % dossier
+    essai = os.path.join(dossier, ".test_ecriture_%d" % os.getpid())
+    try:
+        with open(essai, "wb") as f:
+            f.write(b"x")
+        os.remove(essai)
+    except OSError as e:
+        return False, "ecriture impossible dans %s : %s" % (dossier, e)
+    return True, ""
+
+
+def tester_ecriture(dossier, creer_dossiers=True, essai=essai_ecriture):
+    """(ok, detail). Un dossier absent n'est accepte que si `creer_dossiers` est vrai ET si son plus
+    proche parent existant est accessible en ecriture (il sera cree au premier lancement)."""
+    absolu = os.path.abspath(dossier)
+    existant = chemins.plus_proche_existant(absolu)
+    sera_cree = os.path.normcase(existant) != os.path.normcase(absolu)
+    if sera_cree and not creer_dossiers:
+        return False, "le dossier n'existe pas et creer_dossiers vaut false"
+    ok, detail = essai(existant)
+    if not ok:
+        return False, detail
+    return True, ("le dossier sera cree dans %s" % existant) if sera_cree else ""
+
+
+def tester_lecture(dossier):
+    try:
+        with os.scandir(dossier) as it:
+            next(iter(it), None)
+    except OSError as e:
+        return False, str(e)
+    return True, ""
+
+
+def executable_present(commande):
+    """None si l'element 0 contient une variable (non verifiable a l'avance), sinon vrai/faux."""
+    premier = os.path.expandvars(commande[0])
+    if "{" in premier:
+        return None
+    if os.path.dirname(premier) or os.path.isabs(premier):
+        return os.path.isfile(premier)
+    return shutil.which(premier) is not None
+
+
+class Controleur(object):
+    def __init__(self, parametrage, rapport, maintenant=None):
+        self.p = parametrage
+        self.e = parametrage.entete
+        self.rapport = rapport
+        self.maintenant = maintenant or datetime.datetime.now()
+        self._essais = {}
+
+    def _essai(self, existant):
+        """Un seul fichier d'essai par dossier existant, meme si des centaines de regles l'utilisent."""
+        cle = os.path.normcase(existant)
+        if cle not in self._essais:
+            self._essais[cle] = essai_ecriture(existant)
+        return self._essais[cle]
+
+    def ecriture(self, dossier, creer):
+        return tester_ecriture(dossier, creer, essai=self._essai)
+
+    def executer(self):
+        self.base()
+        self.dossiers_techniques()
+        for regle in self.p.regles:
+            if regle.id and regle.actif:
+                self.regle(regle)
+        return self.rapport
+
+    def signaler(self, code, message, regle=None):
+        self.rapport.signaler(code, message, regle=regle.id if regle else None,
+                              ligne=regle.ligne if regle else None)
+
+    # ----- A05 ----------------------------------------------------------- #
+    def base(self):
+        chemin = self.e.base
+        try:
+            modele_base.verifier_disque_local(chemin)
+        except modele_base.ErreurBase as e:
+            self.rapport.signaler("A05", str(e))
+            return
+        if not os.path.isfile(chemin):
+            self.rapport.signaler("A05", "base absente : %s (la creer avec --initialiser-base ; sans base, "
+                                         "rien n'est copie)" % chemin)
+            return
+        try:
+            with modele_base.ouvrir(chemin, self.e.environnement) as b:
+                with b.transaction():
+                    pass
+        except modele_base.ErreurBase as e:
+            self.rapport.signaler("A05", "base inutilisable : %s" % e)
+
+    # ----- A06 ----------------------------------------------------------- #
+    def dossiers_techniques(self):
+        for nom, dossier in (("journaux", self.e.dossier_logs), ("travail", self.e.dossier_travail)):
+            if not dossier:
+                continue
+            ok, detail = self.ecriture(dossier, True)
+            if not ok:
+                consequence = ("les evenements iront dans le fichier de secours" if nom == "journaux"
+                               else "les resultats des processus fils seront relus en base")
+                self.rapport.signaler("A06", "dossier de %s inaccessible (%s) : %s" % (nom, dossier, detail)
+                                      + " ; " + consequence)
+
+    # ----- A01 a A04 et A07 ------------------------------------------------ #
+    def regle(self, regle):
+        source = os.path.normpath(os.path.expandvars(regle.source))
+        cible = os.path.normpath(os.path.expandvars(regle.cible))
+
+        ok, detail = tester_lecture(source)
+        if not ok:
+            self.signaler("A01", "source illisible (%s) : %s" % (source, detail), regle)
+
+        ok, detail = self.ecriture(cible, regle.creer_dossiers)
+        if not ok:
+            self.signaler("A02", "cible inaccessible en ecriture (%s) : %s" % (cible, detail), regle)
+        if regle.dossier_temporaire:
+            temporaire = os.path.normpath(os.path.expandvars(regle.dossier_temporaire))
+            ok, detail = self.ecriture(temporaire, regle.creer_dossiers)
+            if not ok:
+                self.signaler("A02", "dossier temporaire inaccessible en ecriture (%s) : %s" % (temporaire, detail), regle)
+            elif not chemins.meme_volume(temporaire, cible):
+                self.signaler("A02", "dossier_temporaire (%s) doit etre sur le meme volume que la cible (%s) : "
+                                     "le renommage final doit etre atomique" % (temporaire, cible), regle)
+
+        archive = None
+        if regle.mode == "archivage" and regle.archive:
+            archive = chemins.resoudre_archive(regle.archive, source, self.maintenant)
+            ok, detail = self.ecriture(archive, regle.creer_dossiers)
+            if not ok:
+                self.signaler("A03", "archive inaccessible en ecriture (%s) : %s ; les fichiers seraient livres "
+                                     "puis archives plus tard (mode degrade)" % (archive, detail), regle)
+
+        for point, programme in regle.programmes.items():
+            if programme is None:
+                continue
+            present = executable_present(programme.commande)
+            if present is False:
+                self.signaler("A04", "programme %s introuvable : %s" % (point, programme.commande[0]), regle)
+
+        for libelle, dossier in (("cible", cible), ("archive", archive)):
+            if dossier is None:
+                continue
+            try:
+                libre = chemins.espace_disponible(dossier)
+            except OSError:
+                continue
+            self.signaler("A07", "espace disponible pour le compte de service sur la %s (%s) : %d Mo"
+                          % (libelle, dossier, libre // MO), regle)
+
+
+def verifier_acces(parametrage, rapport, maintenant=None):
+    """Ajoute au rapport les diagnostics A01 a A07 des regles actives."""
+    return Controleur(parametrage, rapport, maintenant).executer()

@@ -17,6 +17,7 @@ Ces documents décrivent la **cible (v2)**. Le [README](../README.md) décrit le
 | [03-base-de-donnees](03-base-de-donnees.md) | Base SQLite : tables, clés, transactions, maintenance |
 | [04-frontend](04-frontend.md) | Application PowerShell de gestion du paramétrage et de l'état |
 | [05-decoupage](05-decoupage.md) | Jalons de développement, tests, risques, mise en production |
+| [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md) | Commandes, codes retour et JSON échangés entre le moteur et le front-end |
 | [06-cahier-de-tests](06-cahier-de-tests.md) | Tests joués sur le poste de développement puis sur le serveur de recette, complété à chaque jalon |
 
 ---

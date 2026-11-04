@@ -298,19 +298,19 @@ Ces contrôles sont réalisés **par le moteur** (`copie_fichiers.py --verifier`
 | V01 | refus | Un `id` existant ne peut pas être modifié |
 | V02 | avert. | Une règle qui avait un historique est supprimée : son état et ses fichiers mémorisés restent en base |
 | V03 | avert. | La sélection est élargie (`modifie_depuis`, masque) : des fichiers anciens pourraient être livrés |
-| V04 | avert. | `cible` modifiée : tous les fichiers sélectionnés seront relivrés vers la nouvelle cible |
+| V04 | avert. | `cible` modifiée : les fichiers **déjà livrés ne sont pas relivrés** (l'empreinte ne contient pas la cible), seuls les nouveaux iront vers la nouvelle cible |
 
 ### 7.3 Accès (`--verifier` complet, exécuté sur le serveur d'exécution avec le compte de service)
 
-| Code | Contrôle |
-|---|---|
-| A01 | `source` existe et est lisible |
-| A02 | `cible` existe ou peut être créée ; écriture vérifiée par un fichier d'essai créé puis supprimé |
-| A03 | `archive` : idem, si renseignée |
-| A04 | Les exécutables des programmes existent |
-| A05 | La base est accessible en écriture |
-| A06 | Les dossiers de journaux et de travail sont accessibles en écriture |
-| A07 | Espace disponible pour le compte de service sur `cible` et `archive` (information) |
+| Code | Gravité | Contrôle |
+|---|---|---|
+| A01 | refus | `source` existe et est lisible |
+| A02 | refus | `cible` existe ou peut être créée ; écriture vérifiée par un fichier d'essai créé puis supprimé |
+| A03 | avert. | `archive` : idem, si renseignée |
+| A04 | refus | Les exécutables des programmes existent |
+| A05 | refus | La base est accessible en écriture |
+| A06 | avert. | Les dossiers de journaux et de travail sont accessibles en écriture |
+| A07 | info | Espace disponible pour le compte de service sur `cible` et `archive` (information) |
 
 Le résultat est disponible en texte et en JSON (`--format json`) :
 
@@ -318,6 +318,14 @@ Le résultat est disponible en texte et en JSON (`--format json`) :
 {"ok": false, "refus": [{"code": "D03", "regle": "import_catalogue", "message": "dépend de export_produits, qui est inactive"}],
  "avertissements": [{"code": "D04", "regle": "import_catalogue", "message": "démarre à 06:00, avant export_clients (07:00)"}]}
 ```
+
+### 7.3 bis Précisions apportées par l'implémentation (J8)
+
+- **Où et avec quel compte** : `--verifier` sans `--syntaxe-seule` doit être lancé **sur le serveur d'exécution avec le compte de service** (ou via le point de terminaison JEA qui l'utilise) : les droits et les quotas contrôlés sont ceux du compte qui exécute la commande.
+- **Aucun effet de bord** : les essais d'écriture créent puis suppriment `.test_ecriture_<pid>` dans un dossier existant ; aucun dossier n'est créé. Un dossier absent est jugé d'après son plus proche parent existant (« sera créé dans… »), et refusé si `creer_dossiers` vaut `false`. Un dossier existant n'est testé qu'une fois, même si des centaines de règles l'utilisent.
+- **A02** couvre aussi `dossier_temporaire` (écriture, et **même volume que la cible**). **A03** n'est contrôlé qu'en mode `archivage` ; un échec est un avertissement car la livraison continue en mode dégradé. **A04** : l'exécutable est cherché par son chemin ou dans le `PATH` ; si son nom contient une variable (`{source}\x.exe`) il n'est pas vérifiable à l'avance. **A05** : base absente, d'un autre environnement, sur un lecteur réseau ou verrouillée ; une transaction d'écriture vide prouve l'accès. **A06** : dossiers de journaux et de travail (leur absence de droits n'arrête rien : repli sur le fichier de secours, résultat des fils relu en base).
+- **Règles inactives** : non contrôlées. Les accès ne sont contrôlés que si le paramétrage est valide (`acces: non_controle` sinon).
+- **Comparaison (V01 à V04)** : `--verifier --precedent FICHIER`. **V01** détecte un `id` modifié par la signature (même source, même cible, mêmes masques sous un autre `id`). **V03** compare la fenêtre (`modifie_depuis`, `age_maximum_sec`), les masques, les exclusions, la récursivité et la taille minimale ; une sélection qui se **restreint** ne signale rien. **V02** précise si la règle avait un historique en base.
 
 ### 7.4 Précisions apportées par l'implémentation (J1)
 

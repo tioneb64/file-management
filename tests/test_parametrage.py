@@ -538,10 +538,12 @@ class TestCommande(CasParametrage):
         self.assertIn("R02", texte)
         self.assertIn("INVALIDE", texte)
 
-    def test_acces_non_controles_sans_syntaxe_seule(self):
+    def test_controles_d_acces_sans_syntaxe_seule(self):
         bon = self.fichier([entete(), regle()])
-        _, texte = self.lancer("--config", bon, "--verifier")
-        self.assertIn("A01-A07", texte)
+        code, texte = self.lancer("--config", bon, "--verifier")
+        self.assertEqual(code, 2)                          # base absente, dossiers inexistants : les acces sont controles
+        self.assertIn("A05", texte)
+        self.assertIn("A01", texte)
 
     def test_sans_verifier(self):
         bon = self.fichier([entete(), regle()])

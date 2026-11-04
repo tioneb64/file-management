@@ -67,15 +67,15 @@ Aides à la saisie : durées en unités lisibles à l'écran (converties en `_se
 | **Reprise** | `--reprise ID` | Affiche les règles de la chaîne qui repartiront |
 | **Lancer maintenant** | `--lancer-maintenant ID` | Oui |
 | **Acquitter** | `--acquitter ID` | Commentaire obligatoire |
-| **Débloquer** | `--debloquer ID` | Oui, avertit que l'arbre de processus sera arrêté |
+| **Débloquer** | `--debloquer ID --utilisateur U` | Oui, avertit que l'arbre de processus sera arrêté et qu'une reprise sera ensuite nécessaire |
 
 ## 5. Enregistrement du paramétrage
 
 1. Au chargement, le front-end mémorise la date de modification et l'empreinte du fichier.
 2. À l'enregistrement, il construit le fichier complet en mémoire : en-tête + une ligne par règle, triées.
 3. Il l'écrit dans un fichier temporaire du même dossier.
-4. Il appelle `--verifier --syntaxe-seule --format json` sur ce temporaire. Un **refus** annule l'enregistrement et affiche les codes ; les **avertissements** sont présentés pour confirmation.
-5. Il compare avec la version chargée pour les contrôles V01 à V04.
+4. Il appelle `--verifier --syntaxe-seule --precedent <fichier actuel> --format json` sur ce temporaire : le moteur fait les contrôles de syntaxe **et** la comparaison avec la version chargée (V01 à V04). Un **refus** annule l'enregistrement et affiche les codes ; les **avertissements** sont présentés pour confirmation.
+5. *(supprimé : la comparaison V01 à V04 est faite par le moteur, étape 4.)*
 6. **Contrôle d'édition simultanée** : si le fichier a changé depuis le chargement, l'enregistrement est refusé et le fichier est rechargé.
 7. Il copie la version précédente dans `dossier_versions` (`production_20261103_101500_DOMAINE_benoit.jsonl`), en enregistrant le compte et un commentaire.
 8. Il remplace le fichier par renommage atomique.
@@ -89,6 +89,8 @@ Aides à la saisie : durées en unités lisibles à l'écran (converties en `_se
 - Les valeurs `null`, les booléens et les entiers conservent leur type ; tester `[int]` et `[bool]` sur les champs saisis en texte.
 
 ## 6. Communication avec le moteur
+
+Le format exact des échanges (commandes, champs JSON, codes retour) est le **[contrat moteur / front-end](07-contrat-moteur-frontend.md)**.
 
 Le front-end exécute le moteur sur le serveur d'exécution, **avec le compte de l'administrateur connecté** pour les actions tracées :
 

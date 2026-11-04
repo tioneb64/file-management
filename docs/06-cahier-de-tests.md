@@ -405,7 +405,51 @@ C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --simulat
 | J7-M11 | Antivirus et PowerShell | Chronométrer un appel de script PowerShell | Durée raisonnable (quelques secondes) ; sinon augmenter `timeout_sec` | |
 | J7-M12 | Sécurité du paramétrage | Relire qui peut écrire dans le dossier de paramétrage | Seul le groupe d'administrateurs AD : qui modifie `programmes` fait exécuter un programme par le compte de service | |
 
-## 10. Jalons suivants
+## 10. Jalon J8 — Commandes pour le front-end
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 537 tests au total (470 précédents + 67 de J8), tous OK en 7 min 35 s.
+
+Le contrat complet est dans [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md). Les contrôles d'accès (A01 à A07) ne sont **pertinents que sur le serveur d'exécution avec le compte de service** : le PC de développement ne prouve que la logique.
+
+```powershell
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$py = 'C:\Python314\python.exe'
+# vérification complète : syntaxe + accès (à lancer SUR LE SERVEUR avec le compte de service)
+& $py -m copie --config D:\Parametrage\recette.jsonl --verifier --format json | ConvertFrom-Json
+# avant d'enregistrer une modification : syntaxe + comparaison avec la version actuelle
+& $py -m copie --config D:\Parametrage\nouveau.jsonl --verifier --syntaxe-seule --precedent D:\Parametrage\recette.jsonl --format json
+# déblocage d'une règle qui ne répond plus
+& $py -m copie --config D:\Parametrage\recette.jsonl --debloquer export_clients --utilisateur DOMAINE\benoit --commentaire "bloquee" --format json
+```
+
+### 10.1 Tests automatiques
+
+| ID | Fichier | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|---|
+| J8-A01 | `test_acces.py` | **A05** base : absente (message `--initialiser-base`), utilisable, d'un autre environnement, sur un lecteur réseau, qui n'est pas une base ; la vérification ne modifie pas la base | OK | |
+| J8-A02 | `test_acces.py` | **A01 / A02 / A03** : source absente ou illisible ; cible existante, **absente (sera créée, rien n'est créé)**, sans création autorisée, impossible, en lecture seule ; dossier temporaire sur un autre volume ; archive inaccessible = avertissement ; archive relative datée ; règle inactive ignorée ; **aucune trace laissée** | OK | |
+| J8-A03 | `test_acces.py` | **A04 / A06 / A07** : exécutable présent (chemin, `PATH`, variable d'environnement), introuvable, nom avec variable non vérifiable ; dossiers de journaux et de travail ; espace disponible en **information** (sans effet sur le code retour) ; 1 500 règles contrôlées en quelques secondes | OK | |
+| J8-A04 | `test_acces.py` | Ligne de commande : vérification complète en JSON, code retour selon la gravité (0 / 4 / 2), `--syntaxe-seule` sans toucher aux dossiers, accès non contrôlés si le paramétrage est invalide | OK | |
+| J8-A05 | `test_acces.py` | **Comparaison V01 à V04** : id modifié (refus), règle supprimée (avec historique), sélection élargie (fenêtre, masque, exclusion, récursivité, taille) sans faux positif quand elle se restreint, cible modifiée (écriture différente du même chemin ignorée), `--precedent` en ligne de commande | OK | |
+| J8-A06 | `test_contrat.py` | **`--debloquer`** : processus et **descendants** arrêtés, règle en erreur (`deblocage`), trace et événement, `apres_erreur = continuer`, processus déjà disparu, **identifiant réutilisé non touché**, refus (règle non en cours, inconnue, autre serveur, processus courant, processus qui ne s'arrête pas), reprise ensuite nécessaire, **exécution suivie par un orchestrateur réel** | OK | |
+| J8-A07 | `test_contrat.py` | **Contrat JSON** : un seul objet sur la sortie standard et rien sur l'erreur standard pour chaque commande ; clés exactes de `--etat` (règle, dernière erreur, dernière exécution), de `--verifier`, des commandes d'exploitation, du lancement ; refus et base absente en JSON ; paramétrage invalide ; **fils réels sans pollution de la sortie** ; erreurs d'arguments non JSON ; **vrai processus : UTF-8 strict, sans BOM, accents intacts** | OK | |
+
+### 10.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J8-M01 | **Accès avec le compte de service** | `--verifier --format json` sur la vraie configuration de recette, avec le compte de service Jenkins (`runas` ou job) | Aucun refus `A01` à `A05` ; les informations `A07` donnent l'espace réel ; noter tout refus avec son message | |
+| J8-M02 | Droits retirés | Retirer au compte de service : lecture de la source / écriture de la cible / écriture de l'archive / base | Respectivement `A01`, `A02`, `A03` (avertissement) et `A05` ; rétablir les droits ensuite | |
+| J8-M03 | Quota | Volume de la cible avec un quota pour le compte de service | `A07` indique l'espace du quota, pas l'espace du disque | |
+| J8-M04 | Exécutable manquant | Renommer un programme référencé par une règle | `A04` nomme le point d'appel et le chemin | |
+| J8-M05 | Aucun effet de bord | Comparer l'arborescence de la cible avant / après `--verifier` | Identique ; aucun dossier créé, aucun `.test_ecriture_*` restant | |
+| J8-M06 | **Depuis le poste du front-end** | `Invoke-Command -ComputerName SERVEUR -ScriptBlock { & C:\Python314\python.exe -m copie ... --format json }` puis `ConvertFrom-Json` | Un objet exploitable, accents corrects (avec `[Console]::OutputEncoding` en UTF-8) ; noter si les accents sont faux sans cette ligne | |
+| J8-M07 | Comparaison de versions | Modifier une copie du paramétrage : changer un `id`, élargir `modifie_depuis`, changer une cible, supprimer une règle ; `--precedent` | `V01` (refus), `V03`, `V04`, `V02` conformes ; sans modification, aucun diagnostic | |
+| J8-M08 | **Déblocage d'une vraie règle bloquée** | Règle qui attend longtemps (programme `sleep`), `--debloquer` depuis un autre compte | Le processus et le programme lancé disparaissent (`tasklist`), la règle est en `ERREUR` ; `--reprise` la relance | |
+| J8-M09 | Déblocage depuis un autre serveur | `--debloquer` lancé depuis une machine qui n'est pas celle de l'exécution (base partagée impossible : tester sur la machine d'exécution) | Refus explicite si l'hôte diffère | |
+| J8-M10 | Droits d'écriture du paramétrage | Compte non administrateur : tenter de modifier le dossier de paramétrage, puis lancer `--reprise` via le point de terminaison JEA | Écriture refusée par NTFS ; commande refusée par JEA ; `--etat` accessible | |
+
+## 11. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 

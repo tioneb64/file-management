@@ -9,6 +9,7 @@ Specification : docs/02-moteur.md sections 2, 4 et 10 ; etat : docs/03-base-de-d
 """
 import datetime
 import hashlib
+import os
 import time
 
 from copie import base as modele_base
@@ -158,8 +159,62 @@ def _traiter(regle, entete, base, journal, lancement, maintenant_dt, simulation_
 
 
 # --------------------------------------------------------------------------- #
+# Deblocage (--debloquer)
+# --------------------------------------------------------------------------- #
+def debloquer(parametrage, base, journal, ident, utilisateur, commentaire=None, hote=None, attente_sec=10):
+    """--debloquer : arrete l'execution en cours de la regle (processus ET descendants) et libere
+    son drapeau. La regle passe en ERREUR (situation `deblocage`) ; avec `apres_erreur = arreter` une
+    reprise est ensuite necessaire. Ne vise jamais un processus qui n'est plus celui de l'execution
+    (identifiant reutilise) ni ce processus-ci. Renvoie un dict decrivant ce qui a ete fait."""
+    hote = hote or nom_hote()
+    no = base.numero_regle(ident)
+    ligne = base.regle(no) if no is not None else None
+    if ligne is None:
+        raise modele_base.ActionRefusee("regle inconnue de la base : %s" % ident)
+    if not ligne["en_cours"]:
+        raise modele_base.ActionRefusee("la regle %s n'est pas en cours d'execution" % ident)
+    if ligne["hote"] and ligne["hote"] != hote:
+        raise modele_base.ActionRefusee(
+            "l'execution de %s tourne sur %s : lancer le deblocage depuis ce serveur" % (ident, ligne["hote"]))
+    pid, vivant = ligne["pid"], processus.vivant(ligne["pid"], ligne["pid_cree_le"])
+    if vivant and pid == os.getpid():
+        raise modele_base.ActionRefusee("l'execution de %s est portee par le processus courant" % ident)
+    arrete = False
+    if vivant:
+        processus.tuer_arbre(pid)
+        fin = time.monotonic() + attente_sec
+        while processus.vivant(pid, ligne["pid_cree_le"]) and time.monotonic() < fin:
+            time.sleep(0.1)
+        if processus.vivant(pid, ligne["pid_cree_le"]):
+            raise modele_base.ActionRefusee("le processus %s de la regle %s ne s'arrete pas" % (pid, ident))
+        arrete = True
+    regle = next((r for r in parametrage.regles if r.id and r.id.lower() == ident.lower()), None)
+    arret = regle is None or regle.apres_erreur == "arreter"
+    message = "execution %s debloquee par %s" % (ligne["execution_id"], utilisateur)
+    if commentaire:
+        message += " : " + commentaire
+    liberee = base.liberer_flag(no, message, statut_regle="ERREUR", arret_apres_erreur=arret,
+                                erreur={"situation": "deblocage", "message": message})
+    base.journaliser_action(no, "deblocage", utilisateur, commentaire,
+                            "processus arrete" if arrete else "processus deja absent")
+    journal.evenement("deblocage", "INFO", regle=ligne["id"], execution_id=ligne["execution_id"],
+                      utilisateur=utilisateur, commentaire=commentaire, processus_arrete=arrete, pid=pid)
+    texte = "%s debloquee : %s" % (ligne["id"], "processus %s et ses descendants arretes" % pid if arrete
+                                  else "le processus n'existait plus")
+    if arret:
+        texte += " ; une reprise est necessaire pour la relancer"
+    return {"regle": ligne["id"], "execution_id": ligne["execution_id"], "pid": pid,
+            "processus_arrete": arrete, "drapeau_libere": liberee, "reprise_necessaire": arret,
+            "message": texte}
+
+
+# --------------------------------------------------------------------------- #
 # Etat des regles (--etat)
 # --------------------------------------------------------------------------- #
+def _entier(instant):
+    return None if instant is None else int(instant)
+
+
 def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre=None):
     """Etat de chaque regle du parametrage, lu dans la base (aucune ecriture). Instants en
     secondes depuis 1970 (UTC)."""
@@ -175,7 +230,7 @@ def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre
                   "mode": regle.mode, "planification": planification.libelle(regle.planification),
                   "en_cours": False, "statut": "JAMAIS_LANCEE", "attente": None, "motif": None,
                   "dernier_lancement": None, "dernier_creneau": None,
-                  "prochain_creneau": planification.prochain_creneau(regle.planification, maintenant, fuseau),
+                  "prochain_creneau": _entier(planification.prochain_creneau(regle.planification, maintenant, fuseau)),
                   "dernier_succes": None, "derniere_erreur": None, "derniere_execution": None,
                   "reprise": False, "lancement_manuel": False, "arret_apres_erreur": False,
                   "archivage_degrade": False, "actions_en_attente": 0, "livraisons_incertaines": 0}

@@ -6,6 +6,9 @@ un code et un message. Voir docs/01-parametrage.md, section 7.
 
 REFUS = "refus"
 AVERTISSEMENT = "avert"
+INFORMATION = "info"          # n'a aucun effet sur le code retour
+
+VERSION_CONTRAT = 1           # version du format JSON echange avec le front-end (docs/07)
 
 # code -> (gravite, intitule du controle)
 CODES = {
@@ -36,6 +39,19 @@ CODES = {
     "D05": (AVERTISSEMENT, "la regle dependante est plus frequente que sa dependance"),
     "D06": (REFUS, "condition ou dependance incoherente"),
     "G01": (REFUS, "programme externe invalide"),
+    # controles d'acces (docs/01, section 7.3), executes avec le compte de service
+    "A01": (REFUS, "source accessible en lecture"),
+    "A02": (REFUS, "cible accessible en ecriture"),
+    "A03": (AVERTISSEMENT, "archive accessible en ecriture"),
+    "A04": (REFUS, "executable du programme present"),
+    "A05": (REFUS, "base accessible en ecriture"),
+    "A06": (AVERTISSEMENT, "dossiers de journaux et de travail accessibles en ecriture"),
+    "A07": (INFORMATION, "espace disponible pour le compte de service"),
+    # comparaison avec la version precedente du parametrage (docs/01, section 7.2)
+    "V01": (REFUS, "un id existant ne peut pas etre modifie"),
+    "V02": (AVERTISSEMENT, "regle supprimee"),
+    "V03": (AVERTISSEMENT, "selection elargie"),
+    "V04": (AVERTISSEMENT, "cible modifiee"),
 }
 
 
@@ -59,8 +75,8 @@ class Diagnostic(object):
             lieu.append("ligne %d" % self.ligne)
         if self.regle:
             lieu.append("regle %s" % self.regle)
-        return "%-7s %s%s" % (self.code + " " + ("REFUS" if self.gravite == REFUS else "AVERT"),
-                              "[%s] " % ", ".join(lieu) if lieu else "", self.message)
+        etiquette = {REFUS: "REFUS", AVERTISSEMENT: "AVERT", INFORMATION: "INFO"}[self.gravite]
+        return "%-7s %s%s" % (self.code + " " + etiquette, "[%s] " % ", ".join(lieu) if lieu else "", self.message)
 
 
 class Rapport(object):
@@ -79,6 +95,10 @@ class Rapport(object):
         return [d for d in self.diagnostics if d.gravite == AVERTISSEMENT]
 
     @property
+    def informations(self):
+        return [d for d in self.diagnostics if d.gravite == INFORMATION]
+
+    @property
     def ok(self):
         return not self.refus
 
@@ -86,13 +106,15 @@ class Rapport(object):
         return [d.code for d in self.diagnostics]
 
     def en_dict(self):
-        return {"ok": self.ok,
+        return {"version_contrat": VERSION_CONTRAT, "ok": self.ok,
                 "refus": [d.en_dict() for d in self.refus],
-                "avertissements": [d.en_dict() for d in self.avertissements]}
+                "avertissements": [d.en_dict() for d in self.avertissements],
+                "informations": [d.en_dict() for d in self.informations]}
 
     def en_texte(self):
         lignes = [d.en_texte() for d in sorted(
-            self.diagnostics, key=lambda d: (d.gravite != REFUS, d.ligne or 0, d.code))]
+            self.diagnostics, key=lambda d: ({REFUS: 0, AVERTISSEMENT: 1, INFORMATION: 2}[d.gravite],
+                                             d.ligne or 0, d.code))]
         lignes.append("%d refus, %d avertissement(s) : %s" % (
             len(self.refus), len(self.avertissements),
             "parametrage valide" if self.ok else "parametrage INVALIDE"))
