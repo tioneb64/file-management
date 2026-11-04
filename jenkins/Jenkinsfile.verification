@@ -1,0 +1,46 @@
+// Verification nocturne : parametrage ET acces (dossiers, droits, executables, base, espace) avec le
+// compte de service de l'agent. Un build UNSTABLE signale un avertissement (par exemple une archive
+// inaccessible), un build FAILURE un refus : le prochain lancement de production en souffrirait.
+@Library('journal-si') _
+
+pipeline {
+    agent { label 'copie-fichiers' }
+
+    triggers { cron('H 4 * * *') }
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 15, unit: 'MINUTES')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '60'))
+    }
+
+    environment {
+        COPIE_PYTHON  = 'C:\\Python314\\python.exe'
+        COPIE_DEPOT   = 'D:\\Scripts\\copie_fichiers'
+        COPIE_CONFIG  = 'D:\\Parametrage\\production.jsonl'
+        COPIE_LOGS    = 'D:\\Copie\\logs'
+        COPIE_ENV     = 'production'
+    }
+
+    stages {
+        stage('Verification') {
+            steps {
+                script {
+                    journalSI.debutJob(application: 'copie_fichiers', environnement: env.COPIE_ENV, dossier: env.COPIE_LOGS)
+                    // --periode-declencheur-sec : periode du job de transfert (controle P02)
+                    copieFichiers(config: env.COPIE_CONFIG, commande: '--verifier --periode-declencheur-sec 300')
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                journalSI.finJob(application: 'copie_fichiers', environnement: env.COPIE_ENV, dossier: env.COPIE_LOGS,
+                                 codeRetour: env.COPIE_CODE_RETOUR)
+            }
+        }
+    }
+}

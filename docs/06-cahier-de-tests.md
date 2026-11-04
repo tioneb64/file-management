@@ -449,7 +449,50 @@ $py = 'C:\Python314\python.exe'
 | J8-M09 | Déblocage depuis un autre serveur | `--debloquer` lancé depuis une machine qui n'est pas celle de l'exécution (base partagée impossible : tester sur la machine d'exécution) | Refus explicite si l'hôte diffère | |
 | J8-M10 | Droits d'écriture du paramétrage | Compte non administrateur : tenter de modifier le dossier de paramétrage, puis lancer `--reprise` via le point de terminaison JEA | Écriture refusée par NTFS ; commande refusée par JEA ; `--etat` accessible | |
 
-## 11. Jalons suivants
+## 11. Jalon J9 — Intégration Jenkins
+
+Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 562 tests au total (537 précédents + 25 de J9), tous OK en 8 min 6 s.
+
+Guide de mise en place : [08-jenkins](08-jenkins.md). **Les fichiers Groovy n'ont jamais été exécutés dans un vrai Jenkins** (ni Jenkins ni Groovy sur le poste de développement) : seuls leur contenu statique et ce qu'ils font écrire sont vérifiés. **Les tests J9-M sont donc indispensables** et peuvent révéler des ajustements (version des modules, droits d'une bibliothèque, quotes).
+
+```powershell
+# ce que fait la bibliothèque partagée pour écrire un événement de job
+$env:JOB_NAME='COPIE_PROD'; $env:BUILD_NUMBER='1'
+C:\Python314\python.exe journal_si.py --dossier D:\Copie\logs --application copie_fichiers --environnement production --evenement fin_job --niveau WARNING --champs-json champs.json
+```
+
+### 11.1 Tests automatiques (fichier `tests/test_jenkins.py`)
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J9-A01 | **`journal_si.py` en ligne de commande** : événement **au même format et dans le même ordre que le module**, variables Jenkins (`job`, `build`, `build_url`, `noeud`), fichier sans règle / avec règle, champs typés par JSON (accents, BOM, entiers, objets), niveaux, **ne lève jamais d'échec** (JSON absent ou cassé, dossier impossible → fichier de secours), console, vrai processus | OK | |
+| J9-A02 | **Fichiers Jenkins** : délimiteurs équilibrés, pas de tabulation, UTF-8 sans BOM, fonctions de la bibliothèque, **statut Jenkins → niveau du journal**, options passées à `journal_si.py` existantes, codes 0 / 4 traduits, `UNSTABLE` = code 4 du moteur | OK | |
+| J9-A03 | **Job de transfert** : builds simultanés autorisés (pas de `disableConcurrentBuilds`), `cron`, `timeout`, `debut_job` / `fin_job` ; sauvegarde et vérification sans builds simultanés ; **chaque `commande:` des Jenkinsfile est acceptée par l'analyseur d'arguments du moteur** | OK | |
+| J9-A04 | **Deux builds simultanés** (vrais processus, huit règles) : chaque règle exécutée **une seule fois**, livrée une seule fois, aucun drapeau resté posé, événements identifiés par leur build ; un build ignore une règle déjà en cours dans l'autre sans erreur | OK | |
+| J9-A05 | **Job simulé** : `debut_job` → lancement → `fin_job` avec le code retour ; code 0 puis code 4 (avertissement) ; code 2 pour un paramétrage invalide ; mêmes champs de job dans les événements du job et du lancement | OK | |
+| J9-A06 | **Abandon d'un build** (vrais processus) : arbre de processus arrêté comme le fait Jenkins → plus aucun fils, drapeau libéré au lancement suivant (`arret_anormal`) ; **orchestrateur tué seul → ses fils disparaissent** (Job Object) | OK | |
+
+### 11.2 Tests manuels sur Jenkins et le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J9-M01 | **Bibliothèque partagée** | Déclarer `journal-si`, créer le job de transfert depuis `jenkins/Jenkinsfile.transfert` (chemins adaptés), lancer un build | Le build démarre, la bibliothèque est chargée. **Noter la version de Jenkins et tout message de sécurité (signature à approuver)** | |
+| J9-M02 | Premier lancement en simulation | Créer provisoirement `commande`/options pour `--simulation` ou lancer `--simulation` à la main sur l'agent | Liste des fichiers « à livrer », aucun fichier créé, code retour 0 | |
+| J9-M03 | **Build de bout en bout** | Un fichier de recette déposé, build du job de transfert | Fichier livré, build `SUCCESS` (vert), console lisible avec accents, événements `debut_job` et `fin_job` dans `_orchestrateur_<jour>.jsonl` | |
+| J9-M04 | Code retour 4 → `UNSTABLE` | Provoquer un avertissement (fichier à la date dans le futur, archive inaccessible) | Build jaune, message `au moins un avertissement`, `fin_job` au niveau WARNING | |
+| J9-M05 | Code retour 1 / 2 → `FAILURE` | Source absente (1) ; paramétrage cassé (2) | Build rouge, code dans le message et dans `fin_job` (`code_retour`) | |
+| J9-M06 | **Builds simultanés** | Règle longue (30 s) et cron toutes les minutes pendant 5 minutes | Plusieurs builds en même temps (autant d'exécuteurs que prévu), chaque règle exécutée une fois, aucun doublon dans la cible, aucun build en erreur à cause de la concurrence | |
+| J9-M07 | **Nombre d'exécuteurs** | Appliquer la formule du §2 de 08-jenkins, observer la file d'attente sur une journée | Pas d'accumulation durable dans la file ; sinon ajouter des exécuteurs | |
+| J9-M08 | **Abandon d'un build** | Lancer une règle longue (500 Mo), cliquer « Abandonner » dans Jenkins | Plus de `python.exe` du lancement ; au build suivant, règle en `ERREUR` (`arret_anormal`) ou livraison de résultat inconnu à trancher ; jamais de fichier partiel ni de doublon | |
+| J9-M09 | Garde-fou `timeout` | Abaisser le `timeout` du job à 2 minutes avec une règle longue | Le build est interrompu, mêmes constats que J9-M08 | |
+| J9-M10 | Panne de la journalisation | Retirer au compte de l'agent l'écriture sur `COPIE_LOGS` pendant un build | Le build n'échoue pas à cause du journal ; message `journal-si : …` ; ligne dans `journal_si_secours_*.jsonl` | |
+| J9-M11 | **Alloy et Grafana** | Avec l'équipe de supervision : événements `debut_job` / `fin_job` visibles avec les libellés `application`, `environnement`, `niveau` ; lien du build (`build_url`) cliquable | Événements de job et de règles consultables ensemble | |
+| J9-M12 | Sauvegarde nocturne | Lancer `Jenkinsfile.sauvegarde` à la main | Fichier `<environnement>_<date>.db` créé, build vert ; ouvrir la sauvegarde (cahier J2-M06) | |
+| J9-M13 | Vérification nocturne | Lancer `Jenkinsfile.verification` | Vert si tout est accessible ; jaune ou rouge avec le diagnostic (code `A…`) dans la console | |
+| J9-M14 | Compte de service | Rejouer J9-M03 et J9-M12 | Mêmes résultats, aucune erreur d'accès | |
+| J9-M15 | Panne de Jenkins | Arrêter Jenkins 30 minutes puis le redémarrer | Au premier build, chaque règle part **une seule fois** (pas une fois par créneau manqué) | |
+
+## 12. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 

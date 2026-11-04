@@ -119,9 +119,9 @@ class Journal(object):
         self.nb_pannes = 0
         self._ouverts = {}
 
-    # ----- interface en trois fonctions ----- #
-    def debut(self, application, environnement, dossier=None, verbeux=False, console=False,
-              dossier_secours=None, evenement_debut="debut", evenement_fin="fin", **contexte):
+    def configurer(self, application, environnement, dossier=None, verbeux=False, console=False,
+                   dossier_secours=None, evenement_fin="fin", **contexte):
+        """Prepare le journal sans ecrire d'evenement (utilise aussi par la ligne de commande)."""
         self.application = application
         self.environnement = environnement
         self.dossier = dossier or os.environ.get("JOURNAL_SI_DOSSIER") or "logs"
@@ -130,6 +130,12 @@ class Journal(object):
         self.evenement_fin = evenement_fin
         self.contexte = dict(contexte)
         self.debut_le = self.horloge()
+
+    # ----- interface en trois fonctions ----- #
+    def debut(self, application, environnement, dossier=None, verbeux=False, console=False,
+              dossier_secours=None, evenement_debut="debut", evenement_fin="fin", **contexte):
+        self.configurer(application, environnement, dossier, verbeux, console, dossier_secours,
+                        evenement_fin, **contexte)
         self.evenement(evenement_debut)
 
     def evenement(self, nom, niveau="INFO", **champs):
@@ -290,6 +296,55 @@ def _borner(valeur):
 
 
 # --------------------------------------------------------------------------- #
+# Ligne de commande : evenements ecrits par un autre outil (pipeline Jenkins)
+# --------------------------------------------------------------------------- #
+def main(argv=None):
+    """python journal_si.py --dossier D --application A --environnement E --evenement debut_job
+    [--niveau INFO] [--regle ID] [--champ cle=valeur ...] [--champs-json FICHIER] [--console]
+
+    Ecrit UN evenement, avec exactement le format du module. Sort TOUJOURS avec le code 0 : une
+    panne de journalisation ne doit jamais faire echouer le pipeline (elle est signalee sur la
+    sortie d'erreur et repliee dans le fichier de secours)."""
+    import argparse
+    p = argparse.ArgumentParser(description=main.__doc__.split("\n")[0])
+    p.add_argument("--dossier", required=True)
+    p.add_argument("--application", required=True)
+    p.add_argument("--environnement", required=True)
+    p.add_argument("--evenement", required=True)
+    p.add_argument("--niveau", default="INFO")
+    p.add_argument("--regle")
+    p.add_argument("--champ", action="append", default=[], metavar="CLE=VALEUR",
+                   help="champ texte (repetable) ; pour des valeurs typees, --champs-json")
+    p.add_argument("--champs-json", metavar="FICHIER",
+                   help="fichier JSON (UTF-8) contenant un objet de champs a ajouter")
+    p.add_argument("--console", action="store_true", help="ecrit aussi une ligne lisible sur la sortie standard")
+    args = p.parse_args(argv)
+    journal = Journal()
+    try:
+        champs = {}
+        if args.champs_json:
+            with open(args.champs_json, encoding="utf-8-sig") as f:
+                contenu = json.load(f)
+            if isinstance(contenu, dict):
+                champs.update(contenu)
+        for element in args.champ:
+            cle, _, valeur = element.partition("=")
+            if cle:
+                champs[cle] = valeur
+        if args.regle:
+            champs["regle"] = args.regle
+        journal.configurer(args.application, args.environnement, args.dossier, console=args.console)
+        journal.evenement(args.evenement, args.niveau, **champs)
+    except Exception as e:                     # y compris un fichier JSON illisible : jamais d'echec
+        sys.stderr.write("journal_si: evenement non ecrit (%s: %s)\n" % (type(e).__name__, e))
+    finally:
+        journal.fermer()
+    if journal.pannes():
+        sys.stderr.write("journal_si: %d evenement(s) replie(s) dans le fichier de secours\n" % journal.pannes())
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # Interface de module : un journal par processus
 # --------------------------------------------------------------------------- #
 _journal = Journal()
@@ -313,3 +368,7 @@ def definir(**contexte):
 
 def pannes():
     return _journal.pannes()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

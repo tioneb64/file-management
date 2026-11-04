@@ -412,35 +412,14 @@ Le module est le fichier autonome [journal_si.py](../journal_si.py), à la racin
 - **Bornage** : un champ texte de plus de 4 000 caractères est coupé et suffixé `...[tronque, N caracteres]` (sorties de programmes). Les valeurs non convertibles en JSON (`Path`, `bytes`, ensembles, dates) sont converties ; un nom de fichier Windows avec un caractère isolé ne fait pas échouer l'écriture.
 - **Panne (G7)** : jamais d'exception. En cas d'échec (dossier absent et non créable, disque plein, droits), la ligne est écrite sur la sortie d'erreur et dans `journal_si_secours_<jour>.jsonl` (dossier `dossier_secours`, sinon dossier temporaire du compte), `pannes()` compte les incidents et la prochaine écriture retente le dossier normal. Le moteur doit ajouter un WARNING au bilan quand `pannes() > 0`.
 - **Console** : avec `console=True`, chaque événement est aussi écrit en une ligne lisible sur la sortie standard (console Jenkins).
+- **Ligne de commande** (jalon J9) : `python journal_si.py --dossier D --application A --environnement E --evenement NOM [--niveau INFO] [--regle ID] [--champ cle=valeur] [--champs-json FICHIER] [--console]` écrit un événement au format du module (utilisée par la bibliothèque Jenkins). Sort **toujours avec le code 0** ; une panne est signalée sur la sortie d'erreur et repliée dans le fichier de secours. `--champs-json` accepte un objet JSON UTF-8 (avec ou sans BOM) et conserve les types.
 - **Exemple de sortie** : [exemples/journal/](../exemples/journal/) ; **exemple de configuration Alloy** (non testé) : [exemples/alloy/copie_fichiers.alloy](../exemples/alloy/copie_fichiers.alloy).
 
 ## 12. Intégration Jenkins
 
-Un job par environnement, déclenché toutes les N minutes, **builds simultanés autorisés**. Exemple indicatif de `Jenkinsfile` (la Shared Library `journal-si` reste à créer) :
+Un job par environnement, déclenché toutes les 5 minutes, **builds simultanés autorisés** ; le code retour du moteur devient le résultat du build (0 → `SUCCESS`, 4 → `UNSTABLE`, autre → `FAILURE`) ; la Shared Library `journal-si` écrit les événements de niveau job (`debut_job`, `fin_job`) dans le même format JSON que le module Python.
 
-```groovy
-@Library('journal-si') _
-pipeline {
-  agent { label 'copie-fichiers' }
-  triggers { cron('H/5 * * * *') }
-  options { timeout(time: 3, unit: 'HOURS') }
-  stages {
-    stage('Transfert') {
-      steps {
-        script {
-          def rc = bat(returnStatus: true,
-            script: 'python D:\\Scripts\\copie_fichiers.py --config D:\\Parametrage\\production.jsonl')
-          if (rc == 4) { unstable('Au moins un avertissement') }
-          else if (rc != 0) { error("copie_fichiers : code retour ${rc}") }
-        }
-      }
-    }
-  }
-  post { always { journalSI.finJob(application: 'copie_fichiers', environnement: 'production') } }
-}
-```
-
-La Shared Library produit les événements de niveau job (`debut_job`, `fin_job`, statut, durée, lien du build) **dans le même format JSON** que le module Python, pour uniformiser les journaux de tous les programmes.
+Les `Jenkinsfile` (transfert, sauvegarde de la base, vérification nocturne), la bibliothèque partagée et le guide de mise en place sont décrits dans [08-jenkins](08-jenkins.md) ; les fichiers sont dans `jenkins/`. La bibliothèque ne contient aucune logique de format : elle appelle `python journal_si.py` (ligne de commande du module, qui sort toujours avec le code 0 pour qu'une panne de journalisation n'échoue jamais un build).
 
 ## 13. Sécurité
 

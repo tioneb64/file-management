@@ -1,0 +1,54 @@
+// Sauvegarde quotidienne de la base de l'environnement (voir docs/03-base-de-donnees.md, section 7).
+// Une base perdue ferait relivrer tous les fichiers encore presents dans les sources en mode "copie" :
+// cette sauvegarde est une condition de mise en production.
+//
+// La sauvegarde utilise l'API de sauvegarde de SQLite : elle est coherente meme pendant un transfert.
+// Un seul build a la fois suffit (disableConcurrentBuilds).
+@Library('journal-si') _
+
+pipeline {
+    agent { label 'copie-fichiers' }
+
+    triggers { cron('H 2 * * *') }
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '60'))
+    }
+
+    environment {
+        COPIE_PYTHON  = 'C:\\Python314\\python.exe'
+        COPIE_DEPOT   = 'D:\\Scripts\\copie_fichiers'
+        COPIE_CONFIG  = 'D:\\Parametrage\\production.jsonl'
+        COPIE_LOGS    = 'D:\\Copie\\logs'
+        COPIE_ENV     = 'production'
+        COPIE_SAUVEGARDES = 'D:\\Copie\\sauvegardes'
+    }
+
+    stages {
+        stage('Sauvegarde') {
+            steps {
+                script {
+                    journalSI.debutJob(application: 'copie_fichiers', environnement: env.COPIE_ENV, dossier: env.COPIE_LOGS)
+                    copieFichiers(config: env.COPIE_CONFIG, commande: '--sauvegarder-base "' + env.COPIE_SAUVEGARDES + '"')
+                }
+            }
+        }
+        // Rotation des sauvegardes : a decider avec l'exploitation (duree de conservation, copie hors serveur).
+        // Exemple, a activer seulement apres validation : conserver 30 jours.
+        // stage('Rotation') {
+        //     steps { bat '@forfiles /P "%COPIE_SAUVEGARDES%" /M *.db /D -30 /C "cmd /c del @path"' }
+        // }
+    }
+
+    post {
+        always {
+            script {
+                journalSI.finJob(application: 'copie_fichiers', environnement: env.COPIE_ENV, dossier: env.COPIE_LOGS,
+                                 codeRetour: env.COPIE_CODE_RETOUR)
+            }
+        }
+    }
+}

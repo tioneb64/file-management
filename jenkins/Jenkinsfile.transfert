@@ -1,0 +1,54 @@
+// Job de transfert : un job PAR ENVIRONNEMENT, declenche toutes les 5 minutes.
+// Les BUILDS SIMULTANES SONT VOULUS (ne pas ajouter disableConcurrentBuilds) : le moteur protege
+// lui-meme chaque regle par un drapeau atomique en base ; un build qui trouve une regle deja en
+// cours l'ignore. Prevoir assez d'executeurs sur l'agent (voir docs/08-jenkins.md).
+//
+// Adapter les cinq valeurs de la section `environment` puis creer le job "Pipeline" qui lit ce fichier.
+@Library('journal-si') _
+
+pipeline {
+    agent { label 'copie-fichiers' }
+
+    triggers { cron('H/5 * * * *') }
+
+    options {
+        timeout(time: 3, unit: 'HOURS')          // garde-fou : arrete le build et, avec lui, tous les fils du moteur
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '300'))
+    }
+
+    environment {
+        COPIE_PYTHON  = 'C:\\Python314\\python.exe'
+        COPIE_DEPOT   = 'D:\\Scripts\\copie_fichiers'
+        COPIE_CONFIG  = 'D:\\Parametrage\\production.jsonl'
+        COPIE_LOGS    = 'D:\\Copie\\logs'          // = dossier_logs du parametrage
+        COPIE_ENV     = 'production'
+    }
+
+    stages {
+        stage('Debut') {
+            steps {
+                script {
+                    journalSI.debutJob(application: 'copie_fichiers', environnement: env.COPIE_ENV, dossier: env.COPIE_LOGS)
+                }
+            }
+        }
+        stage('Transfert') {
+            steps {
+                script {
+                    // 0 -> SUCCESS, 4 -> UNSTABLE, autre -> FAILURE (le code est memorise dans COPIE_CODE_RETOUR)
+                    copieFichiers(config: env.COPIE_CONFIG)
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                journalSI.finJob(application: 'copie_fichiers', environnement: env.COPIE_ENV, dossier: env.COPIE_LOGS,
+                                 codeRetour: env.COPIE_CODE_RETOUR)
+            }
+        }
+    }
+}

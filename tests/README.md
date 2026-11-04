@@ -13,6 +13,8 @@
 | `tests/test_orchestrateur.py` | J6 : dependances (EN_ATTENTE, BLOQUEE, cascade), processus fils reels, parallelisme, duree maximale (erreur, relancer, alerter), arret de l'arbre de processus, fins anormales, Job Object. |
 | `tests/test_programmes.py` | J7 : programmes externes aux six points d'appel (codes retour, tentatives, variables, listes, arbre de processus, avant_fichier qui modifie la source, apres_fichier en echec, reprise, simulation). |
 | `tests/test_acces.py`, `tests/test_contrat.py` | J8 : controles d'acces A01-A07, comparaison de versions V01-V04, `--debloquer` (processus reels), contrat JSON avec le front-end (cles exactes, UTF-8, aucune pollution de la sortie). |
+| `tests/test_jenkins.py` | J9 : `journal_si.py` en ligne de commande (evenements de job), coherence statique des Jenkinsfile et de la bibliotheque Groovy (non executee), builds simultanes et abandon d'un build avec de vrais processus. |
+| `jenkins/` | Jenkinsfile (transfert, sauvegarde, verification) et bibliotheque partagee `journal-si` (`vars/journalSI.groovy`, `vars/copieFichiers.groovy`). |
 | `outils/mesure_transfert.py` | Mesure sur le serveur : débit de livraison (copie, déplacement, relance), cible locale ou réseau. |
 | `tests/test_journal.py` | J3 : module `journal_si.py` (format, fichiers, pannes, charge entre processus). |
 | `outils/charge_journal.py` | Test de charge du journal sur le serveur : 8 processus × 10 000 lignes dans un même fichier. |
