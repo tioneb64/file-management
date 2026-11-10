@@ -72,13 +72,15 @@ Aides à la saisie : durées en unités lisibles à l'écran (converties en `_se
 
 1. Au chargement, le front-end mémorise la date de modification et l'empreinte du fichier.
 2. À l'enregistrement, il construit le fichier complet en mémoire : en-tête + une ligne par règle, triées.
-3. Il l'écrit dans un fichier temporaire du même dossier.
+3. Il l'écrit sous le **nom de l'environnement** (le moteur exige que le nom du fichier soit celui de l'environnement : E03) dans un sous-dossier de brouillons du même dossier (`.brouillons\<guid>`, paramètre `Parametrage.DossierBrouillons`), donc sur le même volume que le fichier à remplacer. Ce sous-dossier est supprimé à la fin, réussite ou non.
 4. Il appelle `--verifier --syntaxe-seule --precedent <fichier actuel> --format json` sur ce temporaire : le moteur fait les contrôles de syntaxe **et** la comparaison avec la version chargée (V01 à V04). Un **refus** annule l'enregistrement et affiche les codes ; les **avertissements** sont présentés pour confirmation.
 5. *(supprimé : la comparaison V01 à V04 est faite par le moteur, étape 4.)*
 6. **Contrôle d'édition simultanée** : si le fichier a changé depuis le chargement, l'enregistrement est refusé et le fichier est rechargé.
-7. Il copie la version précédente dans `dossier_versions` (`production_20261103_101500_DOMAINE_benoit.jsonl`), en enregistrant le compte et un commentaire.
-8. Il remplace le fichier par renommage atomique.
+7. Il copie la version précédente dans `dossier_versions` (`production_20261103_101500_DOMAINE_benoit.jsonl`) et écrit à côté une fiche `.meta.json` : compte, date (UTC), **commentaire (obligatoire)**, empreintes avant et après, avertissements acceptés.
+8. Il remplace le fichier par `[System.IO.File]::Replace` (atomique ; le fichier n'est jamais écrit à moitié). L'empreinte est recontrôlée juste avant le remplacement.
 9. Il propose de lancer `--verifier` complet (accès) sur le serveur d'exécution.
+
+Le formulaire ne recopie ni les valeurs de secours ni les listes de valeurs : il les demande au moteur (`--modele-regle`, [07-contrat-json](07-contrat-json.md)). Un champ absent du fichier prend la valeur de secours du moteur ; le front-end écrit toujours le réglage complet de la règle. Après un refus du moteur ou des avertissements non acceptés, le formulaire se rouvre avec la saisie. Avant toute action, le fichier est relu : s'il a changé depuis son affichage, la vue est rechargée et l'action abandonnée.
 
 Écriture du fichier en PowerShell 5.1 :
 
@@ -86,6 +88,8 @@ Aides à la saisie : durées en unités lisibles à l'écran (converties en `_se
 - `ConvertTo-Json -Compress -Depth 10` pour chaque règle : sans `-Depth`, les objets imbriqués (`planification`, `situations`, `programmes`) sont tronqués à deux niveaux.
 - `ConvertTo-Json` de PowerShell 5.1 échappe `<`, `>`, `&` et `'` en `\uXXXX` : valide en JSON, le moteur le relit correctement.
 - Les valeurs `null`, les booléens et les entiers conservent leur type ; tester `[int]` et `[bool]` sur les champs saisis en texte.
+- Piège 5.1 : `$(if ($x) { $tableau })` et `$v = if …` **aplatissent** les tableaux d'un ou de zéro élément (`[1]` devient `1`, `[]` devient `{}`) : les affectations se font dans les branches.
+- `[System.IO.File]::Replace($a, $b, $null)` échoue en 5.1 (le `$null` devient une chaîne vide) : passer `[NullString]::Value`.
 
 ## 6. Communication avec le moteur
 
@@ -123,7 +127,7 @@ L'application est dans `Gui\` (même organisation que l'outil de gestion du clus
 | Étape | Contenu | État |
 |---|---|---|
 | **A** | Fenêtre, contrôle des droits AD, onglets par environnement, liste des règles (filtres), détail, état (`--etat`), vérification (`--verifier`), journal, `Initialiser-DossierParametrage.ps1` | faite |
-| B | Formulaire d'édition, enregistrement sécurisé (§5 : vérification, contrôle d'édition simultanée, versions, renommage atomique) | |
+| **B** | Formulaire d'édition (ajouter, dupliquer, modifier, activer / désactiver, supprimer), tri automatique, enregistrement sécurisé (§5 : vérification, contrôle d'édition simultanée, versions avec fiche et commentaire, remplacement atomique) | faite |
 | C | Actions d'exploitation (§4.3), purge (`--purger`), exécution en arrière-plan | |
 | D | Graphe des dépendances, promotion d'un environnement à l'autre, historique des versions | |
 

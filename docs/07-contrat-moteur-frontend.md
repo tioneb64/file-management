@@ -49,6 +49,7 @@ Colonne « Droits » : **lecture** = tout compte, **écriture** = administrateur
 |---|---|---|---|
 | `--verifier [--syntaxe-seule] [--precedent FICHIER] [--periode-declencheur-sec N]` | lecture | Valide le fichier ; sans `--syntaxe-seule`, contrôle aussi les accès (A01 à A07) **avec le compte qui exécute la commande** ; avec `--precedent`, compare avec l'ancienne version (V01 à V04) | §4.1 |
 | `--etat [--regle ID]` | lecture | État de chaque règle (lecture seule de la base) | §4.2 |
+| `--modele-regle` | lecture | Valeurs de secours d'une règle et listes de valeurs permises, pour le formulaire du front-end. Ne demande pas `--config` et ne lit aucun fichier ni aucune base | `commande`, `version_format`, `regle` (règle complète, valeurs de secours), `listes` (valeurs permises de chaque champ à liste fermée, variables par point d'appel), `situations` (tentatives, délai, niveau, suites permises et suite par défaut) |
 | `--initialiser-base` | écriture | Crée la base de l'environnement | `base`, `environnement` |
 | `--sauvegarder-base DOSSIER` | écriture | Sauvegarde cohérente de la base | `fichier` |
 | `--reprise ID --utilisateur U [--commentaire C]` | écriture | La règle repartira au prochain lancement, quelle que soit l'heure | `commande`, `regle` |

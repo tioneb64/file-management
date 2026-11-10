@@ -64,6 +64,11 @@
       <ComboBox x:Name="FiltreMode" Width="120" Margin="0,0,14,6"/>
       <CheckBox x:Name="ActivesSeules" Content="Règles actives seulement" VerticalAlignment="Center" Margin="0,0,16,6"/>
       <Button x:Name="BtnVerifier" Content="Vérifier le paramétrage" Style="{StaticResource BtnPrimary}" Margin="0,0,8,6"/>
+      <Button x:Name="BtnAjouter" Content="Ajouter" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnDupliquer" Content="Dupliquer" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnModifier" Content="Modifier" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnActiver" Content="Désactiver" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnSupprimer" Content="Supprimer" Style="{StaticResource BtnDanger}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <TextBlock x:Name="InfoFichier" VerticalAlignment="Center" Style="{StaticResource Hint}" Margin="8,0,0,6"/>
     </WrapPanel>
 

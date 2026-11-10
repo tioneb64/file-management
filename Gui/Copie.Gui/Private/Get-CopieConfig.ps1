@@ -30,7 +30,7 @@
     $schema = @{
         Acces       = @('GroupesAdmin')
         Moteur      = @('Mode', 'Python', 'Racine', 'Serveur', 'ConfigurationJea', 'DelaiMaxSec')
-        Parametrage = @('Filtre', 'VersionsSupportees', 'DossierVersions', 'PeriodeDeclencheurSec')
+        Parametrage = @('Filtre', 'VersionsSupportees', 'DossierVersions', 'DossierBrouillons', 'PeriodeDeclencheurSec')
         Journal     = @('Dossier')
     }
     foreach ($cle in @($brut.Keys)) {
@@ -80,6 +80,11 @@
     $filtre = "$(& $lire 'Parametrage' 'Filtre' '*.jsonl')"
     $versions = @(& $lire 'Parametrage' 'VersionsSupportees' @(1) | ForEach-Object { [int]$_ })
     $dossierVersions = "$(& $lire 'Parametrage' 'DossierVersions' 'versions')"
+    $brouillons = "$(& $lire 'Parametrage' 'DossierBrouillons' '.brouillons')"
+    foreach ($sous in @($dossierVersions, $brouillons)) {
+        if ($sous -match '[\/:]' -or $sous -in '', '.', '..') { $erreurs.Add(('Parametrage : "{0}" doit être un nom de sous-dossier simple' -f $sous)) }
+    }
+    if ($dossierVersions -eq $brouillons) { $erreurs.Add('Parametrage : DossierVersions et DossierBrouillons doivent être différents') }
     $periode = [int](& $lire 'Parametrage' 'PeriodeDeclencheurSec' 300)
     if ($periode -lt 1) { $erreurs.Add('Parametrage.PeriodeDeclencheurSec doit être supérieur à 0') }
 
@@ -98,7 +103,7 @@
         }
         Parametrage = [pscustomobject]@{
             Filtre = $filtre; VersionsSupportees = $versions; DossierVersions = $dossierVersions
-            PeriodeDeclencheurSec = $periode
+            DossierBrouillons = $brouillons; PeriodeDeclencheurSec = $periode
         }
         Journal     = [pscustomobject]@{ Dossier = "$(& $lire 'Journal' 'Dossier' '')".Trim() }
     }

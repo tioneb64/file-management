@@ -89,7 +89,7 @@ $configuration = @"
         Racine = '$racineMoteur'
         DelaiMaxSec = 120
     }
-    Parametrage = @{ Filtre = '*.jsonl'; VersionsSupportees = @(1); DossierVersions = 'versions'; PeriodeDeclencheurSec = 300 }
+    Parametrage = @{ Filtre = '*.jsonl'; VersionsSupportees = @(1); DossierVersions = 'versions'; DossierBrouillons = '.brouillons'; PeriodeDeclencheurSec = 300 }
     Journal = @{ Dossier = '$(Join-Path $Destination 'journal-gui')' }
 }
 "@

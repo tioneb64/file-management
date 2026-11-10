@@ -3,7 +3,7 @@
 Sans commande : lancement (les regles dues, en parallele, apres evaluation de leurs dependances).
 Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER], --initialiser-base,
 --sauvegarder-base DOSSIER, --etat, --reprise ID, --lancer-maintenant ID, --acquitter ID,
---debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --lancer-regle ID (une seule regle, planification
+--debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --modele-regle, --lancer-regle ID (une seule regle, planification
 ignoree). Avec --format json, TOUTES les commandes ecrivent un seul objet JSON UTF-8 sur la
 sortie standard (contrat : docs/07-contrat-moteur-frontend.md).
 Le lanceur copie_fichiers.py (v1) reste en place tant que la v2 n'est pas livree.
@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-from copie import __version__, base, lancement, purge
+from copie import __version__, base, lancement, modele, purge
 from copie.controles import verifier_fichier
 from copie.diagnostic import VERSION_CONTRAT
 
@@ -128,6 +128,15 @@ def _commande_base(args, parametrage):
 # --------------------------------------------------------------------------- #
 # Migration de l'ancien script
 # --------------------------------------------------------------------------- #
+def _modele_regle(args):
+    """Valeurs de secours et listes de valeurs permises, pour le formulaire du front-end. Sans --config."""
+    resultat = modele.modele()
+    if args.format == "json":
+        return _repondre(args, CODE_OK, "", commande="modele_regle", **resultat)
+    print(json.dumps(resultat, ensure_ascii=False, indent=1))
+    return CODE_OK
+
+
 def _migrer_ancien(args):
     from copie import migration
     if not args.environnement or not args.base:
@@ -400,6 +409,8 @@ def _arguments(argv=None):
                           help="decide du sort d'une livraison de resultat inconnu (avec --decision)")
     commande.add_argument("--purger", action="store_true",
                           help="journaux et archives plus anciens que leur retention (liste ; --appliquer pour supprimer)")
+    commande.add_argument("--modele-regle", action="store_true",
+                          help="valeurs de secours d'une regle et listes de valeurs permises (sans --config)")
     commande.add_argument("--migrer-ancien", metavar="COPIES.CONF",
                           help="convertit l'ancien fichier copies.conf en parametrage v2 (regles inactives)")
     commande.add_argument("--importer-historique", metavar="HISTORIQUE.JSON",
@@ -445,7 +456,7 @@ def _main(argv=None):
     lancement_ou_regle = not (args.verifier or args.initialiser_base or args.sauvegarder_base or args.etat
                               or args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
                               or args.trancher_incertain or args.executer_regle or args.migrer_ancien
-                              or args.importer_historique or args.purger)
+                              or args.importer_historique or args.purger or args.modele_regle)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
     if args.simulation_programmes and not args.simulation:
@@ -458,7 +469,7 @@ def _main(argv=None):
         p.error("--precedent s'utilise avec --verifier")
     if args.executer_regle and args.execution_id is None:
         p.error("--executer-regle exige --execution-id")
-    if not args.config and not args.migrer_ancien:
+    if not args.config and not (args.migrer_ancien or args.modele_regle):
         p.error("--config est obligatoire")
     if args.frequence_sec < 1:
         p.error("--frequence-sec doit etre superieur a 0")
@@ -469,6 +480,8 @@ def _main(argv=None):
 
     if args.format == "json":
         os.environ["COPIE_SANS_CONSOLE"] = "1"      # les fils ne doivent pas polluer la sortie JSON
+    if args.modele_regle:
+        return _modele_regle(args)
     if args.migrer_ancien:
         return _migrer_ancien(args)
     parametrage, rapport = verifier_fichier(args.config, args.periode_declencheur_sec)

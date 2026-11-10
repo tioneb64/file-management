@@ -28,7 +28,8 @@
     Parametrage = @{
         Filtre            = '*.jsonl'                                 # fichiers lus dans le dossier de paramétrage
         VersionsSupportees = @(1)                                     # versions du format d'en-tête que l'interface sait lire
-        DossierVersions   = 'versions'                                # sous-dossier des anciennes versions (relatif au dossier de paramétrage)
+        DossierVersions   = 'versions'                                # sous-dossier des anciennes versions (relatif au dossier de paramétrage ; le compte de service n'y a pas accès)
+        DossierBrouillons = '.brouillons'                             # sous-dossier où le moteur vérifie un fichier avant son enregistrement (le compte de service doit pouvoir le lire)
         PeriodeDeclencheurSec = 300                                   # période du déclencheur Jenkins (contrôle P02)
     }
 

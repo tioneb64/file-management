@@ -567,7 +567,7 @@ C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger 
 
 ## 14. Jalon J10, étape A — Front-end : consultation
 
-Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; **les étapes B (édition), C (actions d'exploitation) et D (graphe, promotion, versions) ne sont pas encore faites** : cette étape ne modifie aucun fichier de paramétrage.
+Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; les étapes suivantes sont décrites aux §15 et §16 : cette étape ne modifie aucun fichier de paramétrage.
 
 ```powershell
 .\Gui\Outils\Initialiser-Essai.ps1 -Destination D:\Essai\copie -Python C:\Python314\python.exe     # jeu d'essai (poste de développement)
@@ -604,10 +604,41 @@ Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 t
 | J10A-M11 | **Fichier non pris en charge** | Déposer un fichier dont l'environnement diffère de son nom | Onglet « (lecture seule) » avec le message | |
 | J10A-M12 | **Durée d'ouverture** | Chronométrer l'ouverture avec les vrais environnements | Noter la durée (un appel du moteur par environnement) ; si elle gêne, l'étape C ajoutera l'exécution en arrière-plan | |
 
-## 15. Jalons suivants
+## 15. Jalon J10, étape B — Front-end : édition
+
+Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 66 tests Pester (dont 24 propres à l'étape B), tous OK, PSScriptAnalyzer sans avertissement, moteur Python 3.14.10 réel ; 8 tests Python (`tests/test_modele.py`) pour `--modele-regle`. Spécification : [04-frontend](04-frontend.md) §4.2 et §5. Les étapes C et D ne sont pas faites. **Les formulaires n'ont été construits et relus que par programme (contrôles WPF réels, non affichés) et vus sur capture d'écran ; ils n'ont pas été joués à la souris.**
+
+### 15.1 Tests automatiques
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J10B-A01 | **`--modele-regle`** (Python) : la règle par défaut complétée est acceptée telle quelle par le moteur, valeurs de secours identiques à celles du moteur, aucun champ inconnu, listes égales aux constantes du moteur, commande JSON sans `--config` | OK | |
+| J10B-A02 | **Écriture JSON** : ligne compacte, tableaux à un élément et `null` conservés, accents et caractères spéciaux, imbrication profonde, numéro de ligne jamais écrit | OK | |
+| J10B-A03 | **Fusion et tri** : le modèle complète une règle existante sans rien perdre, ordre des champs, dépendances rangées avant leurs dépendantes, boucle ou dépendance inconnue sans blocage, nom de version | OK | |
+| J10B-A04 | **Enregistrement sécurisé (moteur réel)** : fichier remplacé, UTF-8 sans BOM, version et fiche `.meta.json` créées, brouillons supprimés ; refus du moteur (R02, V01, D03) sans toucher au fichier ; édition simultanée refusée ; avertissements refusés puis acceptés (tracés dans la fiche) ; moteur injoignable sans écriture | OK | |
+| J10B-A05 | **Formulaire** : jours (tous, plages, listes), durées et unités, formulaire non touché = règle de départ à l'octet près, tableaux à un élément, saisies incorrectes signalées par nom de champ, identifiant déjà pris, champs de planification selon le type, règle saisie acceptée par le moteur | OK | |
+
+### 15.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J10B-M01 | **Boutons réservés aux administrateurs** | Ouvrir avec un compte hors groupe, puis avec un administrateur | Hors groupe : aucun bouton d'édition ; administrateur : Ajouter, Dupliquer, Modifier, Activer, Supprimer (les quatre derniers actifs après sélection) | |
+| J10B-M02 | **Ajouter une règle** | Ajouter une règle quotidienne, laisser les valeurs de secours, saisir un commentaire | Règle dans la grille, version précédente et fiche dans `versions`, ligne dans le journal de l'outil, proposition de vérification complète | |
+| J10B-M03 | **Refus du moteur** | Ajouter une règle dont l'identifiant est invalide, puis une dont la dépendance n'existe pas | Fenêtre des refus avec les codes ; le formulaire se rouvre avec la saisie ; le fichier n'a pas changé | |
+| J10B-M04 | **Avertissement** | Planifier un intervalle de 60 secondes | Avertissement (P02) à confirmer ; refusé : rien n'est écrit ; accepté : enregistré, avertissement dans la fiche | |
+| J10B-M05 | **Dupliquer / modifier** | Dupliquer une règle, modifier la copie ; modifier l'original (l'identifiant n'est pas modifiable) | Les deux règles coexistent, valeurs reprises à l'identique | |
+| J10B-M06 | **Activer / désactiver** | Désactiver une règle dont une autre dépend, puis une règle sans dépendante | Refus D03 pour la première ; la seconde passe en « Non » | |
+| J10B-M07 | **Supprimer** | Supprimer une règle sans dépendante | Disparaît du fichier ; son historique reste en base (visible par `--etat` comme règle orpheline) | |
+| J10B-M08 | **Tri automatique** | Ajouter une règle qui dépend d'une règle placée plus bas dans le fichier | Dans le fichier, la dépendance est avant la dépendante | |
+| J10B-M09 | **Édition simultanée** | Ouvrir l'outil, modifier le fichier à la main (ou depuis un second poste), puis enregistrer depuis l'outil | Message « fichier modifié » ; rechargement ; rien n'est écrit | |
+| J10B-M10 | **Droits NTFS** | Enregistrer avec un administrateur, vérifier avec `Get-Acl` | Le fichier remplacé garde les droits du dossier (compte de service en lecture seule) ; le dossier `.brouillons` est vide | |
+| J10B-M11 | **Mode distant** | Enregistrer depuis un poste distant (mode `Distant`, administrateur puis JEA) | Même résultat qu'en local ; la vérification se fait sur le serveur d'exécution | |
+| J10B-M12 | **Programmes et situations** | Activer un programme (une commande, un élément par ligne) et modifier une situation | Écrits tels quels dans le fichier (`commande` est un tableau, même à un élément) | |
+
+## 16. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J10 étapes B à D | Front-end : édition et enregistrement, actions d'exploitation, graphe, promotion, versions |
+| J10 étapes C et D | Front-end : actions d'exploitation (reprise, lancement, acquittement, déblocage, purge), exécution en arrière-plan, graphe, promotion, versions |

@@ -76,6 +76,7 @@ function Select-CopieRegle {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable] $Vue)
     $ligne = $Vue.Grille.SelectedItem
+    if ($null -ne $Vue.Ajouter) { Update-CopieBoutons -Vue $Vue }
     if ($null -eq $ligne) { $Vue.Detail.ItemsSource = $null; $Vue.Etat.ItemsSource = $null; return }
     $Vue.Detail.ItemsSource = ConvertTo-CopieGroupeRegle -Regle $ligne.Regle
     $Vue.Etat.ItemsSource = ConvertTo-CopieGroupeEtat -Etat $ligne.Etat
@@ -189,8 +190,7 @@ function New-CopieVueEnvironnement {
 
     .DESCRIPTION
         L'onglet est en lecture seule si l'environnement l'est (fichier non pris en charge, doublon) ou si
-        l'utilisateur n'est pas administrateur : aucune modification n'est proposée dans l'étape A ; le
-        drapeau Modifiable est conservé pour l'étape B (formulaire d'édition).
+        l'utilisateur n'est pas administrateur : les boutons d'édition (étape B) sont alors masqués.
 
     .PARAMETER Contexte
         Contexte de la session.
@@ -218,6 +218,8 @@ function New-CopieVueEnvironnement {
         Actives = $tab.FindName('ActivesSeules'); Info = $tab.FindName('InfoFichier')
         Bandeau = $tab.FindName('Bandeau'); BandeauTexte = $tab.FindName('BandeauTexte')
         Verifier = $tab.FindName('BtnVerifier')
+        Ajouter = $tab.FindName('BtnAjouter'); Dupliquer = $tab.FindName('BtnDupliquer'); Modifier = $tab.FindName('BtnModifier')
+        Activer = $tab.FindName('BtnActiver'); Supprimer = $tab.FindName('BtnSupprimer')
     }
     $Script:Vues[$cle] = $vue
     $tiret = [string][char]0x2014
@@ -233,15 +235,21 @@ function New-CopieVueEnvironnement {
     foreach ($m in @('Tous', 'copie', 'deplacement', 'archivage')) { $null = $vue.FiltreMode.Items.Add($m) }
     $vue.FiltreMode.SelectedIndex = 0
 
-    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier) { $controle.Tag = $cle }
+    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer) { $controle.Tag = $cle }
     $vue.Grille.Add_SelectionChanged({ param($emetteur) Select-CopieRegle -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Recherche.Add_TextChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreStatut.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreMode.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Actives.Add_Click({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Verifier.Add_Click({ param($emetteur) Invoke-CopieVerification -Vue $Script:Vues[$emetteur.Tag] })
+    $vue.Ajouter.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'ajout' })
+    $vue.Dupliquer.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'duplication' })
+    $vue.Modifier.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'modification' })
+    $vue.Activer.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'activation' })
+    $vue.Supprimer.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'suppression' })
 
     Update-CopieVue -Vue $vue
+    Update-CopieBoutons -Vue $vue
     $tab.Tag = $vue
     $tab
 }
