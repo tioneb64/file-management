@@ -9,18 +9,21 @@ function Read-CopieCommentaire {
         Contexte de la session.
     .PARAMETER Question
         Ce qu'on s'apprête à faire (rappelé en tête de la fenêtre).
+    .PARAMETER Facultatif
+        Le commentaire peut rester vide (la fonction renvoie alors une chaîne vide).
     .OUTPUTS
         Le commentaire, ou $null si annulé.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable] $Contexte, [Parameter(Mandatory)] [string] $Question)
+    param([Parameter(Mandatory)] [hashtable] $Contexte, [Parameter(Mandatory)] [string] $Question, [switch] $Facultatif)
     $fenetre = Import-CopieXaml -Nom 'Dialog.Commentaire'
+    $fenetre.Tag = @{ Facultatif = [bool]$Facultatif }
     if ($null -ne $Contexte.Fenetre) { $fenetre.Owner = $Contexte.Fenetre }
     $fenetre.FindName('Question').Text = $Question
     $fenetre.FindName('BtnOk').Add_Click({
             param($s)
             $f = [System.Windows.Window]::GetWindow($s)
-            if ($f.FindName('Commentaire').Text.Trim().Length -eq 0) {
+            if ($f.FindName('Commentaire').Text.Trim().Length -eq 0 -and -not $f.Tag.Facultatif) {
                 [void][System.Windows.MessageBox]::Show($f, 'Le commentaire est obligatoire.', 'Commentaire', 'OK', 'Information')
                 return
             }
@@ -69,22 +72,47 @@ function Sync-CopieParametrage {
     Update-CopieBoutons -Vue $Vue
 }
 
-function Update-CopieBoutons {
+function Update-CopieEtatVue {
     <#
     .SYNOPSIS
-        Active les boutons d'édition : administrateur, environnement modifiable, et règle choisie si besoin.
+        Bouton « Actualiser l'état » : relit le fichier et l'état des règles, en gardant la règle choisie.
     .PARAMETER Vue
         Vue d'un environnement.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable] $Vue)
-    $peutEditer = ($Vue.Contexte.Profil -eq 'Admin') -and $Vue.Env.Modifiable
+    if ($Vue.Occupe) { return }
+    $choisie = $Vue.Grille.SelectedItem
+    Sync-CopieParametrage -Vue $Vue -Selection $(if ($null -ne $choisie) { $choisie.Id } else { '' })
+}
+
+function Update-CopieBoutons {
+    <#
+    .SYNOPSIS
+        Active les boutons : édition (administrateur, environnement modifiable), exploitation (administrateur,
+        fichier lisible), et règle choisie quand l'action en exige une. Tout est grisé pendant un appel en arrière-plan.
+    .PARAMETER Vue
+        Vue d'un environnement.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Vue)
+    $admin = ($Vue.Contexte.Profil -eq 'Admin')
+    $occupe = [bool]$Vue.Occupe
+    $parametrage = $Vue.Env.Parametrage
+    $lisible = ($null -ne $parametrage.Entete -and $parametrage.Erreurs.Count -eq 0)
     $choisie = ($null -ne $Vue.Grille.SelectedItem)
-    $Vue.Ajouter.IsEnabled = $peutEditer
-    foreach ($b in $Vue.Dupliquer, $Vue.Modifier, $Vue.Activer, $Vue.Supprimer) { $b.IsEnabled = ($peutEditer -and $choisie) }
+    $edition = $admin -and $Vue.Env.Modifiable
+    $exploitation = $admin -and $lisible
+    $visible = { param($v) if ($v) { 'Visible' } else { 'Collapsed' } }
+    $Vue.Ajouter.IsEnabled = ($edition -and -not $occupe)
+    foreach ($b in $Vue.Dupliquer, $Vue.Modifier, $Vue.Activer, $Vue.Supprimer) { $b.IsEnabled = ($edition -and $choisie -and -not $occupe) }
     $Vue.Activer.Content = $(if ($choisie -and $Vue.Grille.SelectedItem.Actif -eq 'Oui') { 'Désactiver' } else { 'Activer' })
-    $visible = $(if ($peutEditer) { 'Visible' } else { 'Collapsed' })
-    foreach ($b in $Vue.Ajouter, $Vue.Dupliquer, $Vue.Modifier, $Vue.Activer, $Vue.Supprimer) { $b.Visibility = $visible }
+    foreach ($b in $Vue.Ajouter, $Vue.Dupliquer, $Vue.Modifier, $Vue.Activer, $Vue.Supprimer) { $b.Visibility = & $visible $edition }
+    foreach ($b in $Vue.Reprise, $Vue.Lancer, $Vue.Acquitter, $Vue.Debloquer) { $b.Visibility = & $visible $exploitation; $b.IsEnabled = ($exploitation -and $choisie -and -not $occupe) }
+    $Vue.Purger.Visibility = & $visible $exploitation
+    $Vue.Purger.IsEnabled = ($exploitation -and -not $occupe)
+    $Vue.Verifier.IsEnabled = (-not $occupe)
+    $Vue.Actualiser.IsEnabled = (-not $occupe)
 }
 
 function Invoke-CopieEnregistrement {

@@ -165,12 +165,26 @@ function Invoke-CopieVerification {
     param([Parameter(Mandatory)] [hashtable] $Vue)
 
     $ctx = $Vue.Contexte
-    $ctx.Fenetre.Cursor = [System.Windows.Input.Cursors]::Wait
-    try {
-        $reponse = Invoke-CopieMoteur -Config $ctx.Config -Fichier $Vue.Env.Fichier `
-            -Argument @('--verifier', '--periode-declencheur-sec', "$($ctx.Config.Parametrage.PeriodeDeclencheurSec)")
-    }
-    finally { $ctx.Fenetre.Cursor = $null }
+    if ($Vue.Occupe) { return }
+    Set-CopieOccupe -Vue $Vue -Occupe $true -Libelle ('Vérification de {0}' -f $Vue.Env.Nom)
+    $null = Start-CopieTache -Config $ctx.Config -Fichier $Vue.Env.Fichier `
+        -Argument @('--verifier', '--periode-declencheur-sec', "$($ctx.Config.Parametrage.PeriodeDeclencheurSec)") `
+        -SurFin { param($t) Complete-CopieVerification -Tache $t } -Donnees @{ Vue = $Vue; Contexte = $ctx }
+}
+
+function Complete-CopieVerification {
+    <#
+    .SYNOPSIS
+        Fin de la vérification en arrière-plan : journal et affichage du résultat.
+    .PARAMETER Tache
+        Tâche terminée (Donnees : Vue, Contexte).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Tache)
+    $Vue = $Tache.Donnees.Vue
+    $ctx = $Tache.Donnees.Contexte
+    $reponse = $Tache.Reponse
+    Set-CopieOccupe -Vue $Vue -Occupe $false
     if ($null -eq $reponse.Json) {
         Write-CopieJournal -Contexte $ctx -Niveau 'ERREUR' -Evenement 'verification' -Message ('Vérification impossible : ' + $reponse.Erreur)
         [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ('Vérification impossible : ' + $reponse.Erreur), 'Vérification', 'OK', 'Error')
@@ -220,6 +234,9 @@ function New-CopieVueEnvironnement {
         Verifier = $tab.FindName('BtnVerifier')
         Ajouter = $tab.FindName('BtnAjouter'); Dupliquer = $tab.FindName('BtnDupliquer'); Modifier = $tab.FindName('BtnModifier')
         Activer = $tab.FindName('BtnActiver'); Supprimer = $tab.FindName('BtnSupprimer')
+        Actualiser = $tab.FindName('BtnActualiser'); Reprise = $tab.FindName('BtnReprise'); Lancer = $tab.FindName('BtnLancer')
+        Acquitter = $tab.FindName('BtnAcquitter'); Debloquer = $tab.FindName('BtnDebloquer'); Purger = $tab.FindName('BtnPurger')
+        Occupe = $false
     }
     $Script:Vues[$cle] = $vue
     $tiret = [string][char]0x2014
@@ -235,7 +252,7 @@ function New-CopieVueEnvironnement {
     foreach ($m in @('Tous', 'copie', 'deplacement', 'archivage')) { $null = $vue.FiltreMode.Items.Add($m) }
     $vue.FiltreMode.SelectedIndex = 0
 
-    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer) { $controle.Tag = $cle }
+    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Purger) { $controle.Tag = $cle }
     $vue.Grille.Add_SelectionChanged({ param($emetteur) Select-CopieRegle -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Recherche.Add_TextChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreStatut.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
@@ -247,6 +264,12 @@ function New-CopieVueEnvironnement {
     $vue.Modifier.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'modification' })
     $vue.Activer.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'activation' })
     $vue.Supprimer.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'suppression' })
+    $vue.Actualiser.Add_Click({ param($emetteur) Update-CopieEtatVue -Vue $Script:Vues[$emetteur.Tag] })
+    $vue.Reprise.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'reprise' })
+    $vue.Lancer.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'lancement' })
+    $vue.Acquitter.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'acquittement' })
+    $vue.Debloquer.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'deblocage' })
+    $vue.Purger.Add_Click({ param($emetteur) Invoke-CopiePurge -Vue $Script:Vues[$emetteur.Tag] })
 
     Update-CopieVue -Vue $vue
     Update-CopieBoutons -Vue $vue

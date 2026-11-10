@@ -67,6 +67,16 @@ Aides à la saisie : durées en unités lisibles à l'écran (converties en `_se
 | **Lancer maintenant** | `--lancer-maintenant ID` | Oui |
 | **Acquitter** | `--acquitter ID` | Commentaire obligatoire |
 | **Débloquer** | `--debloquer ID --utilisateur U` | Oui, avertit que l'arbre de processus sera arrêté et qu'une reprise sera ensuite nécessaire |
+| **Purger** | `--purger [--regle ID]` puis `--purger --appliquer` | Liste d'abord (type, règle, date, taille, chemin), suppression seulement après le clic sur « Purger » ; peut se limiter à la règle sélectionnée |
+
+Réalisation (étape C) :
+
+- Les boutons d'exploitation sont visibles pour les administrateurs dont le fichier est lisible (y compris un environnement en lecture seule pour l'édition : ces actions ne modifient pas le paramétrage). Reprise, lancement, acquittement et déblocage exigent une règle sélectionnée ; le compte de l'administrateur est transmis au moteur (`--utilisateur`) et tracé dans la base, le journal du moteur et le journal de l'interface.
+- La confirmation de la **reprise** liste les règles qui dépendent de la règle reprise, de proche en proche : elles repartent d'elles-mêmes dès que leurs dépendances sont remplies ([02-moteur](02-moteur.md) §3). Le commentaire est facultatif pour la reprise et le déblocage, obligatoire pour l'acquittement.
+- Un refus du moteur (règle en cours, règle qui ne tourne pas...) est affiché tel quel, rien n'est modifié.
+- **Exécution en arrière-plan** : la vérification complète et la purge (liste puis suppression) s'exécutent dans un espace d'exécution distinct ; la fenêtre reste utilisable, les boutons de l'onglet concerné sont grisés et la barre d'état indique l'opération. Les commandes qui se contentent de poser un drapeau (reprise, lancement, acquittement, déblocage) restent synchrones. Le chargement de l'état à l'ouverture reste synchrone (un appel de `--etat` par environnement).
+- « Actualiser l'état » relit le fichier et l'état des règles ; il n'y a toujours aucune interrogation automatique (§6).
+- `--trancher-incertain` (livraison de résultat inconnu) n'a pas encore d'écran.
 
 ## 5. Enregistrement du paramétrage
 
@@ -128,7 +138,7 @@ L'application est dans `Gui\` (même organisation que l'outil de gestion du clus
 |---|---|---|
 | **A** | Fenêtre, contrôle des droits AD, onglets par environnement, liste des règles (filtres), détail, état (`--etat`), vérification (`--verifier`), journal, `Initialiser-DossierParametrage.ps1` | faite |
 | **B** | Formulaire d'édition (ajouter, dupliquer, modifier, activer / désactiver, supprimer), tri automatique, enregistrement sécurisé (§5 : vérification, contrôle d'édition simultanée, versions avec fiche et commentaire, remplacement atomique) | faite |
-| C | Actions d'exploitation (§4.3), purge (`--purger`), exécution en arrière-plan | |
+| **C** | Actions d'exploitation (§4.3 : reprise, lancement, acquittement, déblocage), purge (`--purger`), exécution en arrière-plan de la vérification et de la purge, « Actualiser l'état » | faite |
 | D | Graphe des dépendances, promotion d'un environnement à l'autre, historique des versions | |
 
 Dossier protégé : `Initialiser-DossierParametrage.ps1 -Dossier … -GroupeAdmin … -CompteService …` crée le dossier et son sous-dossier de versions, coupe l'héritage et pose : administrateurs en modification, compte de service Jenkins en **lecture seule** (le moteur ne l'écrit jamais), aucun accès du compte de service aux versions. Il demande confirmation (`-WhatIf` pour voir), et refuse de s'appliquer si le compte qui le lance n'est pas dans le groupe (il se couperait l'accès).

@@ -567,7 +567,7 @@ C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger 
 
 ## 14. Jalon J10, étape A — Front-end : consultation
 
-Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; les étapes suivantes sont décrites aux §15 et §16 : cette étape ne modifie aucun fichier de paramétrage.
+Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; les étapes suivantes sont décrites aux §15 à §17 : cette étape ne modifie aucun fichier de paramétrage.
 
 ```powershell
 .\Gui\Outils\Initialiser-Essai.ps1 -Destination D:\Essai\copie -Python C:\Python314\python.exe     # jeu d'essai (poste de développement)
@@ -635,10 +635,41 @@ Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 66 t
 | J10B-M11 | **Mode distant** | Enregistrer depuis un poste distant (mode `Distant`, administrateur puis JEA) | Même résultat qu'en local ; la vérification se fait sur le serveur d'exécution | |
 | J10B-M12 | **Programmes et situations** | Activer un programme (une commande, un élément par ligne) et modifier une situation | Écrits tels quels dans le fichier (`commande` est un tableau, même à un élément) | |
 
-## 16. Jalons suivants
+## 16. Jalon J10, étape C — Front-end : exploitation
+
+Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 83 tests Pester (dont 17 propres à l'étape C), tous OK, PSScriptAnalyzer sans avertissement, moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md) §4.3. L'étape D n'est pas faite. **Les fenêtres de confirmation, la fenêtre de purge et le grisage des boutons pendant un appel en arrière-plan n'ont pas été joués à la souris** ; seuls leur logique et l'état des boutons sont testés par programme.
+
+### 16.1 Tests automatiques
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J10C-A01 | **Chaîne de reprise** : règles dépendantes de proche en proche, casse ignorée, dépendance circulaire sans blocage | OK | |
+| J10C-A02 | **Arguments des actions** : ligne de commande du contrat pour reprise, lancement, acquittement, déblocage ; compte avec antislash ; commentaire ignoré pour le lancement ; acquittement sans commentaire refusé | OK | |
+| J10C-A03 | **Moteur réel** : reprise tracée (drapeau visible dans `--etat`), lancement immédiat, refus du déblocage d'une règle qui ne tourne pas, refus de l'acquittement d'une règle inconnue | OK | |
+| J10C-A04 | **Exécution en arrière-plan** : la main est rendue avant la fin de l'appel, la réponse parvient au bloc de fin avec ses données, plusieurs tâches simultanées, Python introuvable sans exception, une exception du bloc de fin ne bloque pas les autres tâches | OK | |
+| J10C-A05 | **Purge** : liste sans suppression puis application, en arrière-plan ; mise en forme des éléments (taille, chemin) | OK | |
+| J10C-A06 | **Boutons** : visibles pour l'administrateur, actifs selon la sélection (Purger sans sélection), tous grisés pendant un appel en arrière-plan puis réactivés | OK | |
+
+### 16.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J10C-M01 | **Droits** | Ouvrir avec un compte hors groupe, puis avec un administrateur | Hors groupe : aucun bouton d'exploitation (seul « Actualiser l'état ») ; administrateur : Reprise, Lancer maintenant, Acquitter, Débloquer, Purger… | |
+| J10C-M02 | **Reprise en cascade** | Provoquer une erreur sur une règle dont d'autres dépendent, puis « Reprise » | La confirmation liste les règles dépendantes ; au job suivant, la chaîne repart ; le compte et le commentaire figurent dans le journal du moteur | |
+| J10C-M03 | **Lancer maintenant** | Sur une règle quelconque, hors de son heure | Elle part au prochain lancement du job, sans programme « reprise » | |
+| J10C-M04 | **Acquitter** | Sur une règle en erreur | Commentaire exigé ; statut cohérent après « Actualiser l'état » | |
+| J10C-M05 | **Débloquer** | Pendant l'exécution d'une règle longue (programme qui dort) | Avertissement ; processus et descendants arrêtés ; message « reprise nécessaire » si `apres_erreur = arreter` | |
+| J10C-M06 | **Refus du moteur** | Reprise d'une règle en cours | Le message du moteur est affiché ; rien n'est modifié | |
+| J10C-M07 | **Purge** | « Purger… » avec des journaux plus anciens que la rétention | Liste exacte ; « Fermer sans purger » ne supprime rien ; « Purger » supprime et affiche le bilan ; la fenêtre reste utilisable pendant la recherche | |
+| J10C-M08 | **Purge d'une règle** | Sélectionner une règle puis « Purger… » → Oui | Seuls les éléments de cette règle sont listés | |
+| J10C-M09 | **Vérification en arrière-plan** | « Vérifier le paramétrage » sur un environnement dont les dossiers sont lents (partage réseau) | La fenêtre ne se fige pas ; boutons de l'onglet grisés puis réactivés ; résultat identique à `--verifier` | |
+| J10C-M10 | **Mode distant / JEA** | Mêmes actions depuis un poste distant, administrateur puis JEA | Mêmes résultats ; le compte tracé est celui de l'administrateur connecté | |
+| J10C-M11 | **Durée d'ouverture** | Chronométrer l'ouverture avec les vrais environnements | Noter la durée ; l'état est encore chargé de façon synchrone à l'ouverture | |
+
+## 17. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J10 étapes C et D | Front-end : actions d'exploitation (reprise, lancement, acquittement, déblocage, purge), exécution en arrière-plan, graphe, promotion, versions |
+| J10 étape D | Front-end : graphe des dépendances, promotion entre environnements, historique des versions |

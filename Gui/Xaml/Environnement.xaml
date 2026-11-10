@@ -54,7 +54,8 @@
     </Border>
 
     <!-- Filtres et actions -->
-    <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
+    <StackPanel Grid.Row="1">
+    <WrapPanel Orientation="Horizontal" Margin="0,0,0,4">
       <TextBlock x:Name="Compteur" VerticalAlignment="Center" Foreground="#4A5868" Margin="0,0,16,6"/>
       <TextBlock Text="Recherche" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,6"/>
       <TextBox x:Name="Recherche" Width="200" Margin="0,0,14,6"/>
@@ -71,6 +72,16 @@
       <Button x:Name="BtnSupprimer" Content="Supprimer" Style="{StaticResource BtnDanger}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <TextBlock x:Name="InfoFichier" VerticalAlignment="Center" Style="{StaticResource Hint}" Margin="8,0,0,6"/>
     </WrapPanel>
+    <!-- Actions d'exploitation (administrateurs) -->
+    <WrapPanel Orientation="Horizontal" Margin="0,0,0,4">
+      <Button x:Name="BtnActualiser" Content="Actualiser l'état" Style="{StaticResource Btn}" Margin="0,0,16,6"/>
+      <Button x:Name="BtnReprise" Content="Reprise" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnLancer" Content="Lancer maintenant" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnAcquitter" Content="Acquitter" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnDebloquer" Content="Débloquer" Style="{StaticResource BtnDanger}" Margin="0,0,16,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnPurger" Content="Purger…" Style="{StaticResource BtnDanger}" Margin="0,0,8,6" Visibility="Collapsed"/>
+    </WrapPanel>
+    </StackPanel>
 
     <DataGrid x:Name="GrilleRegles" Grid.Row="2">
       <DataGrid.Columns>

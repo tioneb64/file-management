@@ -130,6 +130,27 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         @($prod.Detail.ItemsSource).Count | Should -BeGreaterThan 5
         @($prod.Etat.ItemsSource).Count | Should -Be 4
     }
+    It 'montre les boutons d''exploitation à l''administrateur, actifs selon la sélection' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        $prod.Grille.SelectedIndex = -1
+        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Update-CopieBoutons -Vue $v }
+        $prod.Reprise.Visibility | Should -Be 'Visible'
+        $prod.Reprise.IsEnabled | Should -BeFalse
+        $prod.Purger.IsEnabled | Should -BeTrue
+        $prod.Actualiser.IsEnabled | Should -BeTrue
+        $prod.Grille.SelectedIndex = 0
+        foreach ($b in $prod.Reprise, $prod.Lancer, $prod.Acquitter, $prod.Debloquer) { $b.IsEnabled | Should -BeTrue }
+    }
+    It 'grise tout pendant un appel en arrière-plan puis réactive' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        $prod.Grille.SelectedIndex = 0
+        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $true -Libelle 'essai' }
+        foreach ($b in $prod.Reprise, $prod.Purger, $prod.Modifier, $prod.Verifier, $prod.Actualiser) { $b.IsEnabled | Should -BeFalse }
+        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $false }
+        foreach ($b in $prod.Reprise, $prod.Purger, $prod.Modifier, $prod.Verifier, $prod.Actualiser) { $b.IsEnabled | Should -BeTrue }
+    }
     It 'passe en lecture seule pour un compte non administrateur' {
         $f = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') `
             -Config (Join-Path $Script:Essai 'Gestion-Copie.essai.config.psd1') -SansAffichage -GroupeUtilisateur @('DOMAINE\Autres')
