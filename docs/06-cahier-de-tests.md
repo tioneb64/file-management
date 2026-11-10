@@ -565,10 +565,49 @@ C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger 
 | J12-M05 | Job Jenkins | Créer le job `Jenkinsfile.purge` (sans `--appliquer`) | Liste visible dans le journal du build ; statut SUCCESS (UNSTABLE si avertissement) | |
 | J12-M06 | Purge de la base | Deux lancements le même jour, puis le lendemain | `purge_base` une seule fois par jour | |
 
-## 14. Jalons suivants
+## 14. Jalon J10, étape A — Front-end : consultation
+
+Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; **les étapes B (édition), C (actions d'exploitation) et D (graphe, promotion, versions) ne sont pas encore faites** : cette étape ne modifie aucun fichier de paramétrage.
+
+```powershell
+.\Gui\Outils\Initialiser-Essai.ps1 -Destination D:\Essai\copie -Python C:\Python314\python.exe     # jeu d'essai (poste de développement)
+.\Gui\Lancer-GestionCopie.ps1 -DossierParametrage D:\Essai\copie\parametrage -Config D:\Essai\copie\Gestion-Copie.essai.config.psd1
+.\Gui\Tests\Run-Tests.ps1 -Python C:\Python314\python.exe                                        # tests Pester + PSScriptAnalyzer
+```
+
+### 14.1 Tests automatiques (dossier `Gui\Tests`)
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J10A-A01 | **Configuration** : valeurs de secours, groupe administrateur obligatoire, clé ou section inconnue refusée, mode `Distant` (serveur obligatoire), JEA (sans Python ni racine), JEA refusée en mode `Local`, fichier absent, fichier fourni accepté | OK | |
+| J10A-A02 | **Droits** : nom complet, nom sans domaine, SID, casse ignorée, nom proche non confondu, aucun groupe, jeton Windows réel | OK | |
+| J10A-A03 | **Dossier de paramétrage** : un onglet par fichier, BOM ou non, accents, lecture seule si environnement ≠ nom du fichier / version inconnue ou absente / doublon / JSON invalide (numéro de ligne) / fichier vide, autres extensions ignorées, dossier absent, empreinte stable | OK | |
+| J10A-A04 | **Mise en forme** : dates UTC → locales, durées, planification en clair, couleurs de statut, champs absents (« défaut du moteur »), ligne de grille avec et sans état, cartes de détail et d'état | OK | |
+| J10A-A05 | **Appel du moteur réel** : JSON décodé (accents), code 2 si la base n'existe pas, état après initialisation, chemin avec espaces, Python introuvable sans exception, délai maximal (processus arrêté) | OK | |
+| J10A-A06 | **Fenêtre** : vues XAML chargées et contrôles retrouvés, un onglet par fichier, profil administrateur / lecture seule, état du moteur dans la grille, filtres (mode, recherche), détail et état à la sélection, journal JSON de l'interface | OK | |
+| J10A-A07 | **Initialiser-DossierParametrage.ps1** : essai à la main sur un dossier temporaire (`-WhatIf` ne crée rien, refus si le compte n'est pas dans le groupe, droits posés : SYSTEM, groupe en modification, compte de service en lecture seule, versions sans le compte de service) | OK (manuel) | |
+
+### 14.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J10A-M01 | **Windows PowerShell 5.1 du serveur** | `Gui\Tests\Run-Tests.ps1` sur Windows Server 2016 (Pester 5 à installer si absent) | Tous les tests passent | |
+| J10A-M02 | **Dossier protégé** | `Initialiser-DossierParametrage.ps1 -WhatIf` puis réel avec le vrai groupe et le vrai compte de service Jenkins | Droits conformes (`Get-Acl`) ; un compte hors groupe ne voit pas le dossier | |
+| J10A-M03 | **Jenkins lit, ne modifie pas** | Un job Jenkins (compte de service) lance le moteur sur ce dossier ; essai d'écriture avec ce compte | Lecture OK ; écriture refusée ; le sous-dossier des versions est inaccessible | |
+| J10A-M04 | **Ouverture administrateur** | `Lancer-GestionCopie.ps1 -DossierParametrage <dossier>` avec un membre du groupe | Badge « ADMINISTRATEUR », onglets sans « lecture seule » | |
+| J10A-M05 | **Consultation seule** | Même commande avec un compte hors groupe (qui a accès au dossier) | Badge « LECTURE SEULE », bandeau « consultation uniquement » | |
+| J10A-M06 | **Groupe vide ou absent de la configuration** | Retirer `GroupesAdmin` | L'outil refuse de démarrer avec un message clair | |
+| J10A-M07 | **État des règles** | Ouvrir l'onglet de production après quelques lancements Jenkins | Statuts, derniers lancements et prochains créneaux cohérents avec `--etat` en ligne de commande | |
+| J10A-M08 | **Vérification** | Bouton « Vérifier le paramétrage » | Même liste de refus, avertissements et informations que `--verifier` ; une ligne dans le journal de l'outil | |
+| J10A-M09 | **Mode distant, compte administrateur** | Depuis un poste : `Moteur.Mode = 'Distant'`, `ConfigurationJea` vide | Mêmes résultats qu'en local ; les contrôles d'accès (A01 à A07) reflètent le compte de l'administrateur | |
+| J10A-M10 | **Mode distant, point d'accès JEA** | Créer le point d'accès (fonction `Invoke-CopieMoteurJea`, voir 04 §6), renseigner `ConfigurationJea` | Mêmes résultats ; les contrôles d'accès reflètent le compte de service ; une commande hors liste est refusée | |
+| J10A-M11 | **Fichier non pris en charge** | Déposer un fichier dont l'environnement diffère de son nom | Onglet « (lecture seule) » avec le message | |
+| J10A-M12 | **Durée d'ouverture** | Chronométrer l'ouverture avec les vrais environnements | Noter la durée (un appel du moteur par environnement) ; si elle gêne, l'étape C ajoutera l'exécution en arrière-plan | |
+
+## 15. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J10 | Front-end PowerShell (en attente des maquettes) |
+| J10 étapes B à D | Front-end : édition et enregistrement, actions d'exploitation, graphe, promotion, versions |

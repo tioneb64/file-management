@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Styles communs de l'interface, repris de l'outil de gestion du cluster Hyper-V pour que les deux
+  outils se ressemblent. Fusionné par MainWindow.xaml et par chaque vue (un onglet est chargé
+  séparément de la fenêtre : ses StaticResource doivent trouver ces styles dans ses propres ressources).
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style x:Key="Btn" TargetType="Button">
+    <Setter Property="Background" Value="#E4E9F0"/>
+    <Setter Property="Foreground" Value="#1F2D3D"/>
+    <Setter Property="Padding" Value="12,6"/>
+    <Setter Property="Margin" Value="0,0,8,0"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Opacity" Value="0.85"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="b" Property="Opacity" Value="0.4"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="BtnPrimary" TargetType="Button" BasedOn="{StaticResource Btn}">
+    <Setter Property="Background" Value="#1F6FB2"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style x:Key="BtnDanger" TargetType="Button" BasedOn="{StaticResource Btn}">
+    <Setter Property="Background" Value="#C0392B"/>
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+  <Style x:Key="BtnHeader" TargetType="Button" BasedOn="{StaticResource Btn}">
+    <Setter Property="Background" Value="#2C5282"/>
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+  <Style x:Key="Card" TargetType="Border">
+    <Setter Property="Background" Value="White"/>
+    <Setter Property="BorderBrush" Value="#DDE3EA"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Padding" Value="14"/>
+    <Setter Property="Margin" Value="0,0,12,12"/>
+  </Style>
+  <Style x:Key="CardTitle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="15"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="#1F3A5F"/>
+    <Setter Property="Margin" Value="0,0,0,10"/>
+  </Style>
+  <Style x:Key="FieldLabel" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="#4A5868"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="Margin" Value="0,0,0,2"/>
+  </Style>
+  <Style x:Key="Hint" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="#7A8796"/>
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
+  <Style TargetType="TextBox">
+    <Setter Property="Padding" Value="4,3"/>
+    <Setter Property="Margin" Value="0,0,0,8"/>
+    <Setter Property="BorderBrush" Value="#C8D1DC"/>
+  </Style>
+  <Style TargetType="ComboBox">
+    <Setter Property="Margin" Value="0,0,0,8"/>
+    <Setter Property="Padding" Value="4,3"/>
+  </Style>
+  <Style TargetType="DataGrid">
+    <Setter Property="AutoGenerateColumns" Value="False"/>
+    <Setter Property="IsReadOnly" Value="True"/>
+    <Setter Property="CanUserAddRows" Value="False"/>
+    <Setter Property="HeadersVisibility" Value="Column"/>
+    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="#E6EAF0"/>
+    <Setter Property="AlternatingRowBackground" Value="#F7F9FC"/>
+    <Setter Property="Background" Value="White"/>
+    <Setter Property="BorderBrush" Value="#D5DCE5"/>
+    <Setter Property="RowHeight" Value="26"/>
+    <Setter Property="SelectionMode" Value="Single"/>
+  </Style>
+  <Style TargetType="DataGridColumnHeader">
+    <Setter Property="Background" Value="#EEF2F7"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Padding" Value="8,6"/>
+    <Setter Property="BorderBrush" Value="#D5DCE5"/>
+    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+  </Style>
+  <Style TargetType="TabItem">
+    <Setter Property="Padding" Value="16,7"/>
+    <Setter Property="FontSize" Value="14"/>
+  </Style>
+</ResourceDictionary>

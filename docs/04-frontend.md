@@ -10,24 +10,24 @@ Application **PowerShell 5.1** (Windows Server 2016) pour gérer le paramétrage
 4. **Le fichier de paramétrage n'est jamais écrit à moitié** : écriture dans un temporaire puis renommage.
 5. **Toute action est tracée** (compte, heure, commentaire).
 
-## 2. Configuration locale
+## 2. Lancement et configuration
 
-Un petit fichier `frontend.json` à côté de l'application :
+Le **dossier de paramétrage** n'est écrit nulle part : il est passé au lancement.
 
-```json
-{
-  "dossier_parametrage": "\\\\SRV-JENKINS01\\parametrage",
-  "dossier_versions": "\\\\SRV-JENKINS01\\parametrage\\versions",
-  "serveur_execution": "SRV-JENKINS01",
-  "python": "C:\\Python314\\python.exe",
-  "script": "D:\\Scripts\\copie_fichiers.py",
-  "groupe_admin_ad": "DOMAINE\\GG_Copie_Admins",
-  "periode_declencheur_sec": 300,
-  "url_grafana": "https://grafana.exemple/d/copie-fichiers"
-}
+```powershell
+.\Lancer-GestionCopie.ps1 -DossierParametrage D:\Parametrage
 ```
 
-Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** : seul `dossier_parametrage` et le serveur d'exécution changent.
+Le reste est dans `Gestion-Copie.config.psd1`, à côté de l'application (fichier de données PowerShell, jamais exécuté ; une clé inconnue est refusée, comme dans le moteur) :
+
+| Section | Clés | Rôle |
+|---|---|---|
+| `Acces` | `GroupesAdmin` | Groupes dont les membres modifient (`DOMAINE\Groupe`, nom sans domaine ou SID). **Obligatoire** : sans groupe, l'outil refuse de démarrer (jamais d'accès ouvert par défaut) |
+| `Moteur` | `Mode`, `Python`, `Racine`, `Serveur`, `ConfigurationJea`, `DelaiMaxSec` | Où et comment le moteur est lancé (§6) |
+| `Parametrage` | `Filtre`, `VersionsSupportees`, `DossierVersions`, `PeriodeDeclencheurSec` | Fichiers lus dans le dossier, versions du format d'en-tête acceptées, sous-dossier des anciennes versions, période du déclencheur Jenkins (contrôle P02) |
+| `Journal` | `Dossier` | Journal de l'outil (JSON Lines, un fichier par jour, lu par Alloy) ; vide = pas de fichier |
+
+Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** : seuls `Moteur.Mode` et `Moteur.Serveur` changent. Il ne contient aucun lien vers Grafana : les journaux vont dans Loki et Grafana les interroge de son côté.
 
 ## 3. Environnements
 
@@ -46,7 +46,6 @@ Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** 
 | Graphe des dépendances | Règles et flèches « attend », colorées par statut ; une règle `BLOQUEE` indique la règle bloquante |
 | État | Valeurs de `--etat` : statut, motif, dernière erreur, dernier succès, fichiers livrés, actions en attente, `archivage_degrade`, flag de reprise |
 | Historique des modifications | Versions du fichier de paramétrage : qui, quand, différences |
-| Liens | Vers Grafana (historique détaillé, fichiers livrés, erreurs) |
 
 ### 4.2 Modification (administrateurs)
 
@@ -103,7 +102,9 @@ Invoke-Command -ComputerName $cfg.serveur_execution -ScriptBlock {
 
 - Sortie JSON UTF-8, lue avec `ConvertFrom-Json`. Les codes retour du moteur sont interprétés : 0, 1 (anomalies déjà dans le JSON), 2 (erreur de configuration).
 - Sur le serveur d'exécution lui-même : exécution locale directe.
-- Recommandé : limiter l'accès distant par un point de terminaison **JEA** qui n'expose que les commandes du moteur.
+- Deux façons d'atteindre le moteur à distance, au choix de la configuration (`Moteur.Mode = 'Distant'`) :
+  - **Compte de l'administrateur** (`ConfigurationJea` vide) : `Invoke-Command` avec le compte connecté. Convient aux personnes de la DSI. Les accès aux dossiers (`--verifier` complet) sont alors contrôlés **avec ce compte**, pas avec le compte de service : un contrôle réussi ne prouve rien pour Jenkins.
+  - **Point d'accès JEA** (`ConfigurationJea` renseignée) : la session n'expose que la fonction `Invoke-CopieMoteurJea -Argument <string[]> -Fichier <chemin>` ; le point d'accès ajoute lui-même `--config` et `--format json`, choisit Python et le dossier du moteur, refuse toute commande hors de la liste du contrat ([07 §4](07-contrat-moteur-frontend.md)) et s'exécute sous le compte de service (compte virtuel ou géré) : les contrôles d'accès reflètent alors ce que Jenkins pourra faire. La fonction renvoie `Code`, `Sortie` (le JSON du moteur) et `Erreur`.
 - Pas d'interrogation automatique plus fréquente que toutes les 30 secondes ; bouton d'actualisation manuel.
 
 ## 7. Sécurité
@@ -115,16 +116,28 @@ Invoke-Command -ComputerName $cfg.serveur_execution -ScriptBlock {
 | Programmes | Qui modifie `programmes` fait exécuter un programme par le compte de service. Le formulaire affiche un avertissement et la modification est tracée |
 | Secrets | Aucun mot de passe ni jeton dans les champs du paramétrage |
 
-## 8. Tests
+## 8. Réalisation par étapes
+
+L'application est dans `Gui\` (même organisation que l'outil de gestion du cluster Hyper-V : module `Copie.Gui` avec `Private`, `Public`, `Views`, vues XAML dans `Gui\Xaml`, styles repris à l'identique). Quatre étapes, chacune validée avant la suivante :
+
+| Étape | Contenu | État |
+|---|---|---|
+| **A** | Fenêtre, contrôle des droits AD, onglets par environnement, liste des règles (filtres), détail, état (`--etat`), vérification (`--verifier`), journal, `Initialiser-DossierParametrage.ps1` | faite |
+| B | Formulaire d'édition, enregistrement sécurisé (§5 : vérification, contrôle d'édition simultanée, versions, renommage atomique) | |
+| C | Actions d'exploitation (§4.3), purge (`--purger`), exécution en arrière-plan | |
+| D | Graphe des dépendances, promotion d'un environnement à l'autre, historique des versions | |
+
+Dossier protégé : `Initialiser-DossierParametrage.ps1 -Dossier … -GroupeAdmin … -CompteService …` crée le dossier et son sous-dossier de versions, coupe l'héritage et pose : administrateurs en modification, compte de service Jenkins en **lecture seule** (le moteur ne l'écrit jamais), aucun accès du compte de service aux versions. Il demande confirmation (`-WhatIf` pour voir), et refuse de s'appliquer si le compte qui le lance n'est pas dans le groupe (il se couperait l'accès).
+
+## 9. Tests
 
 - Jeu de fichiers de paramétrage valides et invalides (un par code de validation) vérifiant que le front-end affiche le code attendu.
 - Tests Pester (module PowerShell) sur la lecture / écriture JSON (profondeur, encodage, types) et sur la construction des commandes.
 - Recette sur Windows Server 2016 avec PowerShell 5.1, y compris l'exécution distante.
 
-## 9. À fournir
+## 10. À fournir
 
 | Élément | De qui |
 |---|---|
 | Maquettes des écrans (style du projet de gestion des clusters Hyper-V) | Responsable applicatif |
 | Nom du groupe AD, serveur d'exécution, partage du paramétrage | Responsable applicatif |
-| URL Grafana et paramètres de liaison des tableaux de bord | Équipe de la plateforme de surveillance |

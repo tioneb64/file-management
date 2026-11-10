@@ -164,4 +164,4 @@ Le script actuel copie de façon incrémentale et vérifiée des fichiers de la 
 | 6 | Valeurs de secours des réactions | Tableau de [01-parametrage §6](01-parametrage.md) validé ; **autorisation donnée d'ajouter d'autres paramètres** si les tests en montrent la nécessité (ajout documenté dans 01 à chaque fois, valeur de secours conservant le comportement le plus prudent). |
 | 7 | Version de Python | **3.14** (la 3.15 n'est pas retenue sur Windows Server 2016). Installation validée sur le serveur de recette au jalon J0. |
 
-Aucun point en attente. Restent à fournir par le responsable applicatif les éléments listés au §8 de [05-decoupage](05-decoupage.md) et dans [04-frontend §9](04-frontend.md).
+Aucun point en attente. Restent à fournir par le responsable applicatif les éléments listés au §8 de [05-decoupage](05-decoupage.md) et dans [04-frontend §10](04-frontend.md).
