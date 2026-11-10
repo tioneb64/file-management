@@ -144,6 +144,7 @@ function Update-CopieVue {
     }
     finally { $Vue.Chargement = $false }
     Set-CopieFiltres -Vue $Vue
+    Update-CopieGraphe -Vue $Vue
     $Vue.Detail.ItemsSource = $null
     $Vue.Etat.ItemsSource = $null
 }
@@ -236,6 +237,8 @@ function New-CopieVueEnvironnement {
         Activer = $tab.FindName('BtnActiver'); Supprimer = $tab.FindName('BtnSupprimer')
         Actualiser = $tab.FindName('BtnActualiser'); Reprise = $tab.FindName('BtnReprise'); Lancer = $tab.FindName('BtnLancer')
         Acquitter = $tab.FindName('BtnAcquitter'); Debloquer = $tab.FindName('BtnDebloquer'); Purger = $tab.FindName('BtnPurger')
+        Promouvoir = $tab.FindName('BtnPromouvoir'); Historique = $tab.FindName('BtnHistorique')
+        Graphe = $tab.FindName('Graphe'); GrapheInfo = $tab.FindName('GrapheInfo')
         Occupe = $false
     }
     $Script:Vues[$cle] = $vue
@@ -252,7 +255,7 @@ function New-CopieVueEnvironnement {
     foreach ($m in @('Tous', 'copie', 'deplacement', 'archivage')) { $null = $vue.FiltreMode.Items.Add($m) }
     $vue.FiltreMode.SelectedIndex = 0
 
-    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Purger) { $controle.Tag = $cle }
+    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Purger, $vue.Promouvoir, $vue.Historique) { $controle.Tag = $cle }
     $vue.Grille.Add_SelectionChanged({ param($emetteur) Select-CopieRegle -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Recherche.Add_TextChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreStatut.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
@@ -270,6 +273,8 @@ function New-CopieVueEnvironnement {
     $vue.Acquitter.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'acquittement' })
     $vue.Debloquer.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'deblocage' })
     $vue.Purger.Add_Click({ param($emetteur) Invoke-CopiePurge -Vue $Script:Vues[$emetteur.Tag] })
+    $vue.Promouvoir.Add_Click({ param($emetteur) Invoke-CopiePromotion -Vue $Script:Vues[$emetteur.Tag] })
+    $vue.Historique.Add_Click({ param($emetteur) Show-CopieHistorique -Vue $Script:Vues[$emetteur.Tag] })
 
     Update-CopieVue -Vue $vue
     Update-CopieBoutons -Vue $vue

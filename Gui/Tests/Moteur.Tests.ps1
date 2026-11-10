@@ -151,6 +151,31 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $false }
         foreach ($b in $prod.Reprise, $prod.Purger, $prod.Modifier, $prod.Verifier, $prod.Actualiser) { $b.IsEnabled | Should -BeTrue }
     }
+    It 'dessine le graphe des dépendances : un nœud par règle liée, une flèche par dépendance' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        $prod.Graphe.Children.Count | Should -Be 7        # 3 nœuds + 2 traits + 2 pointes
+        $prod.GrapheInfo.Text | Should -Match '3 règle\(s\) liée\(s\)'
+        $noeuds = @($prod.Graphe.Children | Where-Object { $_ -is [System.Windows.Controls.Border] })
+        $noeuds.Count | Should -Be 3
+        ($noeuds | ForEach-Object { $_.Tag.Split('|')[1] } | Sort-Object) -join ',' | Should -Be 'export_clients,export_produits,import_catalogue'
+    }
+    It 'sélectionne la règle dans la grille quand on clique sur un nœud' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        $prod.Grille.SelectedIndex = -1
+        $noeud = @($prod.Graphe.Children | Where-Object { $_ -is [System.Windows.Controls.Border] -and $_.Tag -like '*|import_catalogue' })[0]
+        InModuleScope Copie.Gui -Parameters @{ e = $noeud.Tag } { param($e) Select-CopieRegleGraphe -Etiquette $e }
+        $prod.Grille.SelectedItem.Id | Should -Be 'import_catalogue'
+    }
+    It 'montre Promouvoir et Historique à l''administrateur' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        $prod.Grille.SelectedIndex = 0
+        $prod.Promouvoir.Visibility | Should -Be 'Visible'
+        $prod.Promouvoir.IsEnabled | Should -BeTrue
+        $prod.Historique.IsEnabled | Should -BeTrue
+    }
     It 'passe en lecture seule pour un compte non administrateur' {
         $f = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') `
             -Config (Join-Path $Script:Essai 'Gestion-Copie.essai.config.psd1') -SansAffichage -GroupeUtilisateur @('DOMAINE\Autres')

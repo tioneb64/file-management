@@ -567,7 +567,7 @@ C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger 
 
 ## 14. Jalon J10, étape A — Front-end : consultation
 
-Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; les étapes suivantes sont décrites aux §15 à §17 : cette étape ne modifie aucun fichier de paramétrage.
+Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 42 tests Pester, tous OK (PSScriptAnalyzer sans avertissement), moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md). L'interface est dans `Gui\` ; les étapes suivantes sont décrites aux §15 à §18 : cette étape ne modifie aucun fichier de paramétrage.
 
 ```powershell
 .\Gui\Outils\Initialiser-Essai.ps1 -Destination D:\Essai\copie -Python C:\Python314\python.exe     # jeu d'essai (poste de développement)
@@ -666,10 +666,42 @@ Testé le 2026-11-10 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 83 t
 | J10C-M10 | **Mode distant / JEA** | Mêmes actions depuis un poste distant, administrateur puis JEA | Mêmes résultats ; le compte tracé est celui de l'administrateur connecté | |
 | J10C-M11 | **Durée d'ouverture** | Chronométrer l'ouverture avec les vrais environnements | Noter la durée ; l'état est encore chargé de façon synchrone à l'ouverture | |
 
-## 17. Jalons suivants
+## 17. Jalon J10, étape D — Front-end : graphe, promotion, historique
+
+Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 102 tests Pester (dont 19 propres à l'étape D), tous OK, PSScriptAnalyzer sans avertissement, moteur Python 3.14.10 réel. Spécification : [04-frontend](04-frontend.md) §4.1 et §4.2. C'est la dernière étape du front-end. **Les fenêtres (historique, promotion) et le clic sur le graphe n'ont pas été joués à la souris** ; la logique, la construction des contrôles et le dessin du graphe sont testés par programme (capture d'écran du graphe vérifiée à l'œil).
+
+### 17.1 Tests automatiques
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J10D-A01 | **Disposition du graphe** : niveaux (une règle à droite de ses dépendances), règles sans lien non dessinées et comptées, aucun nœud superposé, casse des identifiants, dépendances inconnues signalées, boucle et auto-dépendance sans blocage, liste vide | OK | |
+| J10D-A02 | **Comparaison de versions** : rapprochement par identifiant, règle ajoutée, supprimée, modifiée champ par champ (tableaux, booléens, objets imbriqués), en-tête, simple déplacement de règle sans différence | OK | |
+| J10D-A03 | **Liste des versions** : filtrage exact sur l'environnement (`prod_x_…` et `autre_…` écartés), tri du plus récent au plus ancien, fiche lue (compte, commentaire, avertissements, date UTC → locale), version sans fiche, absence de dossier | OK | |
+| J10D-A04 | **Historique de bout en bout (moteur réel)** : deux enregistrements successifs, deux entrées avec leurs commentaires, différences de chacune (règle ajoutée, durée modifiée) | OK | |
+| J10D-A05 | **Promotion** : remplacement dans les dossiers et les commandes de programmes, casse ignorée, texte littéral (pas d'expression régulière ni de `$1`), tableau `commande` à un élément conservé, original intact, dépendances absentes de la cible | OK | |
+| J10D-A06 | **Fenêtres** : l'historique affiche les différences de la version choisie ; l'aperçu de la promotion montre les chemins adaptés, la règle déjà présente et les dépendances absentes | OK | |
+| J10D-A07 | **Graphe dans la fenêtre** : un nœud par règle liée, une flèche par dépendance, le clic sélectionne la règle ; boutons Promouvoir et Historique | OK | |
+
+### 17.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J10D-M01 | **Graphe sur les vrais environnements** | Ouvrir l'onglet « Dépendances » d'un environnement avec des chaînes de règles | Colonnes cohérentes avec les champs `apres` ; couleurs conformes aux statuts ; infobulle lisible | |
+| J10D-M02 | **Règle qui en retient une autre** | Provoquer une erreur sur une règle dont une autre dépend, puis « Actualiser l'état » | La règle dépendante est `BLOQUEE` ou `EN_ATTENTE`, la flèche venant de la règle en erreur est rouge | |
+| J10D-M03 | **Clic sur un nœud** | Cliquer sur un nœud | La règle est sélectionnée dans la grille (si un filtre la masque, rien ne se passe) | |
+| J10D-M04 | **Grand graphe** | Environnement avec plus de 30 règles liées | Défilement horizontal et vertical, pas de superposition ; noter si la lisibilité suffit | |
+| J10D-M05 | **Historique** | Après plusieurs modifications, « Historique… » | Une ligne par modification avec compte, date et commentaire ; différences exactes pour chacune | |
+| J10D-M06 | **Droits sur les versions** | Ouvrir l'historique avec un compte qui n'a pas accès au dossier des versions | Message clair, pas d'exception | |
+| J10D-M07 | **Promotion simple** | Promouvoir une règle de recette vers production en remplaçant `\\serveur-recette\` par `\\serveur-prod\` | Aperçu exact ; formulaire de production prérempli ; enregistrement avec commentaire ; version et fiche dans `versions` de production | |
+| J10D-M08 | **Promotion d'une règle existante** | Promouvoir une règle déjà présente dans la cible | Confirmation de remplacement ; identifiant conservé ; la règle de la cible est remplacée, l'ancienne est dans les versions | |
+| J10D-M09 | **Dépendance absente** | Promouvoir une règle dont la dépendance n'existe pas dans la cible | Avertissement dans la fenêtre de promotion ; refus D01 du moteur à l'enregistrement tant qu'elle manque | |
+| J10D-M10 | **Programmes** | Promouvoir une règle qui a un programme dont la commande contient un chemin de l'environnement d'origine | Le chemin est adapté dans la commande ; l'aperçu le montre | |
+
+## 18. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| J10 étape D | Front-end : graphe des dépendances, promotion entre environnements, historique des versions |
+| Point d'accès JEA | Fonction `Invoke-CopieMoteurJea` et rôle de capacité (spécifiés dans [04-frontend](04-frontend.md) §6, ni écrits ni testés) |
+| Compléments du front-end | Écran de `--trancher-incertain`, état chargé en arrière-plan à l'ouverture, restauration d'une version |

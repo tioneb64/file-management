@@ -5,6 +5,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Une
 ## [Non publié]
 
 ### Ajouté
+- **J10 étape D — Front-end : graphe, promotion, historique** (2026-11-11) : onglet « Dépendances » (graphe coloré par statut, règle qui retient en rouge, clic pour sélectionner), historique des modifications (qui, quand, commentaire, différences champ par champ), promotion d'une règle vers un autre environnement avec adaptation des chemins, formulaire et enregistrement sécurisé de la cible.
 - **J10 étape C — Front-end : exploitation** (2026-11-10) : reprise (avec les règles dépendantes), lancement immédiat, acquittement, déblocage et purge (liste puis suppression) depuis l'interface, tracés avec le compte de l'administrateur ; exécution en arrière-plan de la vérification et de la purge ; bouton « Actualiser l'état ».
 - **J10 étape B — Front-end : édition** (2026-11-10) : formulaire de règle (ajouter, dupliquer, modifier), activer / désactiver, supprimer, tri automatique par dépendances. Enregistrement sécurisé : brouillon, vérification par le moteur, confirmation des avertissements, contrôle d'édition simultanée, version précédente avec fiche `.meta.json` (commentaire obligatoire), remplacement atomique. Moteur : commande `--modele-regle` (valeurs de secours et listes de valeurs). Paramètre `Parametrage.DossierBrouillons`.
 - **J10 étape A — Front-end : consultation** (2026-11-10) : interface WPF dans `Gui\` (droits AD, un onglet par environnement, règles, détail, état, vérification), `Initialiser-DossierParametrage.ps1`.
@@ -24,4 +25,4 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Une
 
 ### À venir
 - Point d'accès JEA (`Invoke-CopieMoteurJea`) : spécifié, ni écrit ni testé ; écran de `--trancher-incertain` ; état chargé en arrière-plan à l'ouverture.
-- J10 étape D : graphe des dépendances, promotion entre environnements, historique des versions.
+- Restauration d'une version depuis l'historique.

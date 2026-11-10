@@ -110,6 +110,9 @@ function Update-CopieBoutons {
     foreach ($b in $Vue.Ajouter, $Vue.Dupliquer, $Vue.Modifier, $Vue.Activer, $Vue.Supprimer) { $b.Visibility = & $visible $edition }
     foreach ($b in $Vue.Reprise, $Vue.Lancer, $Vue.Acquitter, $Vue.Debloquer) { $b.Visibility = & $visible $exploitation; $b.IsEnabled = ($exploitation -and $choisie -and -not $occupe) }
     $Vue.Purger.Visibility = & $visible $exploitation
+    $Vue.Promouvoir.Visibility = & $visible $exploitation
+    $Vue.Promouvoir.IsEnabled = ($exploitation -and $choisie -and -not $occupe)
+    $Vue.Historique.IsEnabled = (-not $occupe)
     $Vue.Purger.IsEnabled = ($exploitation -and -not $occupe)
     $Vue.Verifier.IsEnabled = (-not $occupe)
     $Vue.Actualiser.IsEnabled = (-not $occupe)
@@ -256,28 +259,71 @@ function Invoke-CopieEdition {
         }
         default { Merge-CopieRegle -Modele $modele.regle -Existante $existante }
     }
+    Invoke-CopieFormulaireEtEnregistrement -Vue $Vue -Modele $modele -Depart $depart -Mode $Action -Regle $regles -IdsExistants $ids -IdChoisi $idChoisi
+}
+
+function Invoke-CopieFormulaireEtEnregistrement {
+    <#
+    .SYNOPSIS
+        Affiche le formulaire d'une règle puis l'enregistre ; après un refus, rouvre le formulaire avec la saisie.
+
+    .DESCRIPTION
+        Partagé par l'ajout, la duplication, la modification et la promotion. En mode « modification », la
+        règle d'identifiant IdChoisi est remplacée ; sinon la règle est ajoutée à la fin.
+
+    .PARAMETER Vue
+        Vue de l'environnement qui reçoit la règle.
+    .PARAMETER Modele
+        Modèle du moteur.
+    .PARAMETER Depart
+        Règle initiale du formulaire.
+    .PARAMETER Mode
+        ajout, duplication ou modification.
+    .PARAMETER Regle
+        Règles actuelles du fichier.
+    .PARAMETER IdsExistants
+        Identifiants existants (minuscules).
+    .PARAMETER IdChoisi
+        Identifiant de la règle remplacée (modification).
+    .PARAMETER Verbe
+        Texte du journal (par défaut selon le mode).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [hashtable] $Vue,
+        [Parameter(Mandatory)] $Modele,
+        [Parameter(Mandatory)] $Depart,
+        [Parameter(Mandatory)] [string] $Mode,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Regle,
+        [string[]] $IdsExistants = @(),
+        [string] $IdChoisi = '',
+        [string] $Verbe = ''
+    )
+    $ctx = $Vue.Contexte
+    $depart = $Depart
     while ($true) {
-        $saisie = Show-CopieFormulaireRegle -Contexte $ctx -Modele $modele -Regle $depart -Mode $Action -IdsExistants $ids
+        $saisie = Show-CopieFormulaireRegle -Contexte $ctx -Modele $Modele -Regle $depart -Mode $Mode -IdsExistants $IdsExistants
         if ($null -eq $saisie) { return }
         $nouvelId = "$($saisie.id)"
-        if ($Action -eq 'modification') {
-            $liste = @($regles | ForEach-Object { if ("$(Get-CopieValeur $_ 'id' '')" -eq $idChoisi) { $saisie } else { $_ } })
+        if ($Mode -eq 'modification') {
+            $liste = @($Regle | ForEach-Object { if ("$(Get-CopieValeur $_ 'id' '')" -eq $IdChoisi) { $saisie } else { $_ } })
             $question = 'Vous allez modifier la règle « {0} ».' -f $nouvelId
-            $verbe = 'modifier'
+            $verbeJournal = 'modifier'
         }
         else {
-            $liste = @($regles) + @($saisie)
+            $liste = @($Regle) + @($saisie)
             $question = 'Vous allez ajouter la règle « {0} ».' -f $nouvelId
-            $verbe = $(if ($Action -eq 'duplication') { 'dupliquer' } else { 'ajouter' })
+            $verbeJournal = $(if ($Mode -eq 'duplication') { 'dupliquer' } else { 'ajouter' })
         }
-        $r = Invoke-CopieEnregistrement -Vue $Vue -Regle $liste -Question $question -Action $verbe -IdRegle $nouvelId
+        if ($Verbe) { $verbeJournal = $Verbe }
+        $r = Invoke-CopieEnregistrement -Vue $Vue -Regle $liste -Question $question -Action $verbeJournal -IdRegle $nouvelId
         if ($r -eq 'ok') {
             Sync-CopieParametrage -Vue $Vue -Selection $nouvelId
             $suite = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Règle « {0} » enregistrée.`n`nLancer maintenant la vérification complète (accès aux dossiers, programmes...) ?" -f $nouvelId), 'Enregistré', 'YesNo', 'Information')
             if ($suite -eq [System.Windows.MessageBoxResult]::Yes) { Invoke-CopieVerification -Vue $Vue }
             return
         }
-        if ($r -eq 'abandon') { Sync-CopieParametrage -Vue $Vue -Selection $idChoisi; return }
+        if ($r -eq 'abandon') { Sync-CopieParametrage -Vue $Vue -Selection $IdChoisi; return }
         $depart = $saisie       # refus : on rouvre le formulaire avec ce qui vient d'être saisi
     }
 }

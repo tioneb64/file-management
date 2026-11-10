@@ -47,6 +47,11 @@ Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** 
 | État | Valeurs de `--etat` : statut, motif, dernière erreur, dernier succès, fichiers livrés, actions en attente, `archivage_degrade`, flag de reprise |
 | Historique des modifications | Versions du fichier de paramétrage : qui, quand, différences |
 
+Réalisation (étape D) :
+
+- **Graphe** : onglet « Dépendances » sous la grille. Colonnes de gauche à droite : une règle est toujours à droite de celles dont elle dépend ; la flèche va de la règle attendue vers celle qui attend. Seules les règles liées sont dessinées (le nombre des autres est indiqué). Couleur du nœud = statut du moteur, pointillé estompé = règle inactive, infobulle avec le motif d'attente. Une règle `EN_ATTENTE` ou `BLOQUEE` dont le motif nomme une de ses dépendances a cette flèche en rouge (le moteur ne renvoie la règle bloquante que dans ce texte). Un clic sur un nœud sélectionne la règle. Les dépendances inconnues sont signalées (refus D01 du moteur).
+- **Historique** : bouton « Historique… » (tous les comptes qui peuvent lire le dossier des versions). Une ligne par enregistrement de l'interface (date, compte, commentaire, lus dans la fiche `.meta.json` ; à défaut, dans le nom du fichier). Le fichier versionné est l'état d'**avant** : les différences d'une ligne sont calculées entre cette version et la suivante (ou le fichier actuel pour la plus récente). Les règles sont rapprochées par identifiant (un déplacement n'est pas une modification), les règles modifiées sont comparées champ par champ, l'en-tête aussi. Les avertissements acceptés à l'enregistrement sont rappelés. Il n'y a pas de restauration d'une version : la copie est dans le dossier des versions, à remettre à la main si besoin.
+
 ### 4.2 Modification (administrateurs)
 
 | Fonction | Détail |
@@ -55,7 +60,7 @@ Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** 
 | Activer / désactiver | Refusé si des règles actives en dépendent (D03) |
 | Supprimer | Avertissement V02 ; l'état reste en base |
 | Réordonner | Tri automatique : une règle dépendante est toujours placée **après** ses dépendances |
-| Promouvoir | Copier une règle validée d'un environnement vers un autre, en adaptant les chemins |
+| Promouvoir | Copier une règle validée d'un environnement vers un autre, en adaptant les chemins : choix de la cible, remplacement d'un texte dans les dossiers et dans la commande des programmes (littéral, sans tenir compte de la casse, aperçu avant/après), avertissement si la règle existe déjà dans la cible (elle est remplacée) ou si ses dépendances n'y existent pas. La règle adaptée s'ouvre ensuite dans le **formulaire de la cible** puis suit exactement l'enregistrement sécurisé du §5 (vérification du moteur, commentaire, version précédente) : la promotion ne contourne aucun contrôle |
 
 Aides à la saisie : durées en unités lisibles à l'écran (converties en `_sec` à l'enregistrement), planification en sélecteurs, masques en liste, variables de date disponibles en liste, dépendances choisies parmi les règles existantes.
 
@@ -139,7 +144,7 @@ L'application est dans `Gui\` (même organisation que l'outil de gestion du clus
 | **A** | Fenêtre, contrôle des droits AD, onglets par environnement, liste des règles (filtres), détail, état (`--etat`), vérification (`--verifier`), journal, `Initialiser-DossierParametrage.ps1` | faite |
 | **B** | Formulaire d'édition (ajouter, dupliquer, modifier, activer / désactiver, supprimer), tri automatique, enregistrement sécurisé (§5 : vérification, contrôle d'édition simultanée, versions avec fiche et commentaire, remplacement atomique) | faite |
 | **C** | Actions d'exploitation (§4.3 : reprise, lancement, acquittement, déblocage), purge (`--purger`), exécution en arrière-plan de la vérification et de la purge, « Actualiser l'état » | faite |
-| D | Graphe des dépendances, promotion d'un environnement à l'autre, historique des versions | |
+| **D** | Graphe des dépendances, promotion d'un environnement à l'autre, historique des versions | faite |
 
 Dossier protégé : `Initialiser-DossierParametrage.ps1 -Dossier … -GroupeAdmin … -CompteService …` crée le dossier et son sous-dossier de versions, coupe l'héritage et pose : administrateurs en modification, compte de service Jenkins en **lecture seule** (le moteur ne l'écrit jamais), aucun accès du compte de service aux versions. Il demande confirmation (`-WhatIf` pour voir), et refuse de s'appliquer si le compte qui le lance n'est pas dans le groupe (il se couperait l'accès).
 
