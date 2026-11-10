@@ -79,6 +79,7 @@
       <Button x:Name="BtnLancer" Content="Lancer maintenant" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <Button x:Name="BtnAcquitter" Content="Acquitter" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <Button x:Name="BtnDebloquer" Content="Débloquer" Style="{StaticResource BtnDanger}" Margin="0,0,16,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnTrancher" Content="Trancher…" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <Button x:Name="BtnPurger" Content="Purger…" Style="{StaticResource BtnDanger}" Margin="0,0,16,6" Visibility="Collapsed"/>
       <Button x:Name="BtnPromouvoir" Content="Promouvoir…" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <Button x:Name="BtnHistorique" Content="Historique…" Style="{StaticResource Btn}" Margin="0,0,8,6"/>

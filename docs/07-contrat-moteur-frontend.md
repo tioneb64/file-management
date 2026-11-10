@@ -99,7 +99,7 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
              "derniere_erreur": {"le": 1793520000, "situation": "fichier_verrouille", "message": "..."},
              "derniere_execution": {"statut": "WARNING", "nb_livres": 4, "nb_erreurs": 0, "declencheur": "planifie", "duree_sec": 11},
              "reprise": false, "lancement_manuel": false, "arret_apres_erreur": false,
-             "archivage_degrade": true, "actions_en_attente": 12, "livraisons_incertaines": 0}]}
+             "archivage_degrade": true, "actions_en_attente": 12, "livraisons_incertaines": 0, "incertains": []}]}
 ```
 
 | Champ d'une règle | Type | Sens |
@@ -112,6 +112,7 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
 | `derniere_execution` | objet ou `null` | `statut`, `nb_livres`, `nb_erreurs`, `declencheur`, `duree_sec` |
 | `reprise`, `lancement_manuel`, `arret_apres_erreur`, `archivage_degrade` | booléen | Drapeaux (reprise demandée, règle arrêtée après erreur, archive indisponible…) |
 | `actions_en_attente`, `livraisons_incertaines` | entier | Suppressions / archivages différés ; livraisons de résultat inconnu (à trancher) |
+| `incertains` | liste | Les livraisons de résultat inconnu : `cle` (hexadécimal, à donner à `--trancher-incertain`), `source`, `cible` (`null` si la trace de l'action a disparu). Vide s'il n'y en a pas. Champ ajouté après la première version du contrat : ignoré par un front-end plus ancien |
 | `orphelines` (racine) | liste de textes | `id` connus de la base mais absents du paramétrage |
 
 ### 4.3 Lancement et `--lancer-regle`

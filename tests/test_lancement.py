@@ -463,6 +463,25 @@ class TestEtat(CasLancement):
         self.etat()
         self.assertEqual(self.b.c.execute("PRAGMA data_version").fetchone()[0], avant)
 
+    def test_etat_liste_les_livraisons_incertaines(self):
+        self.brute(mode="copie")
+        self.fichier()
+        self.lancer_env()
+        self.heure(7, 0)
+        from unittest import mock
+        from copie import transfert
+        from tests.test_moteur import Plantage
+        with mock.patch.object(transfert, "copier_verifier", side_effect=Plantage):
+            with self.assertRaises(Plantage):
+                self.lancer_env()
+        self.heure(7, 10)
+        self.b.poser_lancement_manuel("r1", "benoit")
+        self.lancer_env()
+        (cle, source, cible), = self.b.incertains(self.b.numero_regle("r1"))
+        entree = self.etat()["regles"][0]
+        self.assertEqual(entree["livraisons_incertaines"], 1)
+        self.assertEqual(entree["incertains"], [{"cle": cle.hex(), "source": source, "cible": cible}])
+
 
 class TestCommandes(CasLancement):
     """La ligne de commande, de bout en bout (horloge reelle)."""

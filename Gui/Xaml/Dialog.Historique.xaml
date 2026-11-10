@@ -13,6 +13,8 @@
   </Window.Resources>
   <DockPanel Margin="16">
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="BtnRestaurer" Content="Revenir à l'état d'avant cette modification…" Style="{StaticResource BtnDanger}" Margin="0,0,16,0" Visibility="Collapsed" IsEnabled="False"
+              ToolTip="Le fichier redevient tel qu'il était avant la modification sélectionnée. Les modifications faites depuis sont annulées mais restent dans l'historique."/>
       <Button x:Name="BtnFermer" Content="Fermer" IsCancel="True" IsDefault="True" Style="{StaticResource BtnPrimary}" Width="110"/>
     </StackPanel>
     <TextBlock x:Name="Resume" DockPanel.Dock="Top" FontWeight="SemiBold" Foreground="#1F3A5F" TextWrapping="Wrap" Margin="0,0,0,8"/>

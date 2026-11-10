@@ -82,49 +82,56 @@ function Select-CopieRegle {
     $Vue.Etat.ItemsSource = ConvertTo-CopieGroupeEtat -Etat $ligne.Etat
 }
 
-function Update-CopieVue {
+function Read-CopieReponseEtat {
     <#
     .SYNOPSIS
-        Recharge l'état des règles d'un environnement (appel du moteur : --etat) et remplit la grille.
-
-    .DESCRIPTION
-        Si la base n'est pas initialisée ou si le moteur est injoignable, la liste s'affiche quand même, à
-        partir du fichier, avec un message (jamais d'écran vide).
-
+        Lit la réponse de --etat : états par identifiant de règle et messages pour le bandeau ; journalise l'appel.
     .PARAMETER Vue
         Vue d'un environnement.
+    .PARAMETER Reponse
+        Réponse du moteur (Copie.ReponseMoteur).
+    .OUTPUTS
+        @{ Etats = hashtable (identifiant en minuscules -> état) ; Messages = string[] }
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable] $Vue)
+    param([Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] [pscustomobject] $Reponse)
+    $ctx = $Vue.Contexte
+    $etats = @{}
+    $messages = New-Object System.Collections.Generic.List[string]
+    $niveau = $(if ($Reponse.Reussi) { 'INFO' } else { 'WARNING' })
+    Write-CopieJournal -Contexte $ctx -Niveau $niveau -Evenement 'moteur_appel' `
+        -Message ('{0} -> code {1} en {2} ms' -f $Reponse.Commande, $Reponse.Code, $Reponse.DureeMs) `
+        -Donnees @{ environnement = $Vue.Env.Nom; code = $Reponse.Code; duree_ms = $Reponse.DureeMs }
+    if ($Reponse.Reussi) {
+        foreach ($r in @(Get-CopieValeur $Reponse.Json 'regles' @())) { $etats[("$($r.id)").ToLowerInvariant()] = $r }
+        $orphelines = @(Get-CopieValeur $Reponse.Json 'orphelines' @())
+        if ($orphelines.Count -gt 0) { $messages.Add(('Règles connues de la base mais absentes du fichier : ' + ($orphelines -join ', ') + '.')) }
+    }
+    else {
+        $detail = $(if ($Reponse.Json -and $Reponse.Json.message) { $Reponse.Json.message } else { $Reponse.Erreur })
+        $messages.Add(('État indisponible : {0}' -f $detail))
+    }
+    @{ Etats = $etats; Messages = $messages.ToArray() }
+}
 
+function Set-CopieLignesVue {
+    <#
+    .SYNOPSIS
+        Construit les lignes de la grille d'un environnement à partir du fichier et des états, et rafraîchit la vue.
+    .PARAMETER Vue
+        Vue d'un environnement.
+    .PARAMETER Etat
+        États par identifiant de règle (minuscules) ; vide tant que l'état n'est pas lu.
+    .PARAMETER Message
+        Messages d'état ajoutés à ceux de la vue dans le bandeau.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] [hashtable] $Etat, [string[]] $Message = @())
     $Vue.Chargement = $true
     try {
-        $ctx = $Vue.Contexte
-        $parametrage = $Vue.Env.Parametrage
-        $etats = @{}
-        $messagesEtat = New-Object System.Collections.Generic.List[string]
-        $lisible = ($null -ne $parametrage.Entete -and $parametrage.Erreurs.Count -eq 0)
-        if ($lisible) {
-            $reponse = Invoke-CopieMoteur -Config $ctx.Config -Fichier $Vue.Env.Fichier -Argument @('--etat')
-            $niveau = $(if ($reponse.Reussi) { 'INFO' } else { 'WARNING' })
-            Write-CopieJournal -Contexte $ctx -Niveau $niveau -Evenement 'moteur_appel' `
-                -Message ('{0} -> code {1} en {2} ms' -f $reponse.Commande, $reponse.Code, $reponse.DureeMs) `
-                -Donnees @{ environnement = $Vue.Env.Nom; code = $reponse.Code; duree_ms = $reponse.DureeMs }
-            if ($reponse.Reussi) {
-                foreach ($r in @(Get-CopieValeur $reponse.Json 'regles' @())) { $etats[("$($r.id)").ToLowerInvariant()] = $r }
-                $orphelines = @(Get-CopieValeur $reponse.Json 'orphelines' @())
-                if ($orphelines.Count -gt 0) { $messagesEtat.Add(('Règles connues de la base mais absentes du fichier : ' + ($orphelines -join ', ') + '.')) }
-            }
-            else {
-                $detail = $(if ($reponse.Json -and $reponse.Json.message) { $reponse.Json.message } else { $reponse.Erreur })
-                $messagesEtat.Add(('État indisponible : {0}' -f $detail))
-            }
-        }
-        else { $messagesEtat.Add('État indisponible : le fichier n''est pas lisible.') }
-
-        $lignes = foreach ($regle in $parametrage.Regles) {
+        $lignes = foreach ($regle in $Vue.Env.Parametrage.Regles) {
             $id = ("$(Get-CopieValeur $regle 'id' '')").ToLowerInvariant()
-            ConvertTo-CopieLigneRegle -Regle $regle -Etat $etats[$id]
+            ConvertTo-CopieLigneRegle -Regle $regle -Etat $Etat[$id]
         }
         $Vue.Lignes = @($lignes)
 
@@ -138,7 +145,7 @@ function Update-CopieVue {
 
         $tous = New-Object System.Collections.Generic.List[string]
         foreach ($m in $Vue.Messages) { $tous.Add($m) }
-        foreach ($m in $messagesEtat) { $tous.Add($m) }
+        foreach ($m in $Message) { $tous.Add($m) }
         $Vue.BandeauTexte.Text = ($tous -join "`n")
         $Vue.Bandeau.Visibility = $(if ($tous.Count -gt 0) { 'Visible' } else { 'Collapsed' })
     }
@@ -147,6 +154,83 @@ function Update-CopieVue {
     Update-CopieGraphe -Vue $Vue
     $Vue.Detail.ItemsSource = $null
     $Vue.Etat.ItemsSource = $null
+}
+
+function Select-CopieRegleParId {
+    <#
+    .SYNOPSIS
+        Resélectionne une règle dans la grille (si elle y est toujours et visible).
+    .PARAMETER Vue
+        Vue d'un environnement.
+    .PARAMETER Id
+        Identifiant de la règle ; vide : rien à faire.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Vue, [string] $Id = '')
+    if (-not $Id) { return }
+    $ligne = @($Vue.Lignes | Where-Object { $_.Id -eq $Id }) | Select-Object -First 1
+    if ($null -ne $ligne) { $Vue.Grille.SelectedItem = $ligne; $Vue.Grille.ScrollIntoView($ligne) }
+}
+
+function Update-CopieVue {
+    <#
+    .SYNOPSIS
+        Recharge l'état des règles d'un environnement (appel du moteur : --etat) et remplit la grille.
+
+    .DESCRIPTION
+        Si la base n'est pas initialisée ou si le moteur est injoignable, la liste s'affiche quand même, à
+        partir du fichier, avec un message (jamais d'écran vide). Avec -Asynchrone (ouverture, bouton
+        « Actualiser l'état »), la liste du fichier s'affiche tout de suite et l'état arrive quand le moteur
+        a répondu, sans bloquer la fenêtre ; sans, l'appel est attendu (suites d'actions).
+
+    .PARAMETER Vue
+        Vue d'un environnement.
+
+    .PARAMETER Asynchrone
+        Lit l'état en arrière-plan.
+
+    .PARAMETER Selection
+        Règle à resélectionner une fois l'état arrivé (avec -Asynchrone).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Vue, [switch] $Asynchrone, [string] $Selection = '')
+
+    $ctx = $Vue.Contexte
+    $parametrage = $Vue.Env.Parametrage
+    $lisible = ($null -ne $parametrage.Entete -and $parametrage.Erreurs.Count -eq 0)
+    if (-not $lisible) {
+        Set-CopieLignesVue -Vue $Vue -Etat @{} -Message @('État indisponible : le fichier n''est pas lisible.')
+        return
+    }
+    if (-not $Asynchrone) {
+        $reponse = Invoke-CopieMoteur -Config $ctx.Config -Fichier $Vue.Env.Fichier -Argument @('--etat')
+        $lu = Read-CopieReponseEtat -Vue $Vue -Reponse $reponse
+        Set-CopieLignesVue -Vue $Vue -Etat $lu.Etats -Message $lu.Messages
+        return
+    }
+    Set-CopieLignesVue -Vue $Vue -Etat @{} -Message @('État en cours de lecture...')
+    Set-CopieOccupe -Vue $Vue -Occupe $true -Libelle ('Lecture de l''état de {0}' -f $Vue.Env.Nom)
+    $null = Start-CopieTache -Config $ctx.Config -Fichier $Vue.Env.Fichier -Argument @('--etat') `
+        -SurFin { param($t) Complete-CopieEtat -Tache $t } -Donnees @{ Vue = $Vue; Contexte = $ctx; Selection = $Selection }
+}
+
+function Complete-CopieEtat {
+    <#
+    .SYNOPSIS
+        Fin de la lecture de l'état en arrière-plan : remplit la grille et remet la sélection.
+    .PARAMETER Tache
+        Tâche terminée (Donnees : Vue, Contexte, Selection).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Tache)
+    $vue = $Tache.Donnees.Vue
+    if (-not $Script:Vues.ContainsKey($vue.Cle)) { return }       # onglet reconstruit entre-temps : réponse périmée
+    try {
+        $lu = Read-CopieReponseEtat -Vue $vue -Reponse $Tache.Reponse
+        Set-CopieLignesVue -Vue $vue -Etat $lu.Etats -Message $lu.Messages
+        Select-CopieRegleParId -Vue $vue -Id $Tache.Donnees.Selection
+    }
+    finally { Set-CopieOccupe -Vue $vue -Occupe $false }
 }
 
 function Invoke-CopieVerification {
@@ -236,7 +320,7 @@ function New-CopieVueEnvironnement {
         Ajouter = $tab.FindName('BtnAjouter'); Dupliquer = $tab.FindName('BtnDupliquer'); Modifier = $tab.FindName('BtnModifier')
         Activer = $tab.FindName('BtnActiver'); Supprimer = $tab.FindName('BtnSupprimer')
         Actualiser = $tab.FindName('BtnActualiser'); Reprise = $tab.FindName('BtnReprise'); Lancer = $tab.FindName('BtnLancer')
-        Acquitter = $tab.FindName('BtnAcquitter'); Debloquer = $tab.FindName('BtnDebloquer'); Purger = $tab.FindName('BtnPurger')
+        Acquitter = $tab.FindName('BtnAcquitter'); Debloquer = $tab.FindName('BtnDebloquer'); Purger = $tab.FindName('BtnPurger'); Trancher = $tab.FindName('BtnTrancher')
         Promouvoir = $tab.FindName('BtnPromouvoir'); Historique = $tab.FindName('BtnHistorique')
         Graphe = $tab.FindName('Graphe'); GrapheInfo = $tab.FindName('GrapheInfo')
         Occupe = $false
@@ -255,7 +339,7 @@ function New-CopieVueEnvironnement {
     foreach ($m in @('Tous', 'copie', 'deplacement', 'archivage')) { $null = $vue.FiltreMode.Items.Add($m) }
     $vue.FiltreMode.SelectedIndex = 0
 
-    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Purger, $vue.Promouvoir, $vue.Historique) { $controle.Tag = $cle }
+    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Trancher, $vue.Purger, $vue.Promouvoir, $vue.Historique) { $controle.Tag = $cle }
     $vue.Grille.Add_SelectionChanged({ param($emetteur) Select-CopieRegle -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Recherche.Add_TextChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreStatut.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
@@ -272,12 +356,13 @@ function New-CopieVueEnvironnement {
     $vue.Lancer.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'lancement' })
     $vue.Acquitter.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'acquittement' })
     $vue.Debloquer.Add_Click({ param($emetteur) Invoke-CopieActionRegle -Vue $Script:Vues[$emetteur.Tag] -Action 'deblocage' })
+    $vue.Trancher.Add_Click({ param($emetteur) Invoke-CopieIncertain -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Purger.Add_Click({ param($emetteur) Invoke-CopiePurge -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Promouvoir.Add_Click({ param($emetteur) Invoke-CopiePromotion -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Historique.Add_Click({ param($emetteur) Show-CopieHistorique -Vue $Script:Vues[$emetteur.Tag] })
 
-    Update-CopieVue -Vue $vue
-    Update-CopieBoutons -Vue $vue
     $tab.Tag = $vue
+    Update-CopieVue -Vue $vue -Asynchrone
+    Update-CopieBoutons -Vue $vue
     $tab
 }

@@ -207,6 +207,49 @@ Describe 'Historique de bout en bout (moteur réel)' -Skip:(-not $Script:PythonD
         ($res.D[0] | Where-Object Changement -eq 'Ajoutée').Regle | Should -Be 'b'
         ($res.D[0] | Where-Object Changement -eq 'Modifiée').Champ | Should -Be 'duree_max_sec'
     }
+    It 'restaure l''état d''avant une modification par l''enregistrement sécurisé, sans rien effacer de l''historique' {
+        $res = InModuleScope Copie.Gui -Parameters @{ r = $Script:RacineMoteur; d = $TestDrive } {
+            param($r, $d)
+            $cfg = [pscustomobject]@{
+                Moteur = [pscustomobject]@{ Mode = 'Local'; Python = $env:COPIE_TEST_PYTHON; Racine = $r; ConfigurationJea = ''; Serveur = ''; DelaiMaxSec = 60 }
+                Parametrage = [pscustomobject]@{ DossierVersions = 'versions'; DossierBrouillons = '.brouillons'; PeriodeDeclencheurSec = 300 } }
+            $m = Get-CopieModeleRegle -Config $cfg
+            $dossier = Join-Path $d 'restaure'; $null = New-Item -ItemType Directory -Path $dossier
+            $fichier = Join-Path $dossier 'essai.jsonl'
+            $entete = [pscustomobject]@{ version = 1; environnement = 'essai'; base = (Join-Path $dossier 'x.db') }
+            [System.IO.File]::WriteAllText($fichier, ((ConvertTo-CopieLigneJson $entete) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+            $nouvelle = {
+                param($id)
+                $b = Merge-CopieRegle -Modele $m.regle -Existante $null
+                $b.id = $id; $b.source = (Join-Path $dossier "s_$id"); $b.cible = (Join-Path $dossier "c_$id"); $b.mode = 'copie'
+                $b.planification = '{"type":"quotidien","heure":"07:00","jours":"tous","rattrapage_sec":null}' | ConvertFrom-Json
+                $b
+            }
+            $p0 = Read-CopieFichierParametrage -Chemin $fichier
+            $null = Save-CopieParametrage -Config $cfg -Fichier $fichier -EmpreinteAttendue $p0.Empreinte -Entete $entete -Regle @(& $nouvelle 'a') -Compte 'DOMen' -Commentaire 'première règle'
+            Start-Sleep -Seconds 1.2
+            $p1 = Read-CopieFichierParametrage -Chemin $fichier
+            $null = Save-CopieParametrage -Config $cfg -Fichier $fichier -EmpreinteAttendue $p1.Empreinte -Entete $entete -Regle @($p1.Regles[0], (& $nouvelle 'b')) -Compte 'DOMen' -Commentaire 'ajout de b'
+            Start-Sleep -Seconds 1.2
+            # Restauration : ce que fait Invoke-CopieRestauration, sans les fenêtres
+            $h = @(Get-CopieHistorique -Fichier $fichier -Config $cfg)
+            $actuel = Read-CopieFichierParametrage -Chemin $fichier
+            $ancien = Read-CopieFichierParametrage -Chemin $h[0].Fichier
+            $ecarts = @(Compare-CopieParametrage -Avant $actuel -Apres $ancien)
+            $s = Save-CopieParametrage -Config $cfg -Fichier $fichier -EmpreinteAttendue $actuel.Empreinte -Entete $ancien.Entete -Regle @($ancien.Regles) -Compte 'DOMen' -Commentaire 'retour avant b' -Confirmer { $true }       # la fenêtre d'avertissements : accepter la suppression de b
+            $apres = Read-CopieFichierParametrage -Chemin $fichier
+            $h2 = @(Get-CopieHistorique -Fichier $fichier -Config $cfg)
+            @{ Ecarts = $ecarts; Etape = $s.Etape; Ids = @($apres.Regles | ForEach-Object { $_.id }); Reste = @(Compare-CopieParametrage -Avant $apres -Apres $ancien); Histo = $h2 }
+        }
+        $res.Ecarts.Count | Should -BeGreaterThan 0
+        ($res.Ecarts | Where-Object Changement -eq 'Supprimée').Regle | Should -Be 'b'
+        $res.Etape | Should -Be 'ok'
+        $res.Ids -join ',' | Should -Be 'a'
+        $res.Reste.Count | Should -Be 0
+        $res.Histo.Count | Should -Be 3
+        $res.Histo[0].Commentaire | Should -Be 'retour avant b'
+        $res.Histo[1].Commentaire | Should -Be 'ajout de b'
+    }
 }
 
 Describe 'Fenêtres Historique et Promotion' -Skip:(-not $Script:Sta) {

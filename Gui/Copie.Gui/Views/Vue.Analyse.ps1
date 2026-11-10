@@ -154,8 +154,67 @@ function Show-CopieHistorique {
     $grille = $fenetre.FindName('Versions')
     $grille.ItemsSource = $lignes
     $grille.Add_SelectionChanged({ param($s) Update-CopieHistoriqueDiff -Fenetre ([System.Windows.Window]::GetWindow($s)) })
+    $peutRestaurer = ($ctx.Profil -eq 'Admin' -and $Vue.Env.Modifiable -and $lignes.Count -gt 0 -and -not $Vue.Occupe)
+    $bouton = $fenetre.FindName('BtnRestaurer')
+    if ($peutRestaurer) {
+        $bouton.Visibility = 'Visible'
+        $grille.Add_SelectionChanged({ param($s) [System.Windows.Window]::GetWindow($s).FindName('BtnRestaurer').IsEnabled = ($null -ne $s.SelectedItem) })
+        $bouton.Add_Click({
+                param($s)
+                $f = [System.Windows.Window]::GetWindow($s)
+                $f.Tag = $f.FindName('Versions').SelectedItem
+                $f.Close()
+            })
+    }
     if ($lignes.Count -gt 0) { $grille.SelectedIndex = 0 }
     $null = $fenetre.ShowDialog()
+    if ($null -ne $fenetre.Tag) { Invoke-CopieRestauration -Vue $Vue -Version $fenetre.Tag }
+}
+
+function Invoke-CopieRestauration {
+    <#
+    .SYNOPSIS
+        Remet le fichier dans l'état d'avant une modification de l'historique.
+
+    .DESCRIPTION
+        La version choisie est relue et réécrite par le même enregistrement sécurisé que toute modification :
+        vérification du moteur (avec comparaison au fichier actuel, d'où les avertissements V0x éventuels),
+        commentaire obligatoire, copie de l'état actuel dans les versions. Rien n'est effacé : la restauration
+        est elle-même une ligne de l'historique et peut être annulée de la même façon.
+
+    .PARAMETER Vue
+        Vue d'un environnement.
+
+    .PARAMETER Version
+        Entrée de Get-CopieHistorique : son fichier est l'état à retrouver.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] $Version)
+    $ctx = $Vue.Contexte
+    if ($ctx.Profil -ne 'Admin' -or -not $Vue.Env.Modifiable -or $Vue.Occupe) { return }
+    $actuel = Read-CopieFichierParametrage -Chemin $Vue.Env.Fichier
+    if ($actuel.Empreinte -ne $Vue.Env.Parametrage.Empreinte) {
+        [void][System.Windows.MessageBox]::Show($ctx.Fenetre, 'Le fichier a été modifié depuis son affichage. Il est rechargé : recommencez.', 'Fichier modifié', 'OK', 'Information')
+        Sync-CopieParametrage -Vue $Vue
+        return
+    }
+    $ancien = Read-CopieFichierParametrage -Chemin $Version.Fichier
+    if ($ancien.Erreurs.Count -gt 0 -or $null -eq $ancien.Entete) {
+        [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ('Cette version n''est pas lisible : ' + ($ancien.Erreurs -join ' ')), 'Restauration impossible', 'OK', 'Error')
+        return
+    }
+    $ecarts = @(Compare-CopieParametrage -Avant $actuel -Apres $ancien)
+    $date = $(if ($Version.Date -gt [datetime]::MinValue) { $Version.Date.ToString('dd/MM/yyyy HH:mm:ss') } else { 'date inconnue' })
+    if ($ecarts.Count -eq 0) {
+        [void][System.Windows.MessageBox]::Show($ctx.Fenetre, 'Le fichier actuel est déjà identique à cette version : rien à restaurer.', 'Restauration', 'OK', 'Information')
+        return
+    }
+    $texte = "Le fichier « {0} » va redevenir ce qu'il était avant la modification du {1} (compte {2}).`n`n{3} différence(s) avec le fichier actuel : les modifications faites depuis seront annulées (elles restent dans l'historique).`n`nContinuer ?" -f (Split-Path -Leaf $Vue.Env.Fichier), $date, $Version.Compte, $ecarts.Count
+    if ([System.Windows.MessageBox]::Show($ctx.Fenetre, $texte, 'Restauration', 'YesNo', 'Warning') -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    $question = 'Restauration de l''état d''avant la modification du {0} ({1}).' -f $date, $Version.Compte
+    $r = Invoke-CopieEnregistrement -Vue $Vue -Regle @($ancien.Regles) -Entete $ancien.Entete -Question $question -Action 'restaurer' -IdRegle '(fichier)'
+    Sync-CopieParametrage -Vue $Vue
+    if ($r -eq 'ok') { [void][System.Windows.MessageBox]::Show($ctx.Fenetre, 'Version restaurée. Lancez la vérification complète pour contrôler les accès.', 'Restauration', 'OK', 'Information') }
 }
 
 function Update-CopiePromotionApercu {

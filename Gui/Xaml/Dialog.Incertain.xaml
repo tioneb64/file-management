@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Livraisons dont le résultat est inconnu (le programme s'est arrêté pendant la copie) : l'administrateur
+     vérifie dans le dossier cible, puis décide si le fichier est bien arrivé ou s'il faut le relivrer. -->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Livraisons incertaines" Height="560" Width="900" MinHeight="420" MinWidth="620"
+        WindowStartupLocation="CenterOwner" Background="#F3F5F8" FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="False">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Styles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="BtnOk" Content="Valider la décision" Style="{StaticResource BtnPrimary}" Width="170" IsEnabled="False"/>
+      <Button x:Name="BtnAnnuler" Content="Annuler" IsCancel="True" Style="{StaticResource Btn}" Width="110" Margin="8,0,0,0"/>
+    </StackPanel>
+    <TextBlock x:Name="Resume" DockPanel.Dock="Top" FontWeight="SemiBold" Foreground="#1F3A5F" TextWrapping="Wrap" Margin="0,0,0,4"/>
+    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,8"
+               Text="Le résultat de ces livraisons est inconnu. Regardez dans le dossier cible si le fichier est arrivé entier, puis choisissez une ligne et décidez. Tant qu'elles ne sont pas tranchées, la règle ne repart pas."/>
+    <TextBox x:Name="Commentaire" DockPanel.Dock="Bottom" Height="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0"/>
+    <TextBlock DockPanel.Dock="Bottom" Text="Commentaire (obligatoire) : ce qui a été vérifié" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+      <RadioButton x:Name="DecisionLivre" GroupName="Decision" Content="Le fichier est bien arrivé dans la cible : le considérer comme livré" Margin="0,0,0,4"/>
+      <RadioButton x:Name="DecisionRelivrer" GroupName="Decision" Content="Le fichier n'est pas arrivé (ou incomplet) : le relivrer au prochain lancement"/>
+    </StackPanel>
+    <DataGrid x:Name="Grille" SelectionMode="Single" SelectionUnit="FullRow">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="*"/>
+        <DataGridTextColumn Header="Cible" Binding="{Binding Cible}" Width="*"/>
+        <DataGridTextColumn Header="Clé" Binding="{Binding Cle}" Width="120"/>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>

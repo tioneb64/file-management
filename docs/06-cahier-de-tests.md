@@ -697,11 +697,46 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 102 
 | J10D-M09 | **Dépendance absente** | Promouvoir une règle dont la dépendance n'existe pas dans la cible | Avertissement dans la fenêtre de promotion ; refus D01 du moteur à l'enregistrement tant qu'elle manque | |
 | J10D-M10 | **Programmes** | Promouvoir une règle qui a un programme dont la commande contient un chemin de l'environnement d'origine | Le chemin est adapté dans la commande ; l'aperçu le montre | |
 
-## 18. Jalons suivants
+## 18. Jalon J10, étape E — Front-end : compléments (JEA, livraisons incertaines, état en arrière-plan, restauration)
+
+Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 127 tests Pester (dont 25 propres à l'étape E), tous OK, PSScriptAnalyzer sans avertissement, moteur Python 3.14.10 réel ; tests Python du moteur : nouveau champ `incertains` de `--etat`. Spécification : [04-frontend](04-frontend.md) §4.3, §6, §8 et [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md) §4.2. **Jamais exécuté** : une vraie session JEA (elle exige un serveur, un compte d'administrateur local et un groupe AD) et les fenêtres à la souris. La logique est testée par programme, le module JEA est appelé directement (sans session).
+
+### 18.1 Tests automatiques
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J10E-A01 | **Moteur** : `--etat` donne `incertains` (clé hexadécimale, source, cible) ; le décompte baisse après `--trancher-incertain` | OK | |
+| J10E-A02 | **JEA, grammaire** : commandes du contrat acceptées ; `--initialiser-base`, `--sauvegarder-base`, `--lancer-regle`, `--migrer-ancien`, `-c`, commande vide, option inconnue, répétée, sans valeur ou d'une autre commande refusées | OK | |
+| J10E-A03 | **JEA, valeurs** : identifiant, clé hexadécimale et décision contrôlés ; un commentaire qui commence par un tiret n'est pas pris pour une option (`--option=valeur`) | OK | |
+| J10E-A04 | **JEA, fichiers** : seuls les fichiers du dossier de paramétrage (et `--precedent`) ; `..`, dossier voisin au nom proche (`param2`), autre disque refusés ; casse ignorée | OK | |
+| J10E-A05 | **JEA, compte et droits** : le compte de la session remplace `--utilisateur` annoncé ; commande d'écriture refusée hors du groupe administrateur ; consultation permise ; configuration absente refusée | OK | |
+| J10E-A06 | **JEA, moteur réel** : `--modele-regle` sans fichier, `--verifier --syntaxe-seule`, refus d'une commande hors contrat sans lancer le moteur | OK | |
+| J10E-A07 | **Installateur** : s'analyse sans erreur, refuse un groupe mal écrit, `-WhatIf` ne crée rien | OK | |
+| J10E-A08 | **Trancher** : ligne de commande (commentaire obligatoire, clé hexadécimale, décision), mise en forme de la liste, moteur réel (livré puis à relivrer, clé déjà tranchée refusée avec son message) | OK | |
+| J10E-A09 | **Fenêtre « Trancher »** : validation grisée tant qu'une ligne et une décision ne sont pas choisies | OK | |
+| J10E-A10 | **État en arrière-plan** : liste du fichier tout de suite sans état, boutons grisés, état et sélection à l'arrivée ; réponse d'un onglet reconstruit ignorée | OK | |
+| J10E-A11 | **Restauration** : le fichier redevient l'état d'avant, par l'enregistrement sécurisé, avec avertissement confirmé ; l'historique garde les trois lignes | OK | |
+
+### 18.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J10E-M01 | **Installer le point d'accès** | En administrateur sur le serveur d'exécution : `Installer-PointAccesJea.ps1 -WhatIf` puis sans, avec le groupe, Python, la racine, le dossier de paramétrage et `-CompteService` | Message de fin ; `Get-PSSessionConfiguration CopieFichiers` existe ; module dans `Program Files\WindowsPowerShell\Modules` | |
+| J10E-M02 | **Session restreinte** | `Enter-PSSession -ComputerName SERVEUR -ConfigurationName CopieFichiers` puis `Get-Command` | Seule `Invoke-CopieMoteurJea` (et les commandes de base de JEA) ; `Get-Process`, `dir`, `python` refusés | |
+| J10E-M03 | **Consultation par un membre du groupe de lecture** | Interface en mode `Distant` + `ConfigurationJea` : ouvrir un environnement, « Actualiser l'état », « Vérifier » | État et vérification affichés ; les contrôles d'accès reflètent le compte de service | |
+| J10E-M04 | **Écriture refusée au lecteur** | Même compte, tenter une reprise (appel direct de la fonction) | « commande réservée aux administrateurs » | |
+| J10E-M05 | **Compte tracé** | Reprise par un administrateur depuis l'interface | Dans la base, le journal du moteur et la transcription : le compte de l'administrateur, pas le compte de service | |
+| J10E-M06 | **Commande hors liste** | Dans la session : `Invoke-CopieMoteurJea -Argument '--initialiser-base' -Fichier ...` et un fichier hors du dossier de paramétrage | Refus, le moteur n'est pas lancé | |
+| J10E-M07 | **Partages réseau** | `--verifier` complet par JEA sur une règle dont la source est un partage | Les accès A01 à A07 reflètent le compte de service géré (pas la machine) | |
+| J10E-M08 | **Transcriptions** | Après les essais, ouvrir le dossier des traces | Une transcription par session, avec la commande lancée | |
+| J10E-M09 | **Livraison incertaine** | Interrompre brutalement une copie (arrêt du processus), relancer, puis « Actualiser l'état » et « Trancher… » | La règle est en erreur « livraison incertaine » ; la liste montre la source et la cible ; après vérification et décision, le décompte baisse et le moteur répond | |
+| J10E-M10 | **Décision « à relivrer »** | Trancher « à relivrer », puis demander une reprise | Le fichier est relivré au lancement suivant | |
+| J10E-M11 | **Ouverture sans blocage** | Ouvrir l'interface avec plusieurs environnements sur un serveur distant lent | La fenêtre apparaît tout de suite avec les règles ; les statuts arrivent ensuite | |
+| J10E-M12 | **Restauration** | Après deux modifications, « Historique… », choisir la plus ancienne, « Revenir à l'état d'avant cette modification… » | Confirmation avec le nombre de différences, commentaire demandé, fichier rétabli, nouvelle ligne dans l'historique ; une restauration qui supprime une règle demande confirmation des avertissements | |
+
+## 19. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 
 | Jalon | Contenu prévu du cahier |
 |---|---|
-| Point d'accès JEA | Fonction `Invoke-CopieMoteurJea` et rôle de capacité (spécifiés dans [04-frontend](04-frontend.md) §6, ni écrits ni testés) |
-| Compléments du front-end | Écran de `--trancher-incertain`, état chargé en arrière-plan à l'ouverture, restauration d'une version |

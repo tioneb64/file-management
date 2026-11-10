@@ -58,17 +58,17 @@ function Sync-CopieParametrage {
         Vue d'un environnement.
     .PARAMETER Selection
         Identifiant de la règle à resélectionner après le rechargement.
+    .PARAMETER Asynchrone
+        Lit l'état en arrière-plan (la règle est resélectionnée à l'arrivée de l'état). Par défaut l'état est
+        attendu : les suites d'une action (vérification proposée, nouvelle action) ont besoin d'une vue prête.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [hashtable] $Vue, [string] $Selection = '')
+    param([Parameter(Mandatory)] [hashtable] $Vue, [string] $Selection = '', [switch] $Asynchrone)
     $Vue.Env.Parametrage = Read-CopieFichierParametrage -Chemin $Vue.Env.Fichier
-    Update-CopieVue -Vue $Vue
+    if ($Asynchrone) { Update-CopieVue -Vue $Vue -Asynchrone -Selection $Selection } else { Update-CopieVue -Vue $Vue }
     $tiret = [string][char]0x2014
     $Vue.Info.Text = ('{0}  {1}  {2} règle(s)' -f (Split-Path -Leaf $Vue.Env.Fichier), $tiret, @($Vue.Env.Parametrage.Regles).Count)
-    if ($Selection) {
-        $ligne = @($Vue.Lignes | Where-Object { $_.Id -eq $Selection }) | Select-Object -First 1
-        if ($null -ne $ligne) { $Vue.Grille.SelectedItem = $ligne; $Vue.Grille.ScrollIntoView($ligne) }
-    }
+    if (-not $Asynchrone) { Select-CopieRegleParId -Vue $Vue -Id $Selection }
     Update-CopieBoutons -Vue $Vue
 }
 
@@ -83,7 +83,7 @@ function Update-CopieEtatVue {
     param([Parameter(Mandatory)] [hashtable] $Vue)
     if ($Vue.Occupe) { return }
     $choisie = $Vue.Grille.SelectedItem
-    Sync-CopieParametrage -Vue $Vue -Selection $(if ($null -ne $choisie) { $choisie.Id } else { '' })
+    Sync-CopieParametrage -Vue $Vue -Asynchrone -Selection $(if ($null -ne $choisie) { $choisie.Id } else { '' })
 }
 
 function Update-CopieBoutons {
@@ -110,6 +110,10 @@ function Update-CopieBoutons {
     foreach ($b in $Vue.Ajouter, $Vue.Dupliquer, $Vue.Modifier, $Vue.Activer, $Vue.Supprimer) { $b.Visibility = & $visible $edition }
     foreach ($b in $Vue.Reprise, $Vue.Lancer, $Vue.Acquitter, $Vue.Debloquer) { $b.Visibility = & $visible $exploitation; $b.IsEnabled = ($exploitation -and $choisie -and -not $occupe) }
     $Vue.Purger.Visibility = & $visible $exploitation
+    $Vue.Trancher.Visibility = & $visible $exploitation
+    $incertaines = 0
+    if ($choisie) { $incertaines = [int](Get-CopieValeur $Vue.Grille.SelectedItem.Etat 'livraisons_incertaines' 0) }
+    $Vue.Trancher.IsEnabled = ($exploitation -and $incertaines -gt 0 -and -not $occupe)
     $Vue.Promouvoir.Visibility = & $visible $exploitation
     $Vue.Promouvoir.IsEnabled = ($exploitation -and $choisie -and -not $occupe)
     $Vue.Historique.IsEnabled = (-not $occupe)
@@ -137,6 +141,8 @@ function Invoke-CopieEnregistrement {
         Nom de l'action, pour le journal.
     .PARAMETER IdRegle
         Règle concernée, pour le journal.
+    .PARAMETER Entete
+        En-tête à écrire (par défaut celui du fichier actuel ; la restauration d'une version fournit le sien).
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -145,9 +151,11 @@ function Invoke-CopieEnregistrement {
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Regle,
         [Parameter(Mandatory)] [string] $Question,
         [Parameter(Mandatory)] [string] $Action,
-        [Parameter(Mandatory)] [string] $IdRegle
+        [Parameter(Mandatory)] [string] $IdRegle,
+        $Entete = $null
     )
     $ctx = $Vue.Contexte
+    if ($null -eq $Entete) { $Entete = $Vue.Env.Parametrage.Entete }
     $commentaire = Read-CopieCommentaire -Contexte $ctx -Question $Question
     if ($null -eq $commentaire) { return 'corriger' }
     $ctx.Fenetre.Cursor = [System.Windows.Input.Cursors]::Wait
@@ -155,7 +163,7 @@ function Invoke-CopieEnregistrement {
         $confirmer = { param($a) Confirm-CopieAvertissement -Contexte $Script:ContexteEnCours -Avertissement $a }
         $Script:ContexteEnCours = $ctx
         $res = Save-CopieParametrage -Config $ctx.Config -Fichier $Vue.Env.Fichier -EmpreinteAttendue $Vue.Env.Parametrage.Empreinte `
-            -Entete $Vue.Env.Parametrage.Entete -Regle $Regle -Compte $ctx.Utilisateur -Commentaire $commentaire -Confirmer $confirmer
+            -Entete $Entete -Regle $Regle -Compte $ctx.Utilisateur -Commentaire $commentaire -Confirmer $confirmer
     }
     finally { $ctx.Fenetre.Cursor = $null }
 

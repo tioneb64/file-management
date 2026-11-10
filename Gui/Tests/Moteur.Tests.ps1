@@ -97,6 +97,7 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         & (Join-Path $PSScriptRoot '..\Outils\Initialiser-Essai.ps1') -Destination $Script:Essai -Python $env:COPIE_TEST_PYTHON | Out-Null
         $Script:Fenetre = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') `
             -Config (Join-Path $Script:Essai 'Gestion-Copie.essai.config.psd1') -SansAffichage -GroupeUtilisateur @('S-1-5-11')
+        InModuleScope Copie.Gui { Wait-CopieTache }       # l'état des règles arrive en arrière-plan
     }
     AfterAll { if ($Script:Fenetre) { $Script:Fenetre.Close() } }
     It 'crée un onglet par fichier et affiche le profil administrateur' {
@@ -176,9 +177,36 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $prod.Promouvoir.IsEnabled | Should -BeTrue
         $prod.Historique.IsEnabled | Should -BeTrue
     }
+    It 'lit l''état en arrière-plan : la liste du fichier s''affiche tout de suite, l''état arrive ensuite' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        $prod.Grille.SelectedIndex = 1
+        $choisie = $prod.Grille.SelectedItem.Id
+        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Update-CopieEtatVue -Vue $v }
+        # juste après le clic : fenêtre non bloquée, règles listées sans état, boutons grisés
+        $prod.Occupe | Should -BeTrue
+        $prod.Lignes.Count | Should -Be 3
+        @($prod.Lignes | Where-Object Statut -eq 'SUCCES').Count | Should -Be 0
+        $prod.BandeauTexte.Text | Should -Match 'en cours de lecture'
+        $prod.Actualiser.IsEnabled | Should -BeFalse
+        InModuleScope Copie.Gui { Wait-CopieTache }
+        $prod.Occupe | Should -BeFalse
+        ($prod.Lignes | Where-Object Id -eq 'export_clients').Statut | Should -Be 'SUCCES'
+        $prod.BandeauTexte.Text | Should -Not -Match 'en cours de lecture'
+        $prod.Grille.SelectedItem.Id | Should -Be $choisie
+        $prod.Actualiser.IsEnabled | Should -BeTrue
+    }
+    It 'ignore la réponse d''un onglet reconstruit entre-temps' {
+        $tabs = $Script:Fenetre.FindName('Tabs')
+        $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
+        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Update-CopieEtatVue -Vue $v; $Script:Vues.Remove($v.Cle) }
+        { InModuleScope Copie.Gui { Wait-CopieTache } } | Should -Not -Throw
+        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) $Script:Vues[$v.Cle] = $v }
+    }
     It 'passe en lecture seule pour un compte non administrateur' {
         $f = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') `
             -Config (Join-Path $Script:Essai 'Gestion-Copie.essai.config.psd1') -SansAffichage -GroupeUtilisateur @('DOMAINE\Autres')
+        InModuleScope Copie.Gui { Wait-CopieTache }
         try {
             $f.FindName('ModeText').Text | Should -Be 'LECTURE SEULE'
             ($f.FindName('Tabs').Items | ForEach-Object Header) | Should -Not -Contain 'production'

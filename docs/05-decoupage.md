@@ -30,7 +30,7 @@ J0 Socle ─► J1 Paramétrage ─► J2 Base ─► J3 Journal ─► J4 Trans
 | **J7** Programmes externes | Six points d'appel, liste de fichiers, variables, durées maximales, sorties dans le journal | J4 (J6 pour l'arrêt d'arbre) | M |
 | **J8** Commandes front-end | `--verifier` complet (accès, JSON), `--debloquer`, sorties JSON stables, documentation des échanges | J5, J6 | M |
 | **J9** Jenkins | Jenkinsfile type, Shared Library (événements de job), builds parallèles, exécuteurs, compte de service | J3, J6 | M |
-| **J10** Front-end | Écrans, validation via le moteur, enregistrement atomique, versions, actions d'exploitation, graphe. En quatre étapes A à D ([04-frontend §8](04-frontend.md)) ; les quatre étapes A à D (consultation, édition, exploitation, graphe, promotion et historique) sont faites | J1, J8 + maquettes | XL |
+| **J10** Front-end | Écrans, validation via le moteur, enregistrement atomique, versions, actions d'exploitation, graphe. En quatre étapes A à D ([04-frontend §8](04-frontend.md)) puis une étape de compléments E (point d'accès JEA, livraisons incertaines, état en arrière-plan, restauration) ; toutes sont faites | J1, J8 + maquettes | XL |
 | **J11** Migration et recette | `--migrer-ancien`, exécution en simulation sur les données réelles, passage en parallèle avec l'ancien script, bascule | J9 | L |
 | **J12** Gestion des fichiers | Purge des journaux et des archives par `id` de règle, paramétrée depuis le front-end | J10 | M |
 

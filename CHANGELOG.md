@@ -5,6 +5,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Une
 ## [Non publié]
 
 ### Ajouté
+- **J10 étape E — Front-end : compléments** (2026-11-11) : point d'accès JEA (module `Gui\Jea\Copie.Jea`, `Installer-PointAccesJea.ps1` : grammaire stricte, fichiers limités au dossier de paramétrage, compte tracé = compte de la session, écriture réservée au groupe administrateur) ; écran « Trancher… » des livraisons incertaines ; état des règles lu en arrière-plan à l'ouverture et à l'actualisation ; restauration d'une version depuis l'historique. Moteur : `--etat` liste les livraisons incertaines (`incertains` : clé, source, cible).
 - **J10 étape D — Front-end : graphe, promotion, historique** (2026-11-11) : onglet « Dépendances » (graphe coloré par statut, règle qui retient en rouge, clic pour sélectionner), historique des modifications (qui, quand, commentaire, différences champ par champ), promotion d'une règle vers un autre environnement avec adaptation des chemins, formulaire et enregistrement sécurisé de la cible.
 - **J10 étape C — Front-end : exploitation** (2026-11-10) : reprise (avec les règles dépendantes), lancement immédiat, acquittement, déblocage et purge (liste puis suppression) depuis l'interface, tracés avec le compte de l'administrateur ; exécution en arrière-plan de la vérification et de la purge ; bouton « Actualiser l'état ».
 - **J10 étape B — Front-end : édition** (2026-11-10) : formulaire de règle (ajouter, dupliquer, modifier), activer / désactiver, supprimer, tri automatique par dépendances. Enregistrement sécurisé : brouillon, vérification par le moteur, confirmation des avertissements, contrôle d'édition simultanée, version précédente avec fiche `.meta.json` (commentaire obligatoire), remplacement atomique. Moteur : commande `--modele-regle` (valeurs de secours et listes de valeurs). Paramètre `Parametrage.DossierBrouillons`.
@@ -24,5 +25,4 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Une
 - Spécifications de copie_fichiers v2 (Python 3.14) dans `docs\` (2026-11-03).
 
 ### À venir
-- Point d'accès JEA (`Invoke-CopieMoteurJea`) : spécifié, ni écrit ni testé ; écran de `--trancher-incertain` ; état chargé en arrière-plan à l'ouverture.
-- Restauration d'une version depuis l'historique.
+- Aucun jalon en attente : reste à rejouer le cahier de tests sur le serveur (Windows Server 2016) et à valider le point d'accès JEA sur un vrai serveur.

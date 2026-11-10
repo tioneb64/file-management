@@ -252,7 +252,8 @@ def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre
                   "prochain_creneau": _entier(planification.prochain_creneau(regle.planification, maintenant, fuseau)),
                   "dernier_succes": None, "derniere_erreur": None, "derniere_execution": None,
                   "reprise": False, "lancement_manuel": False, "arret_apres_erreur": False,
-                  "archivage_degrade": False, "actions_en_attente": 0, "livraisons_incertaines": 0}
+                  "archivage_degrade": False, "actions_en_attente": 0, "livraisons_incertaines": 0,
+                  "incertains": []}
         if ligne is not None:
             no = ligne["no"]
             derniere = base.derniere_execution(no)
@@ -264,7 +265,9 @@ def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre
                 "reprise": bool(ligne["reprise"]), "lancement_manuel": bool(ligne["lancement_manuel"]),
                 "arret_apres_erreur": bool(ligne["arret_apres_erreur"]),
                 "archivage_degrade": bool(ligne["archivage_degrade"]),
-                "actions_en_attente": base.nb_actions(no), "livraisons_incertaines": base.nb_incertains(no)})
+                "actions_en_attente": base.nb_actions(no), "livraisons_incertaines": base.nb_incertains(no),
+                "incertains": [{"cle": c.hex(), "source": src, "cible": cib}
+                               for c, src, cib in base.incertains(no)]})
             if ligne["derniere_erreur_le"]:
                 entree["derniere_erreur"] = {"le": ligne["derniere_erreur_le"],
                                              "situation": ligne["derniere_erreur_situation"],
