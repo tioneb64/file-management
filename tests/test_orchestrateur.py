@@ -716,5 +716,48 @@ class TestProcessus(unittest.TestCase):
             self.assertIsNone(orchestrateur.lire_resultat(e, 8))
 
 
+class TestCourseEntreLancements(CasChaine):
+    """Deux builds Jenkins qui evaluent la meme regle en meme temps : le second a lu une decision
+    (lancement manuel, reprise, creneau) que le premier a deja consommee en executant la regle.
+    Reproduit la course de facon deterministe : le second evalue AVANT, le premier va jusqu'au bout,
+    puis le second tente de prendre la regle (qui est libre de nouveau, mais sa decision est perimee)."""
+
+    def second_build_retardataire(self):
+        lanceur = lancement.Lancement()
+        second = orchestrateur.Orchestrateur(self.parametrage(), self.b, self.journal, lanceur, maintenant=self.ts,
+                                             maintenant_dt=lambda: self.maintenant, dormir=self.pauses.append,
+                                             direct=True)
+        pendantes = second._regles_dues()                    # le second build decide : la regle est due
+        self.assertEqual(len(pendantes), 1)
+        premier = self.lancer_env()                          # le premier build l'execute entierement
+        self.assertEqual(premier.compteurs["lancees"], 1)
+        second._lancer_prets(pendantes)                      # la regle est libre mais sa decision est perimee
+        self.assertEqual(second.fils, {})
+        self.assertEqual(lanceur.compteurs["lancees"], 0)
+        self.assertEqual(self.ordre_des_executions(), ["r1"])      # une seule execution
+        self.assertEqual(self.regle_base()["en_cours"], 0)
+
+    def test_lancement_manuel_consomme_par_l_autre_build(self):
+        self.brute()
+        self.fichier()
+        self.amorcer()
+        self.b.poser_lancement_manuel("r1", "essai")
+        self.second_build_retardataire()
+
+    def test_reprise_consommee_par_l_autre_build(self):
+        self.brute()
+        self.fichier()
+        self.amorcer()
+        self.b.poser_reprise("r1", "benoit", "essai")
+        self.second_build_retardataire()
+
+    def test_creneau_pris_par_l_autre_build(self):
+        self.brute()
+        self.fichier()
+        self.amorcer()
+        self.heure(7, 5)
+        self.second_build_retardataire()
+
+
 if __name__ == "__main__":
     unittest.main()

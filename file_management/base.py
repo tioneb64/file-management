@@ -331,12 +331,26 @@ class Base(object):
 
     # ----- flag « en cours » et executions (docs/03, sections 5.1 et 5.2) ---- #
     def demarrer_execution(self, regle_no, declencheur, pid, pid_cree_le=None, hote=None,
-                           build=None, simulation=False, creneau=None):
+                           build=None, simulation=False, creneau=None, controler_decision=False):
         """Prend le flag de la regle et cree l'execution, dans une seule transaction. Le creneau
         pris par cette execution est memorise ; les demandes de reprise ou de lancement manuel et
         l'arret apres erreur sont consommes. Renvoie l'id de l'execution, ou None si un autre
-        lancement a deja pris la regle."""
+        lancement a deja pris la regle.
+
+        `controler_decision` : la decision de lancer (reprise, lancement manuel, creneau echu) a
+        ete prise sur une lecture de la base qui peut etre perimee. Deux lancements simultanes
+        (builds Jenkins) la prennent tous deux, et le second trouve la regle libre parce que le
+        premier l'a deja executee. La prise est alors refusee si la demande a ete consommee ou le
+        creneau pris entre-temps : verification et prise sont atomiques (meme UPDATE)."""
         maintenant = self.maintenant()
+        condition, parametres = "", ()
+        if controler_decision:
+            if declencheur == "reprise":
+                condition = " AND reprise = 1"
+            elif declencheur == "manuel":
+                condition = " AND lancement_manuel = 1"
+            elif declencheur == "planifie" and creneau is not None:
+                condition, parametres = " AND (dernier_creneau IS NULL OR dernier_creneau < ?)", (creneau,)
         try:
             with self.transaction() as c:
                 cur = c.execute(
@@ -350,9 +364,9 @@ class Base(object):
                     "dernier_creneau = COALESCE(?, dernier_creneau), reprise = 0, "
                     "lancement_manuel = 0, arret_apres_erreur = 0, attente = NULL, "
                     "attente_motif = NULL, attente_depuis = NULL "
-                    "WHERE no = ? AND en_cours = 0",
+                    "WHERE no = ? AND en_cours = 0" + condition,
                     (execution_id, pid, pid_cree_le, hote, build, maintenant, maintenant, creneau,
-                     regle_no))
+                     regle_no) + parametres)
                 if cur.rowcount != 1:
                     raise _Annuler()
         except _Annuler:

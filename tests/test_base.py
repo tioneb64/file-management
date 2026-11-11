@@ -203,6 +203,22 @@ class TestRegles(CasBase):
 
 
 class TestFlagEtExecutions(CasBase):
+    def test_decision_perimee_refusee_si_controlee(self):
+        """Deux lancements ont decide sur la meme lecture ; le premier a deja consomme la demande."""
+        self.b.poser_lancement_manuel("r1", "essai")
+        ex = self.b.demarrer_execution(self.no, "manuel", 1, controler_decision=True)
+        self.assertIsNotNone(ex)
+        self.b.terminer_execution(ex, self.no, "SUCCES")
+        self.assertIsNone(self.b.demarrer_execution(self.no, "manuel", 2, controler_decision=True))
+        self.assertIsNone(self.b.demarrer_execution(self.no, "reprise", 2, controler_decision=True))
+        # le creneau est pris : seul un creneau plus recent peut l'etre a nouveau
+        ex = self.b.demarrer_execution(self.no, "planifie", 1, creneau=1000, controler_decision=True)
+        self.b.terminer_execution(ex, self.no, "SUCCES")
+        self.assertIsNone(self.b.demarrer_execution(self.no, "planifie", 2, creneau=1000, controler_decision=True))
+        self.assertIsNone(self.b.demarrer_execution(self.no, "planifie", 2, creneau=900, controler_decision=True))
+        self.assertIsNotNone(self.b.demarrer_execution(self.no, "planifie", 2, creneau=2000, controler_decision=True))
+        self.assertEqual(self.b.c.execute("SELECT COUNT(*) FROM executions").fetchone()[0], 3)
+
     def test_prise_puis_refus(self):
         premiere = self.b.demarrer_execution(self.no, "planifie", 1234, 99, "SRV", "42")
         self.assertIsNotNone(premiere)

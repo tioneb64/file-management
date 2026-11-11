@@ -183,10 +183,12 @@ class Orchestrateur(object):
         base = self.base
         execution_id = base.demarrer_execution(
             no, declencheur or decision.declencheur, os.getpid(), pid_cree_le=self.cree_le, hote=nom_hote(),
-            build=self.build, creneau=decision.creneau if creneau is None else creneau)
-        if execution_id is None:
+            build=self.build, creneau=decision.creneau if creneau is None else creneau,
+            controler_decision=True)
+        if execution_id is None:                      # prise par un autre lancement, ou sa demande/son creneau aussi
             self.lancement.compteurs["non_dues"] += 1
-            self.journal.evenement("regle_non_due", "INFO", regle=regle.id, motif="deja en cours")
+            self.journal.evenement("regle_non_due", "INFO", regle=regle.id,
+                                   motif="deja pris par un autre lancement")
             return None
         if self.direct:
             fils = self._executer_direct(regle, no, execution_id, declencheur or decision.declencheur,
