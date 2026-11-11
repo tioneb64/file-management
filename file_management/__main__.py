@@ -50,13 +50,22 @@ def _ouvrir_base(args, parametrage, lecture_seule=False):
         return None, _repondre(args, CODE_CONFIG, str(e))
 
 
-def _journal(args, parametrage, console=True):
+def _nouveau_journal(entete, console, evenement_debut="debut_lancement", evenement_fin="fin_lancement",
+                     **contexte):
+    """Journal au format de la plateforme d'observabilite : le code d'environnement vient de l'en-tete,
+    la trace est celle de la variable TRACEPARENT si un processus parent l'a donnee."""
     import journal_si
+    from file_management import catalogue_journal
     journal = journal_si.Journal()
-    journal.debut("file_management", parametrage.entete.environnement, dossier=parametrage.entete.dossier_logs,
-                  console=console and args.format != "json", evenement_debut="debut_lancement",
-                  evenement_fin="fin_lancement")
+    journal.catalogue = catalogue_journal.decrire
+    journal.debut("file_management", entete.code_environnement or entete.environnement,
+                  dossier=entete.dossier_logs, console=console, version=__version__,
+                  evenement_debut=evenement_debut, evenement_fin=evenement_fin, **contexte)
     return journal
+
+
+def _journal(args, parametrage, console=True):
+    return _nouveau_journal(parametrage.entete, console and args.format != "json")
 
 
 def _terminer_journal(journal, statut, compteurs, code):
@@ -208,11 +217,8 @@ def _executer_fils(args, parametrage):
     except base.ErreurBase as e:
         print("ERREUR : %s" % e, file=sys.stderr)
         return CODE_CONFIG
-    import journal_si
-    journal = journal_si.Journal()
-    journal.debut("file_management", entete.environnement, dossier=entete.dossier_logs,
-                  console=not os.environ.get("COPIE_SANS_CONSOLE"),
-                  evenement_debut="processus_regle_demarre", regle=regle.id)
+    journal = _nouveau_journal(entete, not os.environ.get("COPIE_SANS_CONSOLE"),
+                               evenement_debut="processus_regle_demarre", regle=regle.id)
     with b:
         ligne = b.execution(args.execution_id)
         if ligne is None or ligne["fin"] is not None or ligne["regle_no"] != b.numero_regle(regle.id):

@@ -20,7 +20,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import journal_si
 from file_management import __main__ as cli
 from file_management import lancement, orchestrateur, processus
-from tests.outils import CasTemporaire
+from tests.outils import CasTemporaire, lire_journaux
 from tests.test_orchestrateur import ATTENTE_LONGUE, SEPT_HEURES, CasProcessus
 
 RACINE = orchestrateur.RACINE
@@ -30,11 +30,7 @@ ENV_JENKINS = {"JOB_NAME": "COPIE_PROD", "BUILD_NUMBER": "1542", "BUILD_URL": "h
 
 
 def evenements_de(dossier):
-    resultat = []
-    for chemin in sorted(glob.glob(os.path.join(dossier, "*.jsonl"))):
-        with open(chemin, encoding="utf-8") as f:
-            resultat.extend(json.loads(l) for l in f)
-    return resultat
+    return lire_journaux(dossier)
 
 
 # =========================================================================== #
@@ -50,21 +46,24 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
         from unittest import mock
         with mock.patch.dict(os.environ, environnement, clear=True), redirect_stdout(sortie), redirect_stderr(erreur):
             code = journal_si.main(["--dossier", self.logs, "--application", "file_management",
-                                    "--environnement", "production"] + list(args))
+                                    "--environnement", "prod"] + list(args))
         return code, sortie.getvalue(), erreur.getvalue()
 
     def test_evenement_au_meme_format_que_le_module(self):
         self.ecrire("--evenement", "debut_job", "--champ", "message=bonjour", env=ENV_JENKINS)
         (e,) = evenements_de(self.logs)
         j = journal_si.Journal()
-        j.configurer("file_management", "production", self.chemin("autre"))
+        j.configurer("file_management", "prod", self.chemin("autre"))
         from unittest import mock
         with mock.patch.dict(os.environ, ENV_JENKINS):
             j.evenement("debut_job", message="bonjour")
         (reference,) = evenements_de(self.chemin("autre"))
+        e, reference = e["brut"], reference["brut"]
         self.assertEqual(list(e), list(reference))                     # memes champs, dans le meme ordre
-        self.assertEqual({k: v for k, v in e.items() if k != "horodatage"},
-                         {k: v for k, v in reference.items() if k != "horodatage"})
+        for cle in ("level", "message", "service", "context"):
+            self.assertEqual(e[cle], reference[cle], cle)
+        self.assertEqual(e["context"]["job"], "COPIE_PROD")
+        e = evenements_de(self.logs)[0]
         self.assertEqual((e["job"], e["build"], e["build_url"], e["noeud"]),
                          ("COPIE_PROD", "1542", "https://jenkins.exemple/job/COPIE_PROD/1542/", "SRV-JENKINS01"))
 
@@ -90,10 +89,12 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
         self.assertEqual(e["imbrique"], {"a": [1, 2]})
 
     def test_niveaux(self):
-        for niveau, attendu in (("INFO", "INFO"), ("WARNING", "WARNING"), ("ERREUR", "ERREUR"), ("inconnu", "INFO")):
+        for niveau, attendu in (("INFO", "INFO"), ("WARNING", "WARNING"), ("ERREUR", "ERROR"), ("ERROR", "ERROR"),
+                                  ("CRITICAL", "CRITICAL"), ("inconnu", "INFO")):
             self.ecrire("--evenement", "x_" + niveau, "--niveau", niveau)
         par_nom = {e["evenement"]: e["niveau"] for e in evenements_de(self.logs)}
-        self.assertEqual(par_nom, {"x_INFO": "INFO", "x_WARNING": "WARNING", "x_ERREUR": "ERREUR", "x_inconnu": "INFO"})
+        self.assertEqual(par_nom, {"x_INFO": "INFO", "x_WARNING": "WARNING", "x_ERREUR": "ERROR",
+                                    "x_ERROR": "ERROR", "x_CRITICAL": "CRITICAL", "x_inconnu": "INFO"})
 
     def test_ne_leve_jamais_d_echec(self):
         # fichier de champs absent, JSON invalide : l'evenement est ecrit sans les champs, code 0
@@ -119,7 +120,7 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
     def test_console(self):
         _, sortie, _ = self.ecrire("--evenement", "fin_job", "--niveau", "ERREUR", "--console")
         self.assertIn("fin_job", sortie)
-        self.assertIn("ERREUR", sortie)
+        self.assertIn("ERROR", sortie)
 
     def test_processus_reel_comme_le_fait_la_bibliotheque(self):
         """journal_si.py lance par `bat`, avec les variables d'environnement de Jenkins."""
@@ -128,7 +129,7 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
             f.write(json.dumps({"statut": "SUCCESS", "duree_ms": 4200}))
         env = dict(os.environ, **ENV_JENKINS)
         resultat = subprocess.run([sys.executable, os.path.join(RACINE, "journal_si.py"), "--dossier", self.logs,
-                                   "--application", "file_management", "--environnement", "production",
+                                   "--application", "file_management", "--environnement", "prod",
                                    "--evenement", "fin_job", "--niveau", "INFO", "--champs-json", champs],
                                   cwd=self.racine, env=env, capture_output=True)
         self.assertEqual((resultat.returncode, resultat.stdout, resultat.stderr), (0, b"", b""))
@@ -207,9 +208,9 @@ class TestFichiersJenkins(unittest.TestCase):
             self.assertIn(fonction, texte)
         # le statut Jenkins devient un niveau du journal
         ligne_niveaux = next(l for l in texte.splitlines() if "def niveaux" in l)
-        niveaux = dict(re.findall(r"(\w+): '(INFO|WARNING|ERREUR)'", ligne_niveaux))
+        niveaux = dict(re.findall(r"(\w+): '(INFO|WARNING|ERROR)'", ligne_niveaux))
         self.assertEqual(niveaux, {"SUCCESS": "INFO", "UNSTABLE": "WARNING", "ABORTED": "WARNING",
-                                   "FAILURE": "ERREUR", "NOT_BUILT": "INFO"})
+                                   "FAILURE": "ERROR", "NOT_BUILT": "INFO"})
         self.assertTrue(set(niveaux.values()) <= set(journal_si.NIVEAUX))
         # les options passees a journal_si.py existent
         for option in re.findall(r"' --([a-z-]+)", texte):
@@ -342,7 +343,7 @@ class TestJobSimule(CasLancementProcessus):
         with open(fichier, "w", encoding="utf-8") as f:
             json.dump(champs, f)
         subprocess.run([sys.executable, os.path.join(RACINE, "journal_si.py"), "--dossier", self.chemin("logs"),
-                        "--application", "file_management", "--environnement", "production", "--evenement", evenement,
+                        "--application", "file_management", "--environnement", "prod", "--evenement", evenement,
                         "--niveau", niveau, "--champs-json", fichier], cwd=self.racine, env=env, check=True)
 
     def test_sequence_complete_succes_et_avertissement(self):

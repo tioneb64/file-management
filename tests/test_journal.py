@@ -1,4 +1,4 @@
-"""J3 : journal d'evenements JSON (module journal_si)."""
+"""J3 : journal d'evenements JSON (module journal_si), au format de la plateforme d'observabilite."""
 import contextlib
 import glob
 import io
@@ -13,7 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import journal_si  # noqa: E402
-from tests.outils import CasTemporaire  # noqa: E402
+from tests.outils import CasTemporaire, aplatir  # noqa: E402
 from tests.travailleurs import lancer_en_parallele  # noqa: E402
 
 # 2026-11-03 06:30:12.481 UTC
@@ -33,17 +33,17 @@ class CasJournal(CasTemporaire):
         self.addCleanup(patcher.stop)
 
     def demarrer(self, **kw):
-        self.j.debut("file_management", "production", dossier=self.dossier, **kw)
+        self.j.debut("file_management", "prod", dossier=self.dossier, **kw)
 
     def lignes(self, motif="*.jsonl"):
-        """Toutes les lignes ecrites, en objets (chaque ligne doit etre un JSON valide)."""
+        """Toutes les lignes ecrites, aplaties (voir tests.outils.aplatir ; `brut` = la ligne telle quelle)."""
         resultat = []
         for chemin in sorted(glob.glob(os.path.join(self.dossier, motif))):
             with open(chemin, "rb") as f:
                 contenu = f.read()
             self.assertTrue(contenu.endswith(b"\n"), chemin)
             for ligne in contenu.decode("utf-8").split("\n")[:-1]:
-                resultat.append(json.loads(ligne))
+                resultat.append(aplatir(json.loads(ligne)))
         return resultat
 
     def fichiers(self):
@@ -57,15 +57,16 @@ class TestFormat(CasJournal):
                          fichier="\\\\SRV\\x\\C1.xml", taille=15234, duree_ms=182)
         debut, livre = self.lignes()
         self.assertEqual(debut["evenement"], "debut")
-        self.assertEqual(list(livre)[:6], ["horodatage", "niveau", "application", "environnement",
-                                           "regle", "execution_id"])
-        self.assertEqual(livre["horodatage"], "2026-11-03T06:30:12.481Z")
-        self.assertEqual((livre["niveau"], livre["application"], livre["environnement"],
-                          livre["regle"], livre["execution_id"], livre["evenement"]),
-                         ("INFO", "file_management", "production", "export_clients", 8812,
-                          "fichier_livre"))
-        self.assertEqual((livre["fichier"], livre["taille"], livre["duree_ms"]),
-                         ("\\\\SRV\\x\\C1.xml", 15234, 182))
+        brut = livre["brut"]
+        self.assertEqual(list(brut), ["timestamp", "duration_ms", "level", "message", "trace", "service", "context"])
+        self.assertEqual(brut["timestamp"], "2026-11-03T06:30:12.481Z")
+        self.assertEqual((brut["level"], brut["duration_ms"]), ("INFO", 182))
+        self.assertEqual(brut["service"], {"name": "file_management.export_clients", "version": "0.0.0",
+                                           "environment": "prod", "instance": journal_si.nom_machine()})
+        self.assertEqual((livre["regle"], livre["execution_id"], livre["evenement"]),
+                         ("export_clients", 8812, "fichier_livre"))
+        self.assertEqual((livre["fichier"], livre["taille"]), ("\\\\SRV\\x\\C1.xml", 15234))
+        self.assertNotIn("error", brut)                               # seulement pour ERROR et CRITICAL
 
     def test_horodatage_en_utc_au_format_iso(self):
         self.demarrer()
@@ -102,13 +103,15 @@ class TestFormat(CasJournal):
 
     def test_champs_reserves_non_ecrasables(self):
         self.demarrer()
-        self.j.evenement("test", horodatage="faux", niveau_x=1, application="autre", job="pirate")
+        self.j.evenement("test", event="faux", niveau_x=1, job="pirate", build_url="http://x", timestamp="libre")
         e = self.lignes()[1]
-        self.assertEqual(e["application"], "file_management")
-        self.assertEqual(e["x_horodatage"], "faux")
-        self.assertEqual(e["x_application"], "autre")
+        self.assertEqual(e["brut"]["context"]["event"], "test")
+        self.assertEqual(e["x_event"], "faux")
         self.assertEqual(e["x_job"], "pirate")
+        self.assertEqual(e["x_build_url"], "http://x")
         self.assertEqual(e["niveau_x"], 1)
+        self.assertEqual(e["timestamp"], "libre")                     # champ libre du contexte, pas la racine
+        self.assertEqual(e["brut"]["timestamp"], "2026-11-03T06:30:12.481Z")
 
     def test_valeurs_non_serialisables(self):
         self.demarrer()
@@ -137,10 +140,11 @@ class TestFormat(CasJournal):
     def test_niveaux(self):
         self.demarrer()
         self.j.evenement("a", "warning")
-        self.j.evenement("b", "ERREUR")
+        self.j.evenement("b", "ERREUR")                     # vocabulaire interne : devient ERROR
         self.j.evenement("c", "BIZARRE")
         self.j.evenement("d", "DEBUG")                      # ignore : pas en mode verbeux
-        self.assertEqual([l["niveau"] for l in self.lignes()][1:], ["WARNING", "ERREUR", "INFO"])
+        self.j.evenement("e", "critical")
+        self.assertEqual([l["niveau"] for l in self.lignes()][1:], ["WARNING", "ERROR", "INFO", "CRITICAL"])
 
     def test_mode_verbeux_garde_debug(self):
         self.demarrer(verbeux=True)
@@ -159,6 +163,137 @@ class TestFormat(CasJournal):
     def test_contexte_passe_a_debut(self):
         self.demarrer(lancement=12)
         self.assertEqual(self.lignes()[0]["lancement"], 12)
+
+
+class TestFormatPlateforme(CasJournal):
+    """Conformite au format des logs de la plateforme d'observabilite (docs/02-moteur.md, section 11)."""
+
+    def test_ordre_et_forme_des_champs(self):
+        self.demarrer(version="1.4.2")
+        brut = self.lignes()[0]["brut"]
+        self.assertEqual(list(brut), ["timestamp", "level", "message", "trace", "service", "context"])
+        self.assertRegex(brut["trace"]["trace_id"], r"^[0-9a-f]{32}$")
+        self.assertRegex(brut["trace"]["span_id"], r"^[0-9a-f]{16}$")
+        self.assertEqual(brut["service"]["version"], "1.4.2")
+        self.assertEqual(brut["service"]["name"], "file_management")           # sans regle : le nom de l'application
+        self.assertEqual(brut["message"], "debut")                              # sans catalogue : le nom de l'evenement
+        self.assertEqual(brut["context"]["event"], "debut")
+
+    def test_version_par_defaut_et_variable(self):
+        self.demarrer()
+        self.assertEqual(self.lignes()[0]["brut"]["service"]["version"], "0.0.0")
+        os.environ["JOURNAL_SI_VERSION"] = "2.3.4"
+        self.j.fermer()
+        self.j = journal_si.Journal(horloge=lambda: INSTANT)
+        self.addCleanup(self.j.fermer)
+        self.demarrer()
+        self.assertEqual(self.lignes()[-1]["brut"]["service"]["version"], "2.3.4")
+
+    def test_nom_de_service_par_regle(self):
+        self.demarrer()
+        self.j.evenement("a", regle="export clients")
+        e = self.lignes("export_clients_*.jsonl")[0]["brut"]
+        self.assertEqual(e["service"]["name"], "file_management.export_clients")
+
+    def test_objet_par_defaut(self):
+        self.demarrer()
+        self.j.evenement("a", regle="r1", fichier="\\\\SRV\\x\\C1.xml")
+        self.j.evenement("b", regle="r1")
+        self.j.evenement("c")
+        self.j.evenement("d", regle="r1", object="dossier", object_id="D:\\a")
+        os.environ.update({"JOB_NAME": "COPIE_PROD", "BUILD_NUMBER": "7"})
+        self.j.evenement("e")
+        par_nom = {l["evenement"]: l["brut"]["context"] for l in self.lignes() + self.lignes("r1_*.jsonl")}
+        self.assertEqual((par_nom["a"]["object"], par_nom["a"]["object_id"]), ("fichier", "C1.xml"))
+        self.assertEqual((par_nom["b"]["object"], par_nom["b"]["object_id"]), ("regle", "r1"))
+        self.assertEqual(par_nom["c"]["object"], "lancement")
+        self.assertEqual((par_nom["d"]["object"], par_nom["d"]["object_id"]), ("dossier", "D:\\a"))
+        self.assertEqual(par_nom["e"]["object_id"], "COPIE_PROD-7")
+        for contexte in par_nom.values():                       # object et object_id : toujours presents
+            self.assertTrue(contexte["object"] and contexte["object_id"])
+
+    def test_correlation_et_spans(self):
+        os.environ.update({"JOB_NAME": "COPIE_PROD", "BUILD_NUMBER": "7"})
+        self.demarrer()
+        self.j.evenement("a")
+        self.j.evenement("b", regle="r1", execution_id=11)
+        self.j.evenement("c", regle="r1", execution_id=11)
+        self.j.evenement("d", regle="r2", execution_id=12)
+        lignes = {l["evenement"]: l["brut"]["trace"] for l in self.lignes() + self.lignes("r*_*.jsonl")}
+        self.assertEqual(len({t["trace_id"] for t in lignes.values()}), 1)          # une seule trace
+        self.assertEqual(lignes["a"]["correlation_id"], "COPIE_PROD-7")
+        self.assertEqual(lignes["b"]["correlation_id"], "COPIE_PROD-7-r1")
+        self.assertEqual(lignes["b"]["span_id"], lignes["c"]["span_id"])             # meme execution : meme span
+        self.assertNotEqual(lignes["b"]["span_id"], lignes["d"]["span_id"])
+        self.assertEqual(lignes["b"]["span_id"], journal_si.span_regle(lignes["b"]["trace_id"], 11))
+
+    def test_trace_heritee_de_traceparent(self):
+        parent = "00-" + "ab" * 16 + "-" + "cd" * 8 + "-01"
+        os.environ["TRACEPARENT"] = parent
+        self.demarrer()
+        self.assertEqual(self.lignes()[0]["brut"]["trace"]["trace_id"], "ab" * 16)
+        enfant = self.j.traceparent()
+        self.assertRegex(enfant, r"^00-" + "ab" * 16 + r"-[0-9a-f]{16}-01$")
+        self.assertEqual(journal_si.lire_traceparent(enfant)[0], "ab" * 16)
+
+    def test_traceparent_invalide_ignore(self):
+        for valeur in ("n'importe quoi", "00-" + "0" * 32 + "-" + "cd" * 8 + "-01", "00-" + "AB" * 16 + "-" + "cd" * 8 + "-01"):
+            self.assertIsNone(journal_si.lire_traceparent(valeur), valeur)
+        os.environ["TRACEPARENT"] = "n'importe quoi"
+        self.demarrer()
+        self.assertRegex(self.lignes()[0]["brut"]["trace"]["trace_id"], r"^[0-9a-f]{32}$")
+
+    def test_erreur_obligatoire_pour_error_et_critical(self):
+        self.demarrer()
+        self.j.evenement("a", "ERREUR", message="boum")
+        self.j.evenement("b", "ERROR", error_type="FILE_NOT_FOUND", exception="OSError", stacktrace="trace", message="m")
+        self.j.evenement("c", "CRITICAL", message="grave")
+        self.j.evenement("d", "WARNING")
+        a, b, c, d = [l["brut"] for l in self.lignes()[1:]]
+        self.assertEqual(a["error"], {"type": "UNKNOWN_ERROR", "message": "boum"})
+        self.assertEqual(b["error"], {"type": "FILE_NOT_FOUND", "message": "m", "exception": "OSError",
+                                      "stacktrace": "trace"})
+        self.assertEqual((c["level"], c["error"]["type"]), ("CRITICAL", "UNKNOWN_ERROR"))
+        self.assertNotIn("error", d)
+        self.assertNotIn("error_type", b["context"])                  # consomme : n'apparait pas dans le contexte
+
+    def test_catalogue(self):
+        def catalogue(nom, niveau, champs):
+            if nom == "a":
+                return {"message": "Message du catalogue", "niveau": "CRITICAL", "error_type": "DB_CONNECTION_ERROR"}
+            return {"message": "autre"}
+        self.j.catalogue = catalogue
+        self.demarrer()
+        self.j.evenement("a", "ERREUR")
+        self.j.evenement("a", "ERREUR", message="explicite")                      # l'appelant l'emporte
+        self.j.evenement("b", "INFO")
+        _, a1, a2, b = [l["brut"] for l in self.lignes()]
+        self.assertEqual((a1["level"], a1["message"], a1["error"]["type"]), ("CRITICAL", "Message du catalogue",
+                                                                              "DB_CONNECTION_ERROR"))
+        self.assertEqual(a2["message"], "explicite")
+        self.assertEqual(b["message"], "autre")
+
+    def test_catalogue_defaillant_n_empeche_pas_d_ecrire(self):
+        def catalogue(nom, niveau, champs):
+            raise RuntimeError("explose")
+        self.j.catalogue = catalogue
+        self.demarrer()
+        self.j.evenement("a")
+        self.assertEqual((self.j.pannes(), [l["message"] for l in self.lignes()]), (0, ["debut", "a"]))
+
+    def test_message_et_duree_remontent_a_la_racine(self):
+        self.demarrer()
+        self.j.evenement("a", message="Bonjour", duree_ms=42)
+        brut = self.lignes()[1]["brut"]
+        self.assertEqual((brut["message"], brut["duration_ms"]), ("Bonjour", 42))
+        self.assertNotIn("message", brut["context"])
+        self.assertNotIn("duree_ms", brut["context"])
+
+    def test_aucune_valeur_hors_liste_pour_le_niveau(self):
+        self.demarrer()
+        for niveau in ("info", "ERREUR", "fatal", "TRACE", "", None):
+            self.j.evenement("a", niveau)
+        self.assertTrue({l["niveau"] for l in self.lignes()} <= set(journal_si.NIVEAUX))
 
 
 class TestFichiers(CasJournal):
@@ -211,13 +346,14 @@ class TestFichiers(CasJournal):
         self.assertEqual((fin["niveau"], fin["statut"], fin["compteurs"], fin["duree_ms"],
                           fin["code_retour"]), ("WARNING", "WARNING", {"livres": 4, "erreurs": 0},
                                                 12500, 4))
+        self.assertEqual(fin["brut"]["duration_ms"], 12500)
         self.assertEqual(self.j._ouverts, {})
         self.j.evenement("apres")                       # rouvre sans probleme
         self.assertEqual(len(self.lignes()), 3)
 
     def test_niveau_de_fin_selon_le_statut(self):
         for statut, niveau in (("OK", "INFO"), ("SUCCES", "INFO"), ("WARNING", "WARNING"),
-                               ("ERREUR", "ERREUR")):
+                               ("ERREUR", "ERROR")):
             self.dossier = self.chemin("logs_" + statut)
             self.j = journal_si.Journal(horloge=lambda: INSTANT)
             self.demarrer()
@@ -263,7 +399,7 @@ class TestPannes(CasJournal):
         self.assertIn("fichier_livre", erreur.getvalue())
         (nom,) = os.listdir(secours)
         with open(os.path.join(secours, nom), encoding="utf-8") as f:
-            evenements = [json.loads(l)["evenement"] for l in f]
+            evenements = [json.loads(l)["context"]["event"] for l in f]
         self.assertEqual(evenements, ["debut", "fichier_livre"])
 
     def test_secours_lui_meme_impossible(self):
@@ -341,7 +477,7 @@ class TestInterfaceDeModule(CasJournal):
     def test_trois_fonctions_du_module(self):
         journal_si._journal.fermer()
         with mock.patch.object(journal_si, "_journal", journal_si.Journal(horloge=lambda: INSTANT)):
-            journal_si.debut(application="file_management", environnement="production",
+            journal_si.debut(application="file_management", environnement="prod",
                              dossier=self.dossier)
             journal_si.definir(regle="r1")
             journal_si.evenement("fichier_livre", fichier="a.csv")
@@ -357,7 +493,7 @@ class TestCharge(CasTemporaire):
         vues = {}
         with open(os.path.join(dossier, nom), "rb") as f:
             for brut in f:
-                evenement = json.loads(brut.decode("utf-8"))          # une ligne corrompue leverait ici
+                evenement = aplatir(json.loads(brut.decode("utf-8")))     # une ligne corrompue leverait ici
                 if evenement["evenement"] == "ligne":
                     self.assertEqual(len(evenement["message"]), taille)
                     vues.setdefault(evenement["processus"], []).append(evenement["numero"])

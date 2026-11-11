@@ -78,7 +78,7 @@ Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
             $d = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
             $null = New-Item -ItemType Directory -Path $d
             $f = Join-Path $d "$nom.jsonl"
-            $entete = [pscustomobject]@{ version = 1; environnement = $nom; base = (Join-Path $d 'donnees\base.db') }
+            $entete = [pscustomobject]@{ version = 1; environnement = $nom; code_environnement = 'test'; base = (Join-Path $d 'donnees\base.db') }
             $a = & $Script:Nouvelle 'a'
             $b = & $Script:Nouvelle 'b' @{ apres = @('a') }
             $lignes = InModuleScope FileManagement.Gui -Parameters @{ e = $entete; a = $a; b = $b } { param($e, $a, $b) @(ConvertTo-CopieLigneJson $e; ConvertTo-CopieLigneJson $a; ConvertTo-CopieLigneJson $b) }

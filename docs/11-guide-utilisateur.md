@@ -207,7 +207,7 @@ Pour **revenir en arrière** (administrateurs) : choisissez la modification à d
 
 ## 11. Le journal de l'interface
 
-Le panneau du bas montre ce que fait l'interface (ouverture, appels du moteur avec leur code retour et leur durée, enregistrements, actions). Si `Journal.Dossier` est renseigné, le même journal est écrit chaque jour dans un fichier JSON Lines lu par la plateforme de surveillance : c'est **la trace de qui a fait quoi** côté interface (la base et le journal du moteur gardent leur propre trace).
+Le panneau du bas montre ce que fait l'interface (ouverture, appels du moteur avec leur code retour et leur durée, enregistrements, actions). Si `Journal.Dossier` est renseigné, le même journal est écrit chaque jour dans un fichier JSON Lines lu par la plateforme de surveillance : dans le format de la plateforme d'observabilité (service `file_management.interface`, `context.utilisateur` = le compte ; une session = une trace) : c'est **la trace de qui a fait quoi** côté interface (la base et le journal du moteur gardent leur propre trace).
 
 ## 12. Que faire quand…
 

@@ -69,8 +69,9 @@ def main():
                     corrompues += 1
                     continue
                 valides += 1
-                if evenement.get("evenement") == "ligne":
-                    vues.setdefault(evenement["processus"], []).append(evenement["numero"])
+                contexte = evenement.get("context", {})
+                if contexte.get("event") == "ligne":
+                    vues.setdefault(contexte["processus"], []).append(contexte["numero"])
         complets = all(vues.get(n) == list(range(args.lignes)) for n in range(args.processus))
         attendu = args.processus * args.lignes       # demarre et fin vont dans le fichier sans regle
         resultat.update({"lignes_valides": valides, "lignes_corrompues": corrompues,

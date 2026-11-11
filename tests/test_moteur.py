@@ -12,10 +12,10 @@ from unittest import mock
 
 import journal_si
 from file_management import base as modele_base
-from file_management import chemins, execution, transfert
+from file_management import catalogue_journal, chemins, execution, transfert
 from file_management.diagnostic import Rapport
 from file_management.parametrage import Entete, lire_regle
-from tests.outils import CasTemporaire
+from tests.outils import CasTemporaire, lire_journaux
 
 
 class Plantage(BaseException):
@@ -44,7 +44,8 @@ class CasMoteur(CasTemporaire):
         self.entete = Entete()
         self.entete.environnement = "production"
         self.journal = journal_si.Journal()
-        self.journal.debut("file_management", "production", dossier=self.chemin("logs"), verbeux=True)
+        self.journal.catalogue = catalogue_journal.decrire             # comme le moteur (__main__._nouveau_journal)
+        self.journal.debut("file_management", "prod", dossier=self.chemin("logs"), verbeux=True)
         self.addCleanup(self.journal.fermer)
         self.maintenant = datetime.datetime.now()
         self.pauses = []
@@ -71,10 +72,7 @@ class CasMoteur(CasTemporaire):
                                       dormir=dormir or self.pauses.append)
 
     def evenements(self, nom=None, niveau=None):
-        resultat = []
-        for chemin in sorted(glob.glob(self.chemin("logs", "*.jsonl"))):
-            with open(chemin, encoding="utf-8") as f:
-                resultat.extend(json.loads(l) for l in f)
+        resultat = lire_journaux(self.chemin("logs"))
         return [e for e in resultat if (nom is None or e["evenement"] == nom)
                 and (niveau is None or e["niveau"] == niveau)]
 
@@ -848,7 +846,7 @@ class TestArretBrutal(CasMoteur):
         self.assertEqual((bilan.statut, bilan.situation_finale), ("ERREUR", "erreur_interne"))
         etat = self.b.regle(self.no(r))
         self.assertEqual((etat["en_cours"], etat["dernier_statut"]), (0, "ERREUR"))
-        self.assertEqual(len(self.evenements("erreur_interne", "ERREUR")), 1)
+        self.assertEqual(len(self.evenements("erreur_interne", "CRITICAL")), 1)
 
 
 class TestSimulation(CasMoteur):

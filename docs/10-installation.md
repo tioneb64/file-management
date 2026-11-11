@@ -110,7 +110,7 @@ Les quatre Jenkinsfile (transfert toutes les 5 minutes, sauvegarde et vérificat
 
 Points à ne pas manquer :
 
-- adapter les cinq valeurs de la section `environment` de chaque Jenkinsfile (`COPIE_PYTHON`, `COPIE_DEPOT`, `COPIE_CONFIG`, `COPIE_LOGS`, `COPIE_ENV`) ; `COPIE_LOGS` est le `dossier_logs` du paramétrage (par défaut `logs` à côté de la base) ;
+- adapter les cinq valeurs de la section `environment` de chaque Jenkinsfile (`COPIE_PYTHON`, `COPIE_DEPOT`, `COPIE_CONFIG`, `COPIE_LOGS`, `COPIE_ENV`) ; `COPIE_ENV` est le **code de la plateforme d'observabilité** (`dev`, `build`, `test`, `pprod`, `prod`, `run`, `int`) ; `COPIE_LOGS` est le `dossier_logs` du paramétrage (par défaut `logs` à côté de la base) ;
 - **ne pas** désactiver les builds simultanés du job de transfert ;
 - **la sauvegarde de la base est une condition de mise en production** : sans elle, une base perdue ferait relivrer en mode `copie` tous les fichiers encore présents dans les sources ;
 - la purge (`Jenkinsfile.purge`) se lance d'abord **sans** `--appliquer`, jusqu'à ce que la liste ait été relue.
@@ -119,7 +119,7 @@ Points à ne pas manquer :
 
 ## 6. Journaux, Alloy, Grafana
 
-Le moteur écrit des fichiers JSON Lines dans `dossier_logs` ; la plateforme de surveillance les lit. Un exemple de configuration Alloy (non testé) est dans `exemples\alloy\file_management.alloy`, un exemple de sortie dans `exemples\journal\`. Les tableaux de bord et la configuration Alloy relèvent de l'équipe de la plateforme de surveillance. Le journal de l'interface (`Journal.Dossier`, §7) peut être lu de la même façon.
+Le moteur écrit des fichiers JSON Lines dans `dossier_logs` ; la plateforme de surveillance les lit. Un exemple de configuration Alloy (non testé) est dans `exemples\alloy\file_management.alloy`, un exemple de sortie dans `exemples\journal\`. Les tableaux de bord et la configuration Alloy relèvent de l'équipe de la plateforme de surveillance. Le format est celui de la plateforme d'observabilité ([02-moteur](02-moteur.md) §11) ; chaque environnement doit donc avoir un **code de plateforme** (champ `code_environnement` de l'en-tête, déduit du nom pour `production`, `preprod`, `recette`…). Le journal de l'interface (`Journal.Dossier` et `Journal.Environnement`, §7) est écrit dans le même format.
 
 ## 7. L'interface de gestion
 
@@ -139,6 +139,7 @@ L'interface (dossier `Gui\`) tourne sur le serveur d'exécution **ou** sur le po
 | `Moteur.ConfigurationJea` | Nom du point d'accès JEA (§8) ; vide : l'appel se fait avec le compte de l'administrateur |
 | `Parametrage.PeriodeDeclencheurSec` | Période du déclencheur Jenkins (300 pour « toutes les 5 minutes ») |
 | `Journal.Dossier` | Dossier du journal de l'interface (vide : pas de fichier) |
+| `Journal.Environnement` | Code d'environnement de la plateforme d'observabilité écrit dans ce journal (`dev`, `build`, `test`, `pprod`, `prod`, `run`, `int`). Défaut : `prod` |
 
 ### 7.3 Lancement
 

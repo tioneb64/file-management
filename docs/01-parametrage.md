@@ -21,6 +21,7 @@
 |---|---|---|---|
 | `version` | entier | oui | Version du format : `1` |
 | `environnement` | texte | oui | `[a-z0-9_-]{1,32}`, égal au nom du fichier |
+| `code_environnement` | texte | non | **Code d'environnement de la plateforme d'observabilité** (`dev`, `build`, `test`, `pprod`, `prod`, `run`, `int`), écrit dans chaque ligne du journal (`service.environment`). Absent : déduit du nom (`production` → `prod`, `preprod` → `pprod`, `recette` → `test`, `developpement` → `dev`, `integration` → `int`, ou un code lui-même). Un nom dont le code ne se déduit pas (`essai`, `copie`…) **exige** ce champ : refus **E08** sinon |
 | `racine` | chemin complet | non | **Racine de l'environnement.** Un chemin partiel de l'en-tête (`base`, `dossier_logs`, `dossier_travail`) ou d'une règle (`dossier_temporaire`, et `source` / `cible` à défaut de racine dédiée) se place sous elle ; un chemin complet est conservé. Le `\` final est facultatif. Copier un environnement n'oblige plus à réécrire tous les chemins : il suffit de changer la racine |
 | `racine_source` | chemin | non | Racine des dossiers `source` partiels des règles. Partielle, elle se place elle-même sous `racine`. Absente : `racine` |
 | `racine_cible` | chemin | non | Racine des dossiers `cible` partiels des règles. Mêmes règles. Absente : `racine` |
@@ -296,6 +297,7 @@ Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier
 | E05 | refus | `base` n'est pas un chemin réseau (SQLite en mode WAL ne le supporte pas) |
 | E06 | refus | Ligne JSON invalide, champ inconnu ou de mauvais type (avec le numéro de ligne) |
 | E07 | refus | `racine`, `racine_source` ou `racine_cible` non complète ; chemin partiel de l'en-tête sans racine pour le compléter |
+| E08 | refus | `code_environnement` hors de la liste de la plateforme, ou absent alors que le nom de l'environnement ne permet pas de le déduire |
 | R01 | refus | Champs obligatoires présents (`id`, `source`, `mode`, `planification`, et `cible` pour les modes de transfert) |
 | R02 | refus | `id` valide et unique, sans tenir compte de la casse |
 | R03 | refus | `source` différente de `cible` ; en mode récursif, `cible` hors de `source` |

@@ -177,7 +177,7 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
             $t.Programmes['avant_lot'].Commande.Text = "C:\outils\x.exe`r`n--option`r`n{regle}"
             $lecture = Read-CopieFormulaire -Etat $t
             if ($lecture.Erreurs.Count -gt 0) { return $lecture }
-            $entete = [pscustomobject]@{ version = 1; environnement = 'saisie'; base = (Join-Path $d 'x.db') }
+            $entete = [pscustomobject]@{ version = 1; environnement = 'saisie'; code_environnement = 'test'; base = (Join-Path $d 'x.db') }
             $fichier = Join-Path $d 'saisie.jsonl'
             [System.IO.File]::WriteAllText($fichier, ((ConvertTo-CopieLigneJson $entete) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
             $p = Read-CopieFichierParametrage -Chemin $fichier

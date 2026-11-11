@@ -16,6 +16,35 @@ function Test-CopieNomEnvironnement {
     $Nom -cmatch '^[a-z0-9_-]{1,32}$'
 }
 
+function Get-CopieCodesPlateforme {
+    <#
+    .SYNOPSIS
+        Codes d'environnement admis par la plateforme d'observabilité (champ service.environment du journal du moteur).
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+    'dev', 'build', 'test', 'pprod', 'prod', 'run', 'int'
+}
+
+function Get-CopieCodeEnvironnement {
+    <#
+    .SYNOPSIS
+        Code de la plateforme d'observabilité que le moteur déduit du nom d'un environnement (production -> prod), ou $null.
+    .DESCRIPTION
+        Même table que le moteur (parametrage.deduire_code_environnement) : le moteur reste seul juge (refus E08).
+    .PARAMETER Nom
+        Nom de l'environnement.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()] [string] $Nom = '')
+    $alias = @{ production = 'prod'; preprod = 'pprod'; preproduction = 'pprod'; 'pre-prod' = 'pprod'; recette = 'test'; developpement = 'dev'; integration = 'int' }
+    $n = $Nom.Trim().ToLowerInvariant()
+    if ((Get-CopieCodesPlateforme) -contains $n) { return $n }
+    if ($alias.ContainsKey($n)) { return $alias[$n] }
+    $null
+}
+
 function Test-CopieCheminAbsolu {
     <#
     .SYNOPSIS
@@ -37,7 +66,7 @@ function Test-CopieSaisieEnvironnement {
         Renvoie la liste des problèmes en français (vide si la saisie est acceptable). Ces contrôles ne servent qu'à
         guider l'utilisateur : tout ce qui est écrit est de nouveau vérifié par le moteur.
     .PARAMETER Saisie
-        Table : Nom, Racine, RacineSource, RacineCible, Base, DossierLogs, DossierTravail, ParalleleMax, RetentionExecutions,
+        Table : Nom, CodeEnvironnement, Racine, RacineSource, RacineCible, Base, DossierLogs, DossierTravail, ParalleleMax, RetentionExecutions,
         RetentionJournaux, MargeEspaceMo. Base, journaux et travail peuvent être partiels : ils se placent sous Racine.
     .PARAMETER Existants
         Les environnements déjà présents (Get-CopieEnvironnement), pour refuser un doublon de nom ou de base.
@@ -58,6 +87,15 @@ function Test-CopieSaisieEnvironnement {
     }
     elseif (@($Existants | Where-Object { $_.Nom -eq $nom -and $_.Nom -ne $Ignorer }).Count -gt 0) {
         $p.Add(('Un environnement « {0} » existe déjà.' -f $nom))
+    }
+    $code = "$($Saisie.CodeEnvironnement)".Trim()
+    if ($code) {
+        if ((Get-CopieCodesPlateforme) -cnotcontains $code) {
+            $p.Add(('Le code plateforme doit être l''une des valeurs : {0} (ou rester vide : il se déduit alors du nom).' -f ((Get-CopieCodesPlateforme) -join ', ')))
+        }
+    }
+    elseif ((Test-CopieNomEnvironnement -Nom $nom) -and -not (Get-CopieCodeEnvironnement -Nom $nom)) {
+        $p.Add(('Le code plateforme ne se déduit pas du nom « {0} » : choisissez-le parmi {1}.' -f $nom, ((Get-CopieCodesPlateforme) -join ', ')))
     }
     $racine = "$($Saisie.Racine)".Trim()
     if ($racine -and -not (Test-CopieCheminAbsolu -Chemin $racine)) {
@@ -113,6 +151,7 @@ function ConvertTo-CopieEnteteEnvironnement {
     [OutputType([pscustomobject])]
     param([Parameter(Mandatory)] [hashtable] $Saisie)
     $e = [ordered]@{ version = 1; environnement = "$($Saisie.Nom)".Trim() }
+    if ("$($Saisie.CodeEnvironnement)".Trim()) { $e['code_environnement'] = "$($Saisie.CodeEnvironnement)".Trim() }
     foreach ($def in @(@('Racine', 'racine'), @('RacineSource', 'racine_source'), @('RacineCible', 'racine_cible'))) {
         $v = "$($Saisie[$def[0]])".Trim()
         if ($v) { $e[$def[1]] = $v }
@@ -142,7 +181,7 @@ function ConvertFrom-CopieEnteteEnvironnement {
     param([Parameter(Mandatory)] $Entete)
     $texte = { param($objet, $nom) $v = Get-CopieValeur $objet $nom $null; if ($null -eq $v) { '' } else { "$v" } }
     @{
-        Nom = (& $texte $Entete 'environnement'); Racine = (& $texte $Entete 'racine'); RacineSource = (& $texte $Entete 'racine_source')
+        Nom = (& $texte $Entete 'environnement'); CodeEnvironnement = (& $texte $Entete 'code_environnement'); Racine = (& $texte $Entete 'racine'); RacineSource = (& $texte $Entete 'racine_source')
         RacineCible = (& $texte $Entete 'racine_cible'); Base = (& $texte $Entete 'base'); DossierLogs = (& $texte $Entete 'dossier_logs')
         DossierTravail = (& $texte $Entete 'dossier_travail'); ParalleleMax = (& $texte $Entete 'parallele_max')
         RetentionExecutions = (& $texte $Entete 'retention_executions_jours'); RetentionJournaux = (& $texte $Entete 'retention_journaux_jours')
@@ -520,6 +559,11 @@ function Rename-CopieEnvironnement {
         $entete = Copy-CopieObjet -Objet $Environnement.Parametrage.Entete
         if ($null -ne $entete.PSObject.Properties['Ligne']) { $entete.PSObject.Properties.Remove('Ligne') }
         $entete.environnement = $NouveauNom
+        # Le code de la plateforme suit le renommage quand le nouveau nom ne permet pas de le déduire.
+        if (-not "$(Get-CopieValeur $entete 'code_environnement' '')".Trim() -and -not (Get-CopieCodeEnvironnement -Nom $NouveauNom)) {
+            $codeAncien = Get-CopieCodeEnvironnement -Nom $ancien
+            if ($codeAncien) { $entete | Add-Member -NotePropertyName 'code_environnement' -NotePropertyValue $codeAncien -Force }
+        }
         $brouillon = Confirm-CopieBrouillonEnvironnement -Config $Config -Dossier $dossier -Entete $entete -Regle @($Environnement.Parametrage.Regles) -Confirmer $Confirmer
         if (-not $brouillon.Ok) { return $brouillon.Resultat }
         try { [System.IO.File]::Move($brouillon.Brouillon, $nouveauFichier) }

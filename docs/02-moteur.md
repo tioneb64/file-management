@@ -355,12 +355,14 @@ Cas d'exploitation :
 ### 11.1 Interface du module commun
 
 ```python
-journal.debut(application="file_management", environnement="production")
+journal.debut(application="file_management", environnement="prod")
 journal.evenement("fichier_livre", regle="export_clients", fichier=..., taille=..., sha256=..., duree_ms=...)
 journal.fin(statut="WARNING", compteurs={...})
 ```
 
 Les programmes n'appellent que ces trois fonctions. Le fonctionnement interne (aujourd'hui : fichiers lus par Alloy ; demain : envoi direct) peut changer sans modifier les appelants. **Une panne de journalisation ne doit jamais arrêter un transfert (G7)** : repli sur la sortie d'erreur et sur un fichier de secours local.
+
+Le journal suit le **format de la plateforme d'observabilité** (documents `format-log.md` et `labels-metadata.md` du projet de la plateforme) : c'est elle qui fait foi, ce document ne fait que décrire comment le moteur l'applique. `environnement` est donc un **code de la plateforme** (`dev`, `build`, `test`, `pprod`, `prod`, `run`, `int`), pas le nom de l'environnement du paramétrage (voir [01-parametrage](01-parametrage.md), champ `code_environnement`).
 
 ### 11.2 Fichiers
 
@@ -378,54 +380,94 @@ Les programmes n'appellent que ces trois fonctions. Le fonctionnement interne (a
 
 ### 11.3 Format
 
+Une ligne = un objet JSON (UTF-8). Exemple (mis en forme pour la lecture ; dans le fichier tout tient sur une ligne) :
+
 ```json
-{"horodatage":"2026-11-03T06:30:12.481Z","niveau":"INFO","application":"file_management",
- "environnement":"production","job":"COPIE_PROD","build":"1542","build_url":"https://jenkins/job/COPIE_PROD/1542/",
- "noeud":"SRV-JENKINS01","regle":"export_clients","execution_id":8812,
- "evenement":"fichier_livre","fichier":"\\\\SRV-PROD01\\exports\\clients\\C1.xml","cible":"D:\\SFTP\\out\\clients\\C1_20261103_063012.xml",
- "taille":15234,"sha256":"9f86d0…","duree_ms":182,"statut":"OK","message":"…"}
+{"timestamp":"2026-11-03T06:30:13.100Z","duration_ms":182,"level":"INFO","message":"Fichier livre : C1.xml",
+ "trace":{"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"323b5425db4aa390","correlation_id":"COPIE_PROD-1542-export_clients"},
+ "service":{"name":"file_management.export_clients","version":"2.0.0","environment":"prod","instance":"srv-copie01"},
+ "context":{"object":"fichier","object_id":"C1.xml","event":"fichier_livre","job":"COPIE_PROD","build":"1542",
+  "build_url":"https://jenkins/job/COPIE_PROD/1542/","noeud":"SRV-JENKINS01","regle":"export_clients","execution_id":8812,
+  "fichier":"\\\\SRV-PROD01\\exports\\clients\\C1.xml","cible":"D:\\SFTP\\out\\clients\\C1_20261103_063012.xml","taille":15234,"sha256":"9f86d0…"}}
 ```
 
-- Horodatage en UTC. Les variables Jenkins (`JOB_NAME`, `BUILD_NUMBER`, `BUILD_URL`, `NODE_NAME`) sont ajoutées automatiquement.
-- Niveaux : `INFO`, `WARNING`, `ERREUR` (et `DEBUG` en mode verbeux).
-- **Libellés Loki conseillés** (peu de valeurs différentes) : `application`, `environnement`, `regle`, `niveau`. Jamais le nom du fichier.
+| Champ | Contenu |
+|---|---|
+| `timestamp` | UTC, ISO 8601, millisecondes |
+| `duration_ms` | Durée de l'opération, si elle a un sens (`regle_terminee`, `fichier_livre`, `fin_lancement`) |
+| `level` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` : **aucune autre valeur**. Le vocabulaire interne du moteur reste `ERREUR` (statuts, base, interface) ; il est traduit en `ERROR` à l'écriture |
+| `message` | Texte lisible, **obligatoire** : celui de l'appelant, sinon celui du catalogue (§11.4) |
+| `trace.trace_id` | 32 caractères hexadécimaux : **un lancement = une trace**, partagée avec les processus fils (variable `TRACEPARENT`, norme W3C) |
+| `trace.span_id` | 16 hexadécimaux : un span par exécution de règle (calculé à partir de la trace et de l'identifiant d'exécution : le même dans l'orchestrateur et dans le processus fils) ; le span du lancement pour le reste |
+| `trace.correlation_id` | `<job>-<build>` Jenkins (sinon le `trace_id`), suivi de `-<règle>` pour les événements d'une règle |
+| `service.name` | `file_management.<règle>` pour les événements d'une règle, `file_management` sinon |
+| `service.version` | Version du moteur (semver : `2.0.0-dev.0` pour l'instant), ou variable `JOURNAL_SI_VERSION` pour un autre programme |
+| `service.environment` | Code de la plateforme (`code_environnement` de l'en-tête) |
+| `service.instance` | Nom de la machine, en minuscules |
+| `context.object`, `context.object_id` | **Obligatoires.** `fichier` + nom du fichier (sans son dossier) quand l'événement porte un fichier ; sinon `regle` + identifiant de la règle ; sinon `lancement` + `<job>-<build>` (ou la trace). L'appelant peut les fixer (`object=`, `object_id=`) |
+| `context.event` | Nom de l'événement (§11.4) |
+| `context.*` | Variables Jenkins (`job`, `build`, `build_url`, `noeud`, seulement si présentes), `regle`, `execution_id`, puis les champs de l'appelant. Un champ de l'appelant qui porte un nom réservé (`object`, `object_id`, `event`, `job`, `build`, `build_url`, `noeud`) est conservé sous `x_<nom>` |
+| `error` | **Obligatoire pour `ERROR` et `CRITICAL`, absent sinon** : `type` (liste des erreurs de la plateforme, §11.4), `message`, et si connus `exception` et `stacktrace` |
+
+- **Niveaux** : `ERROR` pour une situation en erreur ; `CRITICAL` quand le service ne peut plus travailler ou que l'état des données est incertain et qu'une personne doit intervenir : `base_indisponible`, `livraison_incertaine`, `erreur_interne` et le disque plein de la cible (`espace_insuffisant_cible`). `DEBUG` seulement en mode verbeux.
+- **Libellés Loki** (imposés par la plateforme) : `environnement`, `instance`, `level`, `service_name`, `object`, `error_type`. `object_id`, `trace_id`, la règle, le fichier… restent dans la ligne (métadonnées) : jamais en libellé. `service_name` prend une valeur par règle : à surveiller si le nombre de règles grandit (voir le CHANGELOG).
+- Pas de donnée sensible dans le journal (mots de passe, jetons) : le moteur n'en écrit pas ; un programme appelé qui en afficherait les verrait recopiés dans `sortie`.
 
 ### 11.4 Catalogue des événements
 
-| Événement | Niveau habituel | Contenu |
-|---|---|---|
-| `debut_lancement`, `fin_lancement` | INFO | Compteurs par statut, code retour (bilan de l'état persistant) |
-| `regle_demarree`, `regle_terminee` | INFO | Déclencheur, statut, durée, compteurs |
-| `regle_non_lancee` | `si_condition_non_remplie` | Motif (`BLOQUEE` / `EN_ATTENTE`), règle bloquante |
-| `regle_orpheline` | WARNING | Règle en base absente du paramétrage |
-| `controle_prealable` | INFO / ERREUR | Résultat de chaque contrôle |
-| `selection` | INFO | Nombre de candidats, ignorés, trop récents |
-| `fichier_livre` | INFO | Source, cible, taille, SHA-256, durée |
-| `fichier_ignore` | DEBUG | Déjà livré |
-| `doublon_contenu` | INFO | Contenu déjà livré |
-| `tentative_echouee` | WARNING | Situation, numéro de tentative |
-| `fichier_erreur` | niveau de la situation | Situation, message |
-| `fichier_supprime`, `fichier_archive` | INFO | Chemins |
-| `action_differee` | WARNING | Type d'action mémorisée |
-| `archivage_degrade`, `archivage_retabli` | WARNING / INFO | Nombre d'actions en attente |
-| `programme_appele` | INFO / niveau de la situation | Commande, code retour, durée, sortie |
-| `reprise_demandee`, `reprise_demarree`, `acquittement`, `deblocage` | INFO | Compte, commentaire |
-| `duree_depassee`, `arret_anormal` | ERREUR | Durée, action appliquée |
-| `base_indisponible` | ERREUR | Message |
+Les noms d'événements restent ceux du moteur (`context.event`). Le **message** de la plateforme vient du catalogue [file_management/catalogue_journal.py](../file_management/catalogue_journal.py) quand l'appelant n'en donne pas ; le **type d'erreur** et le niveau `CRITICAL` aussi. Un test (`tests/test_format_plateforme.py`) vérifie que tout événement émis par le moteur a son message au catalogue.
+
+| Événement | Niveau habituel | `error.type` | Contenu |
+|---|---|---|---|
+| `debut_lancement`, `fin_lancement` | INFO (ERROR si le lancement finit en erreur) | `UNKNOWN_ERROR` | Compteurs par statut, code retour (bilan de l'état persistant) |
+| `regle_demarree`, `regle_terminee` | INFO (`regle_terminee` suit le statut) | selon la `situation` finale, sinon `UNKNOWN_ERROR` | Déclencheur, statut, situation, durée, compteurs |
+| `regle_non_lancee` | `si_condition_non_remplie` | `BUSINESS_RULE_VIOLATION` | Motif (`BLOQUEE` / `EN_ATTENTE`), règle bloquante |
+| `regle_orpheline` | WARNING | | Règle en base absente du paramétrage |
+| `controle_prealable` | INFO | | Résultat de chaque contrôle |
+| `selection` | INFO | | Nombre de candidats, ignorés, trop récents |
+| `fichier_livre` | INFO | | Source, cible, taille, SHA-256, durée |
+| `fichier_ignore` | DEBUG | | Déjà livré |
+| `doublon_contenu` | INFO | `DUPLICATE_ENTITY` | Contenu déjà livré |
+| `tentative_echouee` | WARNING | | Situation, numéro de tentative |
+| `fichier_erreur`, `regle_anomalie` | niveau de la situation | selon la situation (tableau ci-dessous) ; **CRITICAL** pour `espace_insuffisant_cible` | Situation, message |
+| `fichier_supprime`, `fichier_archive` | INFO | | Chemins |
+| `action_differee` | WARNING | | Type d'action mémorisée |
+| `archivage_degrade`, `archivage_retabli` | WARNING / INFO | | Nombre d'actions en attente |
+| `programme_appele` | INFO / niveau de la situation | `EXTERNAL_SERVICE_ERROR` | Commande, code retour, durée, sortie |
+| `reprise_demandee`, `reprise_demarree`, `acquittement`, `deblocage` | INFO | | Compte, commentaire |
+| `duree_depassee` | WARNING puis ERROR | `TIMEOUT` | Durée, action appliquée |
+| `arret_anormal` | ERROR | `INTERNAL_ERROR` | Message |
+| `erreur_interne` | **CRITICAL** | `INTERNAL_ERROR` (+ `exception`) | Exception non prévue dans une règle |
+| `base_indisponible` | **CRITICAL** | `DB_CONNECTION_ERROR` | Message |
+| `livraison_incertaine` | **CRITICAL** | `FILE_IO_ERROR` | Fichier dont la livraison est à trancher à la main |
+| `dossier_creation_impossible` | ERROR | `FILE_IO_ERROR` | Rôle, chemin |
+
+Types d'erreur par situation (paramétrage, [01-parametrage](01-parametrage.md) §situations) :
+
+| Situations | `error.type` |
+|---|---|
+| `source_inaccessible`, `cible_inaccessible`, `archive_inaccessible`, `fichier_verrouille`, `fichier_instable`, `copie_echec`, `verification_echec`, `source_modifiee`, `suppression_echec`, `archivage_echec` | `FILE_IO_ERROR` |
+| `espace_insuffisant_cible` (CRITICAL), `espace_insuffisant_archive` | `RESOURCE_EXHAUSTED` |
+| `fichier_disparu`, `aucun_fichier` | `FILE_NOT_FOUND` |
+| `fichier_existe_cible`, `fichier_existe_archive`, `doublon_contenu` | `DUPLICATE_ENTITY` |
+| `programme_avant_lot`, `programme_avant_fichier`, `programme_apres_fichier`, `programme_apres_lot`, `programme_reprise` | `EXTERNAL_SERVICE_ERROR` |
 
 ### 11.5 Précisions apportées par l'implémentation (J3)
 
 Le module est le fichier autonome [journal_si.py](../journal_si.py), à la racine du dépôt : un autre programme du S.I. peut le copier tel quel.
 
-- **Appel** : `debut(application, environnement, dossier=…, verbeux=False, console=False, dossier_secours=None, evenement_debut="debut", evenement_fin="fin", **contexte)`, `evenement(nom, niveau="INFO", **champs)`, `fin(statut="OK", compteurs=None, **champs)`. Le moteur passe `evenement_debut="debut_lancement"` et `evenement_fin="fin_lancement"`. `definir(regle=…, execution_id=…)` ajoute des champs à tous les événements suivants (un processus fils d'exécution y met sa règle). Dossier par défaut : variable d'environnement `JOURNAL_SI_DOSSIER`, sinon `logs`.
-- **`fin`** ajoute `duree_ms` (depuis `debut`), `statut` et `compteurs`, et son niveau suit le statut (`ERREUR` → ERREUR, `WARNING` → WARNING, le reste INFO). Elle ferme les fichiers.
+- **Appel** : `debut(application, environnement, dossier=…, verbeux=False, console=False, dossier_secours=None, evenement_debut="debut", evenement_fin="fin", version=None, instance=None, trace_id=None, **contexte)`, `evenement(nom, niveau="INFO", **champs)`, `fin(statut="OK", compteurs=None, **champs)`. Le moteur passe `evenement_debut="debut_lancement"` et `evenement_fin="fin_lancement"`. `definir(regle=…, execution_id=…)` ajoute des champs à tous les événements suivants (un processus fils d'exécution y met sa règle). Dossier par défaut : variable d'environnement `JOURNAL_SI_DOSSIER`, sinon `logs`.
+- **`fin`** ajoute `duration_ms` (depuis `debut`), `statut` et `compteurs`, et son niveau suit le statut (`ERREUR` → ERROR, `WARNING` → WARNING, le reste INFO). Elle ferme les fichiers.
+- **Catalogue** : l'attribut `journal.catalogue` (fonction `(nom, niveau, champs) → {message, niveau, error_type, exception}`) complète chaque ligne ; le moteur y met `catalogue_journal.decrire`. Un catalogue défaillant n'empêche jamais d'écrire. La valeur passée par l'appelant (`message=`, `error_type=`) l'emporte toujours.
+- **Trace** : `trace_id` = paramètre, sinon variable `TRACEPARENT` (`00-<trace>-<span>-01`), sinon nouveau. `journal.traceparent()` donne la valeur à passer à un processus fils : l'orchestrateur la place dans l'environnement de chaque processus de règle.
 - **Fichiers** : le jour du nom de fichier est le **jour local** du serveur ; l'horodatage de chaque ligne reste en UTC. Un événement sans `regle` va dans `_orchestrateur_<jour>.jsonl`. Le nom de règle est assaini (`[A-Za-z0-9_.-]`, le reste devient `_`) pour qu'il ne sorte jamais du dossier.
-- **Ordre des champs** : `horodatage`, `niveau`, `application`, `environnement`, variables Jenkins (`job`, `build`, `build_url`, `noeud`, seulement si présentes), `regle`, `execution_id`, `evenement`, puis les champs de l'appelant. Un champ de l'appelant qui porte le nom d'un champ réservé est conservé sous `x_<nom>` (il n'écrase jamais le champ du module).
+- **Ordre des champs** : `timestamp`, `duration_ms` (si connue), `level`, `message`, `trace`, `service`, `context`, `error` (si ERROR ou CRITICAL). Dans `context` : `object`, `object_id`, `event`, variables Jenkins, `regle`, `execution_id`, puis les champs de l'appelant (un nom réservé devient `x_<nom>`).
+- **Champs consommés** : `message`, `duree_ms` (→ `duration_ms`), `object`, `object_id`, `error_type`, `exception` et `stacktrace` ne vont pas dans `context` : ils alimentent les champs de la racine et de `error`.
 - **Écriture atomique** : sous Windows, la ligne est écrite avec `WriteFile` sur un handle ouvert avec `FILE_APPEND_DATA` seul : le système place chaque écriture à la fin du fichier, même entre processus. **L'option `O_APPEND` du C ne suffit pas** : mesurée sur le poste de développement avec 8 processus écrivant 16 000 lignes de 3,5 Ko, il reste 9 098 lignes dont 1 460 corrompues (les autres sont perdues ou mélangées). Le fichier est ouvert avec un partage complet (lecture, écriture, suppression) : Alloy peut le lire et la purge peut le supprimer.
 - **Bornage** : un champ texte de plus de 4 000 caractères est coupé et suffixé `...[tronque, N caracteres]` (sorties de programmes). Les valeurs non convertibles en JSON (`Path`, `bytes`, ensembles, dates) sont converties ; un nom de fichier Windows avec un caractère isolé ne fait pas échouer l'écriture.
 - **Panne (G7)** : jamais d'exception. En cas d'échec (dossier absent et non créable, disque plein, droits), la ligne est écrite sur la sortie d'erreur et dans `journal_si_secours_<jour>.jsonl` (dossier `dossier_secours`, sinon dossier temporaire du compte), `pannes()` compte les incidents et la prochaine écriture retente le dossier normal. Le moteur doit ajouter un WARNING au bilan quand `pannes() > 0`.
-- **Console** : avec `console=True`, chaque événement est aussi écrit en une ligne lisible sur la sortie standard (console Jenkins).
-- **Ligne de commande** (jalon J9) : `python journal_si.py --dossier D --application A --environnement E --evenement NOM [--niveau INFO] [--regle ID] [--champ cle=valeur] [--champs-json FICHIER] [--console]` écrit un événement au format du module (utilisée par la bibliothèque Jenkins). Sort **toujours avec le code 0** ; une panne est signalée sur la sortie d'erreur et repliée dans le fichier de secours. `--champs-json` accepte un objet JSON UTF-8 (avec ou sans BOM) et conserve les types.
+- **Console** : avec `console=True`, chaque événement est aussi écrit en une ligne lisible sur la sortie standard (console Jenkins) : heure, niveau, événement, règle/fichier/statut, `message=…`.
+- **Ligne de commande** (jalon J9) : `python journal_si.py --dossier D --application A --environnement E --evenement NOM [--niveau INFO] [--message TEXTE] [--regle ID] [--champ cle=valeur] [--champs-json FICHIER] [--console]` écrit un événement au format du module (`E` doit être un code de la plateforme ; sinon un avertissement est écrit sur la sortie d'erreur, et la ligne l'est quand même ; `--niveau ERREUR` est accepté et écrit `ERROR`) (utilisée par la bibliothèque Jenkins). Sort **toujours avec le code 0** ; une panne est signalée sur la sortie d'erreur et repliée dans le fichier de secours. `--champs-json` accepte un objet JSON UTF-8 (avec ou sans BOM) et conserve les types.
 - **Exemple de sortie** : [exemples/journal/](../exemples/journal/) ; **exemple de configuration Alloy** (non testé) : [exemples/alloy/file_management.alloy](../exemples/alloy/file_management.alloy).
 
 ## 12. Intégration Jenkins

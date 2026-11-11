@@ -1,6 +1,6 @@
 /**
  * Bibliotheque partagee "journal-si" : evenements de niveau JOB, dans le meme format JSON que le
- * module Python journal_si.py (fichiers lus par Grafana Alloy).
+ * module Python journal_si.py (format de la plateforme d'observabilite, fichiers lus par Grafana Alloy).
  *
  * Elle n'ecrit RIEN elle-meme : elle appelle `python journal_si.py`, qui est la seule source du
  * format. Une panne de journalisation n'echoue jamais le build (un message est affiche).
@@ -8,12 +8,13 @@
  * Utilisation (voir jenkins/Jenkinsfile.transfert) :
  *
  *   @Library('journal-si') _
- *   journalSI.debutJob(application: 'file_management', environnement: 'production', dossier: 'D:\\Copie\\logs')
+ *   journalSI.debutJob(application: 'file_management', environnement: 'prod', dossier: 'D:\\Copie\\logs')
  *   ...
- *   post { always { script { journalSI.finJob(application: 'file_management', environnement: 'production',
+ *   post { always { script { journalSI.finJob(application: 'file_management', environnement: 'prod',
  *                                             dossier: 'D:\\Copie\\logs') } } }
  *
- * Parametres communs : application, environnement, dossier (obligatoires) ; champs (Map de champs
+ * Parametres communs : application, environnement (code de la plateforme : dev, build, test, pprod, prod,
+ * run, int), dossier (obligatoires) ; champs (Map de champs
  * supplementaires) ; python (defaut : variable COPIE_PYTHON, sinon `python`) ;
  * script (defaut : %COPIE_DEPOT%\journal_si.py).
  * Les champs job, build, build_url et noeud sont ajoutes par journal_si.py a partir des variables
@@ -21,7 +22,7 @@
  */
 import groovy.json.JsonOutput
 
-/** Un evenement quelconque : evenement (obligatoire), niveau (INFO, WARNING, ERREUR, defaut INFO). */
+/** Un evenement quelconque : evenement (obligatoire), niveau (INFO, WARNING, ERROR, CRITICAL, defaut INFO). */
 def evenement(Map p) {
     try {
         controler(p.application, 'application')
@@ -53,19 +54,19 @@ def evenement(Map p) {
 
 /** Debut du job. */
 def debutJob(Map p) {
-    evenement(p + [evenement: 'debut_job', niveau: 'INFO'])
+    evenement(p + [evenement: 'debut_job', niveau: 'INFO', champs: [message: 'Job demarre'] + (p.champs ?: [:])])
 }
 
 /**
  * Fin du job, a appeler dans `post { always { ... } }`. Ajoute le statut Jenkins (SUCCESS, UNSTABLE,
  * FAILURE, ABORTED), la duree en millisecondes ; le niveau suit le statut :
- * SUCCESS -> INFO, UNSTABLE et ABORTED -> WARNING, FAILURE -> ERREUR. Parametre facultatif : codeRetour (le code retour du moteur, entier).
+ * SUCCESS -> INFO, UNSTABLE et ABORTED -> WARNING, FAILURE -> ERROR. Parametre facultatif : codeRetour (le code retour du moteur, entier).
  */
 def finJob(Map p) {
     def resultat = currentBuild.currentResult ?: 'SUCCESS'
-    def niveaux = [SUCCESS: 'INFO', UNSTABLE: 'WARNING', ABORTED: 'WARNING', FAILURE: 'ERREUR', NOT_BUILT: 'INFO']
+    def niveaux = [SUCCESS: 'INFO', UNSTABLE: 'WARNING', ABORTED: 'WARNING', FAILURE: 'ERROR', NOT_BUILT: 'INFO']
     long duree = System.currentTimeMillis() - currentBuild.startTimeInMillis
-    def champs = [statut: resultat, duree_ms: duree]
+    def champs = [statut: resultat, duree_ms: duree, message: 'Job termine : ' + resultat]
     if (p.codeRetour != null && p.codeRetour.toString().isInteger()) {
         champs.code_retour = p.codeRetour.toString().toInteger()
     }

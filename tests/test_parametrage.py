@@ -181,6 +181,25 @@ class TestEntete(CasParametrage):
         self.assertEqual(self.codes([], en_tete=entete(base="\\\\SRV\\partage\\x.db")), ["E05"])
         self.assertEqual(self.codes([], en_tete=entete(base="//SRV/partage/x.db")), ["E05"])
 
+    def test_e08(self):
+        # code explicite hors de la liste de la plateforme
+        self.assertEqual(self.codes([], en_tete=entete(code_environnement="production")), ["E08"])
+        self.assertEqual(self.codes([], en_tete=entete(code_environnement="PROD")), ["E08"])
+        # nom d'environnement dont le code ne se deduit pas : le code explicite est obligatoire
+        self.assertEqual(self.codes([], en_tete=entete(environnement="essai"), nom="essai.jsonl"), ["E08"])
+        self.assertEqual(self.codes([], en_tete=entete(environnement="essai", code_environnement="int"),
+                                    nom="essai.jsonl"), [])
+
+    def test_code_environnement_deduit_ou_explicite(self):
+        for nom, attendu in (("production", "prod"), ("preprod", "pprod"), ("recette", "test"), ("dev", "dev"),
+                             ("int", "int"), ("developpement", "dev")):
+            p, rapport = self.verifier([], en_tete=entete(environnement=nom), nom=nom + ".jsonl")
+            self.assertEqual((rapport.codes(), p.entete.code_environnement), ([], attendu), nom)
+        p, _ = self.verifier([], en_tete=entete(code_environnement="build"))      # l'explicite l'emporte
+        self.assertEqual(p.entete.code_environnement, "build")
+        p, _ = self.verifier([], en_tete=entete(code_environnement=None))         # null = a deduire
+        self.assertEqual(p.entete.code_environnement, "prod")
+
     def test_champs_optionnels_de_l_entete(self):
         e = entete(parallele_max=4, retention_executions_jours=30, marge_espace_mo=0,
                    dossier_logs="D:\\L", dossier_travail="D:\\T")

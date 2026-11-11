@@ -22,7 +22,7 @@ pipeline {
         COPIE_DEPOT   = 'D:\\Scripts\\file_management'
         COPIE_CONFIG  = 'D:\\Parametrage\\production.jsonl'
         COPIE_LOGS    = 'D:\\Copie\\logs'          // = dossier_logs du parametrage
-        COPIE_ENV     = 'production'
+        COPIE_ENV     = 'prod'          // code de la plateforme d'observabilite : dev, build, test, pprod, prod, run, int
     }
 
     stages {

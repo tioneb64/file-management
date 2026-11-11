@@ -19,7 +19,7 @@ Describe 'Invoke-CopieMoteur' -Skip:(-not $Script:PythonDisponible) {
         $Script:Dossier = Join-Path $TestDrive 'param'
         $null = New-Item -ItemType Directory -Path $Script:Dossier
         $Script:Fichier = Join-Path $Script:Dossier 'essai.jsonl'
-        $entete = @{ version = 1; environnement = 'essai'; base = (Join-Path $TestDrive 'essai.db') } | ConvertTo-Json -Compress
+        $entete = @{ version = 1; environnement = 'essai'; code_environnement = 'test'; base = (Join-Path $TestDrive 'essai.db') } | ConvertTo-Json -Compress
         $regle = @{ id = 'r1'; description = 'Règle accentuée é'; source = (Join-Path $TestDrive 's'); cible = (Join-Path $TestDrive 'c'); mode = 'copie'
             planification = @{ type = 'quotidien'; heure = '07:00'; jours = 'tous' } } | ConvertTo-Json -Compress -Depth 5
         [System.IO.File]::WriteAllText($Script:Fichier, ($entete + "`n" + $regle + "`n"), (New-Object System.Text.UTF8Encoding($false)))
@@ -217,8 +217,8 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $dossier = Join-Path $Script:Essai 'journal-gui'
         $fichier = Get-ChildItem -LiteralPath $dossier -Filter 'GestionCopie_*.jsonl' | Select-Object -First 1
         $lignes = @(Get-Content -LiteralPath $fichier.FullName -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json })
-        ($lignes | Where-Object evenement -eq 'ouverture').Count | Should -BeGreaterThan 0
-        ($lignes | Where-Object evenement -eq 'moteur_appel').Count | Should -BeGreaterThan 2
-        $lignes[0].application | Should -Be 'file_management_gui'
+        ($lignes | Where-Object { $_.context.event -eq 'ouverture' }).Count | Should -BeGreaterThan 0
+        ($lignes | Where-Object { $_.context.event -eq 'moteur_appel' }).Count | Should -BeGreaterThan 2
+        $lignes[0].service.name | Should -Be 'file_management.interface'
     }
 }

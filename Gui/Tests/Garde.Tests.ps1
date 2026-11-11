@@ -55,6 +55,49 @@ Describe 'Garde-fou de l''interface' {
     }
 }
 
+Describe 'Journal de l''interface au format de la plateforme d''observabilité' {
+    It 'écrit timestamp, level, message, trace, service et context ; error pour ERROR' {
+        $dossier = Join-Path $TestDrive 'journal-gui'
+        InModuleScope FileManagement.Gui -Parameters @{ d = $dossier } {
+            param($d)
+            $ctx = @{ Config = @{ Journal = @{ Dossier = $d; Environnement = 'pprod' } }; Utilisateur = 'DOM\ben'; LogBox = $null }
+            Write-CopieJournal -Contexte $ctx -Niveau 'INFO' -Evenement 'ouverture' -Message 'Ouverture' -Donnees @{ nb = 3; object = 'piege' }
+            Write-CopieJournal -Contexte $ctx -Niveau 'ERREUR' -Evenement 'moteur_appel' -Message 'Échec du moteur'
+        }
+        $fichier = @(Get-ChildItem -LiteralPath $dossier -Filter 'GestionCopie_*.jsonl')
+        $fichier.Count | Should -Be 1
+        $lignes = @(Get-Content -LiteralPath $fichier[0].FullName -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json })
+        $lignes.Count | Should -Be 2
+        $lignes[0].level | Should -Be 'INFO'
+        $lignes[0].message | Should -Be 'Ouverture'
+        $lignes[0].timestamp | Should -Match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$'
+        $lignes[0].service.name | Should -Be 'file_management.interface'
+        $lignes[0].service.environment | Should -Be 'pprod'
+        $lignes[0].service.instance | Should -Be $env:COMPUTERNAME.ToLowerInvariant()
+        $lignes[0].context.object | Should -Be 'interface'
+        $lignes[0].context.object_id | Should -Be 'DOM\ben'
+        $lignes[0].context.event | Should -Be 'ouverture'
+        $lignes[0].context.nb | Should -Be 3
+        $lignes[0].context.x_object | Should -Be 'piege'
+        $lignes[0].PSObject.Properties.Name | Should -Not -Contain 'error'
+        $lignes[0].trace.trace_id | Should -Match '^[0-9a-f]{32}$'
+        $lignes[0].trace.span_id | Should -Match '^[0-9a-f]{16}$'
+        $lignes[1].level | Should -Be 'ERROR'
+        $lignes[1].error.type | Should -Be 'UNKNOWN_ERROR'
+        $lignes[1].error.message | Should -Be 'Échec du moteur'
+        $lignes[1].trace.trace_id | Should -Be $lignes[0].trace.trace_id      # une session = une trace
+    }
+    It 'un code d''environnement hors liste retombe sur prod' {
+        $dossier = Join-Path $TestDrive 'journal-gui2'
+        InModuleScope FileManagement.Gui -Parameters @{ d = $dossier } {
+            param($d)
+            Write-CopieJournal -Contexte @{ Config = @{ Journal = @{ Dossier = $d; Environnement = 'production' } }; Utilisateur = 'u'; LogBox = $null } -Message 'x'
+        }
+        $ligne = Get-Content -LiteralPath (Get-ChildItem -LiteralPath $dossier -Filter '*.jsonl')[0].FullName -Encoding UTF8 | ConvertFrom-Json
+        $ligne.service.environment | Should -Be 'prod'
+    }
+}
+
 Describe 'Appels de Invoke-CopieEnregistrement' {
     It 'aucun appel ne passe un identifiant de règle vide (paramètre obligatoire : liaison impossible)' {
         $motif = '-IdRegle\s+(''''|"")'      # -IdRegle '' ou -IdRegle ""

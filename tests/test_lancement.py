@@ -142,7 +142,7 @@ class TestLancementSequentiel(CasLancement):
         self.b.fermer()
         r = lancement.lancer(p, self.b, self.journal, maintenant=self.ts)
         self.assertEqual(r.code_retour, 2)
-        self.assertEqual(len(self.evenements("base_indisponible", "ERREUR")), 1)
+        self.assertEqual(len(self.evenements("base_indisponible", "CRITICAL")), 1)
         self.b = modele_base.ouvrir(self.chemin_base)
         self.addCleanup(self.b.fermer)
 
@@ -178,7 +178,7 @@ class TestOrphelins(CasLancement):
         self.assertEqual((etat["en_cours"], etat["dernier_statut"], etat["arret_apres_erreur"]), (0, "ERREUR", 1))
         self.assertEqual(etat["derniere_erreur_situation"], "arret_anormal")
         self.assertEqual((r.compteurs["nettoyees"], r.code_retour), (1, 1))
-        self.assertEqual(len(self.evenements("arret_anormal", "ERREUR")), 1)
+        self.assertEqual(len(self.evenements("arret_anormal", "ERROR")), 1)
         ex = self.b.derniere_execution(no)
         self.assertEqual(ex["statut"], "ARRETEE")
 

@@ -12,6 +12,17 @@ from file_management.diagnostic import Rapport
 VERSION_FORMAT = 1
 
 RE_ENVIRONNEMENT = re.compile(r"^[a-z0-9_-]{1,32}$")
+# Codes d'environnement de la plateforme d'observabilite (journal) : aucune autre valeur n'est admise.
+CODES_ENVIRONNEMENT = ("dev", "build", "test", "pprod", "prod", "run", "int")
+ALIAS_CODES_ENVIRONNEMENT = {"production": "prod", "preprod": "pprod", "preproduction": "pprod",
+                             "pre-prod": "pprod", "recette": "test", "developpement": "dev",
+                             "integration": "int"}
+
+
+def deduire_code_environnement(nom):
+    """Code de la plateforme d'apres le nom de l'environnement (production -> prod), ou None."""
+    nom = (nom or "").strip().lower()
+    return nom if nom in CODES_ENVIRONNEMENT else ALIAS_CODES_ENVIRONNEMENT.get(nom)
 RE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 RE_HEURE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 RE_MODIFIE_DEPUIS = re.compile(r"^(TOUT|J|J-(\d+))$")
@@ -81,6 +92,7 @@ class Entete(object):
     def __init__(self):
         self.version = VERSION_FORMAT
         self.environnement = ""
+        self.code_environnement = None            # code de la plateforme d'observabilite (journal)
         self.racine = None                        # dossier racine de l'environnement (chemins relatifs)
         self.racine_source = None                 # racine des dossiers source des regles
         self.racine_cible = None                  # racine des dossiers cible des regles
@@ -328,6 +340,7 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
     lecteur = Lecteur(objet, rapport, ligne, contexte="")
     lecteur.valeur("version", "entier", VERSION_FORMAT)
     e.environnement = lecteur.valeur("environnement", "texte", "")
+    e.code_environnement = lecteur.valeur("code_environnement", "texte_ou_null", None)
     e.racine = lecteur.valeur("racine", "texte_ou_null", None)
     e.racine_source = lecteur.valeur("racine_source", "texte_ou_null", None)
     e.racine_cible = lecteur.valeur("racine_cible", "texte_ou_null", None)
@@ -347,6 +360,19 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
     elif e.environnement != nom_fichier:
         rapport.signaler("E03", "l'environnement '%s' doit etre egal au nom du fichier '%s'"
                          % (e.environnement, nom_fichier), ligne=ligne)
+
+    # Code d'environnement de la plateforme : explicite, sinon deduit du nom (production -> prod)
+    code = (e.code_environnement or "").strip() or None
+    if code is not None and code not in CODES_ENVIRONNEMENT:
+        rapport.signaler("E08", "code_environnement '%s' hors de la liste de la plateforme (%s)"
+                         % (code, ", ".join(CODES_ENVIRONNEMENT)), ligne=ligne)
+        code = None
+    elif code is None and RE_ENVIRONNEMENT.match(e.environnement or ""):
+        code = deduire_code_environnement(e.environnement)
+        if code is None:
+            rapport.signaler("E08", "code_environnement absent et non deductible du nom '%s' (valeurs : %s)"
+                             % (e.environnement, ", ".join(CODES_ENVIRONNEMENT)), ligne=ligne)
+    e.code_environnement = code
 
     # Racines : la racine de l'environnement doit etre un chemin complet ; les racines des sources et des
     # cibles peuvent etre partielles (elles se placent alors sous la racine de l'environnement).

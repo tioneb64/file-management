@@ -19,6 +19,7 @@ CODES = {
     "E05": (REFUS, "base sur un disque local"),
     "E06": (REFUS, "JSON valide, champs connus et du bon type"),
     "E07": (REFUS, "racines et chemins de l'en-tete complets une fois places sous la racine"),
+    "E08": (REFUS, "code_environnement dans la liste de la plateforme (dev, build, test, pprod, prod, run, int)"),
     "R01": (REFUS, "champs obligatoires presents"),
     "R02": (REFUS, "id valide et unique"),
     "R03": (REFUS, "source differente de la cible"),

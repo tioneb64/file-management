@@ -183,15 +183,17 @@ C:\Python314\python.exe outils\charge_journal.py --processus 8 --lignes 2000 --t
 
 | ID | Ce qui est vérifié | PC | Serveur |
 |---|---|---|---|
-| J3-A01 | Format : champs de base dans l'ordre, horodatage UTC au millième (`2026-11-03T06:30:12.481Z`), variables Jenkins ajoutées si présentes et absentes sinon, UTF-8 sans échappement des accents, retours à la ligne dans un message, champs réservés non écrasables (`x_…`), valeurs non sérialisables, nom Windows avec caractère isolé, texte trop long coupé | OK | |
-| J3-A02 | Niveaux (inconnu → INFO), `DEBUG` seulement en mode verbeux, contexte défini une fois (`definir`), contexte passé à `debut` | OK | |
+| J3-A01 | Format : champs de la racine dans l'ordre (`timestamp`, `duration_ms`, `level`, `message`, `trace`, `service`, `context`), horodatage UTC au millième (`2026-11-03T06:30:12.481Z`), variables Jenkins ajoutées à `context` si présentes et absentes sinon, UTF-8 sans échappement des accents, retours à la ligne dans un message, champs réservés non écrasables (`x_…`), valeurs non sérialisables, nom Windows avec caractère isolé, texte trop long coupé | OK | |
+| J3-A02 | Niveaux (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` ; `ERREUR` → `ERROR`, inconnu → INFO), `DEBUG` seulement en mode verbeux, contexte défini une fois (`definir`), contexte passé à `debut` | OK | |
 | J3-A03 | Fichiers : un par règle et par jour, fichier `_orchestrateur_` sans règle, changement de jour, nom de règle assaini (jamais hors du dossier), dossier créé, dossier par défaut par variable d'environnement | OK | |
 | J3-A04 | `fin` : bilan, durée, niveau selon le statut, fichiers fermés puis rouverts ; lecture du fichier pendant qu'il est ouvert (comme Alloy) ; suppression d'un autre fichier pendant l'exécution | OK | |
 | J3-A05 | **Pannes (G7)** : dossier impossible, secours impossible, `stderr` fermé, sérialisation qui échoue → jamais d'exception, ligne retrouvée sur `stderr` et dans le fichier de secours, `pannes()` correct, reprise automatique quand le dossier revient | OK | |
 | J3-A06 | Console : une ligne lisible par événement avec `console=True`, silence sinon | OK | |
 | J3-A07 | Interface de module (`debut`, `evenement`, `fin`, `definir`, `pannes`) | OK | |
 | J3-A08 | **Charge** : 8 processus × 1 000 lignes dans le même fichier, puis 6 × 300 lignes de 3,5 Ko : aucune ligne corrompue, perdue ou mélangée, séquence de chaque processus complète et dans l'ordre | OK | |
-| J3-A09 | **Critère de sortie** `outils\charge_journal.py` : 8 processus × 10 000 lignes → 80 000 lignes valides, 0 corrompue, 21 Mo, 10 s (7 800 lignes/s) | OK | |
+| J3-A09 | **Critère de sortie** `outils\charge_journal.py` : 8 processus × 10 000 lignes → 80 000 lignes valides, 0 corrompue, 39 Mo (format de la plateforme, lignes plus longues), 6,6 s (12 100 lignes/s) | OK | |
+| J3-A10 | **Format de la plateforme** (`TestFormatPlateforme`) : ordre et forme des champs, version, `service.name` par règle, `object` / `object_id` par défaut (fichier, règle, lancement), `correlation_id` et spans, `trace_id` hérité de `TRACEPARENT` (valeur invalide ignorée), `error` obligatoire pour ERROR et CRITICAL, catalogue (l'appelant l'emporte, un catalogue défaillant n'empêche pas d'écrire), `message` et `duration_ms` à la racine, aucun niveau hors liste | OK | |
+| J3-A11 | **Conformité de bout en bout** (`tests/test_format_plateforme.py`) : validateur de la plateforme appliqué à toutes les lignes d'un lancement réel (processus fils compris) et aux exemples `exemples\journal\` ; un lancement = une trace, même span côté fils et côté orchestrateur ; catalogue : types d'erreur dans la liste de la plateforme, CRITICAL (`base_indisponible`, `livraison_incertaine`, `erreur_interne`, disque plein), toutes les situations et tous les événements émis couverts | OK | |
 
 ### 5.2 Tests manuels sur le serveur
 
@@ -200,8 +202,8 @@ C:\Python314\python.exe outils\charge_journal.py --processus 8 --lignes 2000 --t
 | J3-M01 | **Charge sur le disque réel des journaux** | `outils\charge_journal.py --dossier <dossier de journaux réel>` avec le compte de service, puis avec `--taille 3500 --lignes 2000` | `RESULTAT : OK`, 0 ligne corrompue. Noter la durée et les lignes/s. Si l'antivirus ralentit fortement (< 1 000 lignes/s), le signaler | |
 | J3-M02 | Écriture atomique réellement vérifiée sur Windows Server 2016 | Même test ; en cas d'échec : joindre la sortie | Aucune corruption. (Sur le PC, `O_APPEND` seul corrompt les lignes ; le module utilise `FILE_APPEND_DATA`.) | |
 | J3-M03 | Dossier de journaux sur un **partage réseau** (information) | Même test avec `--dossier \\SERVEUR\partage\tmp` | Noter le résultat. Si des lignes sont corrompues, le dossier de journaux doit rester **local** (Alloy lit sur le serveur) | |
-| J3-M04 | Panne de journalisation | Retirer le droit d'écriture du compte sur le dossier de journaux puis lancer un petit programme utilisant le module (`python -c "import journal_si as j; j.debut('t','recette',dossier=r'D:\\Copie\\logs'); j.evenement('essai'); print(j.pannes())"`) | Aucune exception, message sur la console, ligne dans `journal_si_secours_<jour>.jsonl` du dossier temporaire du compte, `pannes()` affiche `2` | |
-| J3-M05 | Lecture par **Grafana Alloy** | Avec l'équipe de surveillance : déposer `exemples\journal\*.jsonl` dans le dossier lu, adapter `exemples\alloy\file_management.alloy` | Les événements apparaissent dans Loki avec les libellés `application`, `environnement`, `regle`, `niveau` et l'heure de la ligne ; les champs sont consultables (`| json`) ; **validation formelle du format par l'équipe** | |
+| J3-M04 | Panne de journalisation | Retirer le droit d'écriture du compte sur le dossier de journaux puis lancer un petit programme utilisant le module (`python -c "import journal_si as j; j.debut('t','test',dossier=r'D:\\Copie\\logs'); j.evenement('essai'); print(j.pannes())"`) | Aucune exception, message sur la console, ligne dans `journal_si_secours_<jour>.jsonl` du dossier temporaire du compte, `pannes()` affiche `2` | |
+| J3-M05 | Lecture par **Grafana Alloy** | Avec l'équipe de surveillance : déposer `exemples\journal\*.jsonl` dans le dossier lu, adapter `exemples\alloy\file_management.alloy` | Les événements apparaissent dans Loki avec les libellés `environnement`, `instance`, `level`, `service_name`, `object`, `error_type` (les deux derniers seulement quand ils existent) et l'heure de la ligne ; les champs sont consultables (`| json`) ; **validation formelle du format par l'équipe de la plateforme** (valeurs `object`, cardinalité de `service_name`, casse de `object_id`) | |
 | J3-M06 | Accents et caractères spéciaux dans la console Jenkins | Job Jenkins exécutant un script qui appelle `debut(..., console=True)` avec `message="é à ü"` | Les accents s'affichent correctement dans la console et sont intacts dans le fichier | |
 | J3-M07 | Changement de jour | Laisser un programme tourner autour de minuit (ou changer l'heure de la VM de recette) | Deux fichiers `<regle>_<jour>.jsonl`, aucune ligne perdue | |
 
@@ -458,14 +460,14 @@ Guide de mise en place : [08-jenkins](08-jenkins.md). **Les fichiers Groovy n'on
 ```powershell
 # ce que fait la bibliothèque partagée pour écrire un événement de job
 $env:JOB_NAME='COPIE_PROD'; $env:BUILD_NUMBER='1'
-C:\Python314\python.exe journal_si.py --dossier D:\Copie\logs --application file_management --environnement production --evenement fin_job --niveau WARNING --champs-json champs.json
+C:\Python314\python.exe journal_si.py --dossier D:\Copie\logs --application file_management --environnement prod --evenement fin_job --niveau WARNING --champs-json champs.json
 ```
 
 ### 11.1 Tests automatiques (fichier `tests/test_jenkins.py`)
 
 | ID | Ce qui est vérifié | PC | Serveur |
 |---|---|---|---|
-| J9-A01 | **`journal_si.py` en ligne de commande** : événement **au même format et dans le même ordre que le module**, variables Jenkins (`job`, `build`, `build_url`, `noeud`), fichier sans règle / avec règle, champs typés par JSON (accents, BOM, entiers, objets), niveaux, **ne lève jamais d'échec** (JSON absent ou cassé, dossier impossible → fichier de secours), console, vrai processus | OK | |
+| J9-A01 | **`journal_si.py` en ligne de commande** : événement **au même format et dans le même ordre que le module**, variables Jenkins (`job`, `build`, `build_url`, `noeud`, dans `context`), fichier sans règle / avec règle, champs typés par JSON (accents, BOM, entiers, objets), niveaux, **ne lève jamais d'échec** (JSON absent ou cassé, dossier impossible → fichier de secours), console, vrai processus | OK | |
 | J9-A02 | **Fichiers Jenkins** : délimiteurs équilibrés, pas de tabulation, UTF-8 sans BOM, fonctions de la bibliothèque, **statut Jenkins → niveau du journal**, options passées à `journal_si.py` existantes, codes 0 / 4 traduits, `UNSTABLE` = code 4 du moteur | OK | |
 | J9-A03 | **Job de transfert** : builds simultanés autorisés (pas de `disableConcurrentBuilds`), `cron`, `timeout`, `debut_job` / `fin_job` ; sauvegarde et vérification sans builds simultanés ; **chaque `commande:` des Jenkinsfile est acceptée par l'analyseur d'arguments du moteur** | OK | |
 | J9-A04 | **Deux builds simultanés** (vrais processus, huit règles) : chaque règle exécutée **une seule fois**, livrée une seule fois, aucun drapeau resté posé, événements identifiés par leur build ; un build ignore une règle déjà en cours dans l'autre sans erreur | OK | |
@@ -792,8 +794,11 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10G-A05 | `Gui/Tests/Racines.Tests.ps1` | Ligne de la grille (chemins selon le mode, aspect inactive / erreur), détail, couleur `ATTENTE`, modes, simulation suppression et mesure | OK | 2026-11-11 |
 | J10G-A06 | `tests/test_horodatage.py` | **Horodater** : forme et reconnaissance du nom marqué, copie (original marqué, pas de recopie, nouvelle version, date ordinaire dans le nom, simulation, original modifié, échec puis reprise), archivage (nom archivé, avec `renommage_archive`, archive dans la source), R16, E06, modèle du front-end | OK | 2026-11-11 |
 | J10G-A07 | `Gui/Tests/Formulaire.Tests.ps1`, `Racines.Tests.ps1` | Case « Horodater » : proposée pour copie et archivage seulement, décochée et grisée sinon, écrite dans la règle | OK | 2026-11-11 |
+| J10G-A08 | `tests/test_parametrage.py` | **Code d'environnement** : déduit du nom (`production` → `prod`…), explicite prioritaire, `null` = à déduire, **E08** (hors liste, nom non déductible sans code) | OK | 2026-11-12 |
+| J10G-A09 | `Gui/Tests/Environnements.Tests.ps1` | Champ « Code plateforme » : déduction comme le moteur, contrôle de la saisie, écriture dans l'en-tête et relecture, présence dans le formulaire, **renommage vers un nom non déductible : le code de l'ancien nom est conservé** | OK | 2026-11-12 |
+| J10G-A10 | `Gui/Tests/Garde.Tests.ps1` | **Journal de l'interface** au format de la plateforme : `timestamp`, `level` (`ERREUR` → `ERROR`), `service`, `context.object` = `interface`, `error` pour ERROR, une session = une trace, code d'environnement hors liste → `prod` | OK | 2026-11-12 |
 
-Suite complète : 682 tests Python OK ; Pester 187 réussis, 0 échec, 4 ignorés (droits administrateur, voir le CHANGELOG).
+Suite complète : 733 tests Python OK ; Pester 213 réussis, 0 échec, 4 ignorés (droits administrateur, voir le CHANGELOG).
 
 ### Manuels
 
@@ -805,6 +810,7 @@ Suite complète : 682 tests Python OK ; Pester 187 réussis, 0 échec, 4 ignoré
 | J10G-M04 | Déclencheur `count` | Règle `count` (minimum 5) sur un dossier de 4 fichiers, règle de déplacement dépendante (`succes`) ; ajouter le 5e fichier | `ATTENTE` puis succès ; le déplacement patiente puis part | |
 | J10G-M06 | Horodater (copie) | Cocher « Horodater les fichiers traités » sur une règle `copie`, déposer `a.csv`, lancer deux fois | La cible contient `a.csv` ; la source contient `a_traite_AAAAMMJJ_hhmmss.csv` ; le 2e lancement ne copie rien | |
 | J10G-M07 | Horodater (archivage) et case grisée | Même essai en mode `archivage` ; puis passer le mode à `deplacement` dans le formulaire | L'archive contient le nom marqué ; la case se grise et se décoche | |
+| J10G-M08 | Code plateforme à la création d'un environnement | Créer « essai » sans code, puis avec le code `test` ; renommer « production » en « prod2 » | Sans code : message demandant le code ; avec : fichier écrit avec `code_environnement` ; renommage : le code `prod` est conservé dans l'en-tête | |
 | J10G-M05 | Suppression | Règle `suppression` d'âge minimum sur un dossier d'essai ; simulation puis exécution | Avertissement à l'enregistrement ; simulation annonce la suppression définitive ; seuls les fichiers assez anciens sont supprimés | |
 
 ## 20. Jalons suivants

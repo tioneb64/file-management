@@ -31,7 +31,7 @@
         Acces       = @('GroupesAdmin')
         Moteur      = @('Mode', 'Python', 'Racine', 'Serveur', 'ConfigurationJea', 'DelaiMaxSec')
         Parametrage = @('Filtre', 'VersionsSupportees', 'DossierVersions', 'DossierBrouillons', 'DossierSupprimes', 'PeriodeDeclencheurSec')
-        Journal     = @('Dossier')
+        Journal     = @('Dossier', 'Environnement')
     }
     foreach ($cle in @($brut.Keys)) {
         if (-not $schema.ContainsKey($cle)) { $erreurs.Add(('section inconnue : {0}' -f $cle)) }
@@ -106,6 +106,6 @@
             Filtre = $filtre; VersionsSupportees = $versions; DossierVersions = $dossierVersions
             DossierBrouillons = $brouillons; DossierSupprimes = $supprimes; PeriodeDeclencheurSec = $periode
         }
-        Journal     = [pscustomobject]@{ Dossier = "$(& $lire 'Journal' 'Dossier' '')".Trim() }
+        Journal     = [pscustomobject]@{ Dossier = "$(& $lire 'Journal' 'Dossier' '')".Trim(); Environnement = "$(& $lire 'Journal' 'Environnement' 'prod')".Trim() }
     }
 }

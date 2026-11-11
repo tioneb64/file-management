@@ -96,8 +96,8 @@ Describe 'Saisie d''un environnement avec une racine' {
     It 'repère la même base atteinte par une racine et un chemin partiel' {
         InModuleScope FileManagement.Gui {
             $existant = [pscustomobject]@{ Nom = 'preprod'; Parametrage = [pscustomobject]@{ Entete = ('{"version":1,"environnement":"preprod","racine":"D:\\t\\preprod","base":"BDD\\p.db"}' | ConvertFrom-Json) } }
-            (Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'copie'; Racine = 'D:\t\preprod\'; Base = 'BDD\p.db' } -Existants @($existant)) -join ' ' | Should -Match 'déjà celle'
-            @(Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'copie'; Racine = 'D:\t\copie'; Base = 'BDD\p.db' } -Existants @($existant)).Count | Should -Be 0
+            (Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'copie'; CodeEnvironnement = 'test'; Racine = 'D:\t\preprod\'; Base = 'BDD\p.db' } -Existants @($existant)) -join ' ' | Should -Match 'déjà celle'
+            @(Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'copie'; CodeEnvironnement = 'test'; Racine = 'D:\t\copie'; Base = 'BDD\p.db' } -Existants @($existant)).Count | Should -Be 0
         }
     }
     It 'écrit les racines dans l''en-tête (sans les champs vides) et les relit' {

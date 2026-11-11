@@ -5,14 +5,16 @@
 
     .DESCRIPTION
         Toute action est tracée (compte, heure, message) : docs/04-frontend.md §1. Le fichier est un
-        fichier par jour (GestionCopie_AAAA-MM-JJ.jsonl) dans Journal.Dossier, lisible par Alloy. Une
-        panne d'écriture du fichier n'empêche jamais l'interface de fonctionner : elle est signalée une fois.
+        fichier par jour (GestionCopie_AAAA-MM-JJ.jsonl) dans Journal.Dossier, lisible par Alloy, au format
+        de la plateforme d'observabilité (timestamp, level, message, trace, service, context ; error pour les
+        niveaux ERROR et CRITICAL). Le code d'environnement vient de Journal.Environnement (défaut : prod).
+        Une panne d'écriture du fichier n'empêche jamais l'interface de fonctionner : elle est signalée une fois.
 
     .PARAMETER Contexte
         Contexte de la session : Config, Utilisateur, LogBox (RichTextBox ou $null).
 
     .PARAMETER Niveau
-        INFO, WARNING ou ERREUR.
+        INFO, WARNING ou ERREUR (écrit ERROR dans le fichier ; CRITICAL est aussi admis).
 
     .PARAMETER Evenement
         Nom court de l'événement (par exemple moteur_appel, verification).
@@ -26,7 +28,7 @@
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [hashtable] $Contexte,
-        [ValidateSet('INFO', 'WARNING', 'ERREUR')] [string] $Niveau = 'INFO',
+        [ValidateSet('INFO', 'WARNING', 'ERREUR', 'CRITICAL')] [string] $Niveau = 'INFO',
         [string] $Evenement = 'message',
         [Parameter(Mandatory)] [string] $Message,
         [hashtable] $Donnees = @{}
@@ -49,16 +51,28 @@
     if (-not $dossier) { return }
     try {
         if (-not (Test-Path -LiteralPath $dossier)) { $null = New-Item -ItemType Directory -Path $dossier -Force }
-        $ligne = [ordered]@{
-            ts          = $maintenant.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-            niveau      = $Niveau
-            application = 'file_management_gui'
-            evenement   = $Evenement
-            utilisateur = $Contexte.Utilisateur
-            message     = $Message
+        if (-not $Contexte.TraceId) {                      # une session de l'interface = une trace
+            $Contexte.TraceId = -join (1..32 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+            $Contexte.SpanId = -join (1..16 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
         }
-        foreach ($cle in $Donnees.Keys) { $ligne[$cle] = $Donnees[$cle] }
-        $texte = ($ligne | ConvertTo-Json -Compress -Depth 5) + "`n"
+        $codeEnvironnement = "$($Contexte.Config.Journal.Environnement)".Trim()
+        if ((Get-CopieCodesPlateforme) -cnotcontains $codeEnvironnement) { $codeEnvironnement = 'prod' }
+        $niveauFichier = $(if ($Niveau -eq 'ERREUR') { 'ERROR' } else { $Niveau })
+        $contexteLigne = [ordered]@{ object = 'interface'; object_id = "$($Contexte.Utilisateur)"; event = $Evenement; utilisateur = $Contexte.Utilisateur }
+        foreach ($cle in $Donnees.Keys) {
+            $nomChamp = $(if (@('object', 'object_id', 'event') -contains $cle) { 'x_' + $cle } else { $cle })
+            $contexteLigne[$nomChamp] = $Donnees[$cle]
+        }
+        $ligne = [ordered]@{
+            timestamp = $maintenant.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+            level     = $niveauFichier
+            message   = $Message
+            trace     = [ordered]@{ trace_id = $Contexte.TraceId; span_id = $Contexte.SpanId; correlation_id = $Contexte.TraceId }
+            service   = [ordered]@{ name = 'file_management.interface'; version = '2.0.0'; environment = $codeEnvironnement; instance = $env:COMPUTERNAME.ToLowerInvariant() }
+            context   = $contexteLigne
+        }
+        if ($niveauFichier -in 'ERROR', 'CRITICAL') { $ligne['error'] = [ordered]@{ type = 'UNKNOWN_ERROR'; message = $Message } }
+        $texte = ($ligne | ConvertTo-Json -Compress -Depth 6) + "`n"
         $fichier = Join-Path $dossier ('GestionCopie_{0}.jsonl' -f $maintenant.ToString('yyyy-MM-dd'))
         [System.IO.File]::AppendAllText($fichier, $texte, (New-Object System.Text.UTF8Encoding($false)))
     }

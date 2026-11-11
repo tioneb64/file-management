@@ -211,6 +211,9 @@ class Orchestrateur(object):
     def _lancer_processus(self, regle, no, execution_id):
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
         env["PYTHONPATH"] = RACINE + os.pathsep + env.get("PYTHONPATH", "")
+        traceparent = getattr(self.journal, "traceparent", None)
+        if traceparent is not None:                   # le fils journalise dans la meme trace
+            env["TRACEPARENT"] = traceparent()
         try:
             popen = subprocess.Popen(self.commande_fils(regle, execution_id), stdin=subprocess.PIPE,
                                      cwd=RACINE, env=env, universal_newlines=True)
@@ -287,6 +290,7 @@ class Orchestrateur(object):
         self.journal.evenement("regle_terminee", NIVEAU_STATUT[resultat["statut"]], regle=regle.id,
                                execution_id=execution_id, statut=resultat["statut"], motif=resultat["motif"],
                                compteurs=resultat["compteurs"], duree_ms=resultat["duree_ms"],
+                               **({"situation": resultat["situation_finale"]} if resultat.get("situation_finale") else {}),
                                **({"code_fils": code} if code else {}))
 
     def _fin_anormale(self, fils, message):

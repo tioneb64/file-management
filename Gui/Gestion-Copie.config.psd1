@@ -37,5 +37,6 @@
     Journal = @{
         # Journal de l'interface (JSON Lines, un fichier par jour) lu par Alloy. '' = pas de fichier.
         Dossier = ''                                                  # A ADAPTER
+        Environnement = 'prod'                                        # code d'environnement de la plateforme d'observabilité : dev, build, test, pprod, prod, run, int
     }
 }

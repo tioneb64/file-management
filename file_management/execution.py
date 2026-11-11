@@ -1049,6 +1049,8 @@ def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=
     if journaliser_fin:
         journal.evenement("regle_terminee", NIVEAU_STATUT[bilan.statut],
                           statut=statut_final, motif=bilan.motif, compteurs=bilan.compteurs,
-                          duree_ms=bilan.duree_ms, **({"simulation": True} if simulation else {}))
+                          duree_ms=bilan.duree_ms,
+                          **({"situation": bilan.situation_finale} if bilan.situation_finale else {}),
+                          **({"simulation": True} if simulation else {}))
     journal.definir(regle=None, execution_id=None)
     return bilan

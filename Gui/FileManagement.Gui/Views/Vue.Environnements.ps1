@@ -57,7 +57,7 @@ function Read-CopieSaisieEnvironnement {
     )
     $fenetre = Import-CopieXaml -Nom 'Dialog.Environnement'
     if ($null -ne $Contexte.Fenetre) { $fenetre.Owner = $Contexte.Fenetre }
-    $noms = 'Nom', 'Racine', 'RacineSource', 'RacineCible', 'Base', 'DossierLogs', 'DossierTravail', 'ParalleleMax', 'RetentionExecutions', 'RetentionJournaux', 'MargeEspaceMo'
+    $noms = 'Nom', 'CodeEnvironnement', 'Racine', 'RacineSource', 'RacineCible', 'Base', 'DossierLogs', 'DossierTravail', 'ParalleleMax', 'RetentionExecutions', 'RetentionJournaux', 'MargeEspaceMo'
     foreach ($n in $noms) { $fenetre.FindName($n).Text = $(if ($Saisie.ContainsKey($n)) { "$($Saisie[$n])" } else { '' }) }
     $fenetre.Tag = @{ Mode = $Mode; Origine = $Saisie; Existants = $Existants; Noms = $noms; Resultat = $null }
     if ($Mode -eq 'copie') {
@@ -88,10 +88,16 @@ function Read-CopieSaisieEnvironnement {
             $t = $f.Tag
             $saisie = @{}
             foreach ($n in $t.Noms) { $saisie[$n] = $f.FindName($n).Text.Trim() }
+            # Renommage seul : le code de la plateforme de l'ancien nom est conservé si le nouveau nom ne permet pas de le déduire.
+            $codeAuto = $false
+            if ($t.Mode -eq 'modification' -and $saisie.Nom -cne $t.Origine.Nom -and -not $saisie.CodeEnvironnement -and -not (Get-CopieCodeEnvironnement -Nom $saisie.Nom)) {
+                $ancienCode = Get-CopieCodeEnvironnement -Nom "$($t.Origine.Nom)"
+                if ($ancienCode) { $saisie.CodeEnvironnement = $ancienCode; $codeAuto = $true }
+            }
             $problemes = @(Test-CopieSaisieEnvironnement -Saisie $saisie -Existants $t.Existants -Ignorer $(if ($t.Mode -eq 'modification') { "$($t.Origine.Nom)" } else { '' }))
             if ($problemes.Count -eq 0 -and $t.Mode -eq 'modification' -and $saisie.Nom -cne $t.Origine.Nom) {
                 foreach ($n in $t.Noms) {
-                    if ($n -ne 'Nom' -and $saisie[$n] -cne "$($t.Origine[$n])") { $problemes += 'Changez le nom seul, puis les autres réglages dans une seconde modification.'; break }
+                    if ($n -ne 'Nom' -and -not ($n -eq 'CodeEnvironnement' -and $codeAuto) -and $saisie[$n] -cne "$($t.Origine[$n])") { $problemes += 'Changez le nom seul, puis les autres réglages dans une seconde modification.'; break }
                 }
             }
             if ($problemes.Count -gt 0) {

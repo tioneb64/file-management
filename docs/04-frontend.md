@@ -25,7 +25,7 @@ Le reste est dans `Gestion-Copie.config.psd1`, à côté de l'application (fichi
 | `Acces` | `GroupesAdmin` | Groupes dont les membres modifient (`DOMAINE\Groupe`, nom sans domaine ou SID). **Obligatoire** : sans groupe, l'outil refuse de démarrer (jamais d'accès ouvert par défaut) |
 | `Moteur` | `Mode`, `Python`, `Racine`, `Serveur`, `ConfigurationJea`, `DelaiMaxSec` | Où et comment le moteur est lancé (§6) |
 | `Parametrage` | `Filtre`, `VersionsSupportees`, `DossierVersions`, `DossierBrouillons`, `PeriodeDeclencheurSec` | Fichiers lus dans le dossier, versions du format d'en-tête acceptées, sous-dossier des anciennes versions, sous-dossier des brouillons vérifiés avant enregistrement (le compte de service doit pouvoir le lire), période du déclencheur Jenkins (contrôle P02) |
-| `Journal` | `Dossier` | Journal de l'outil (JSON Lines, un fichier par jour, lu par Alloy) ; vide = pas de fichier |
+| `Journal` | `Dossier`, `Environnement` | Journal de l'outil (JSON Lines au format de la plateforme d'observabilité, un fichier par jour, lu par Alloy) ; `Dossier` vide = pas de fichier ; `Environnement` = code de la plateforme (défaut `prod`) |
 
 Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** : seuls `Moteur.Mode` et `Moteur.Serveur` changent. Il ne contient aucun lien vers Grafana : les journaux vont dans Loki et Grafana les interroge de son côté.
 

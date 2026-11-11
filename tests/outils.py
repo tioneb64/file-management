@@ -17,6 +17,33 @@ def charger_v1():
     return module
 
 
+def aplatir(ligne):
+    """Ligne du journal (format de la plateforme d'observabilite) -> dictionnaire a plat pour les assertions :
+    les champs de `context` au premier niveau, `evenement` (= context.event), `niveau` (= level), `message`,
+    `duree_ms`, `environnement` ; la ligne d'origine reste disponible sous `brut`."""
+    plat = dict(ligne.get("context", {}))
+    plat["evenement"] = plat.get("event")
+    plat["niveau"] = ligne["level"]
+    plat["message"] = ligne["message"]
+    plat["horodatage"] = ligne["timestamp"]
+    plat["environnement"] = ligne["service"]["environment"]
+    if "duration_ms" in ligne:
+        plat["duree_ms"] = ligne["duration_ms"]
+    plat["brut"] = ligne
+    return plat
+
+
+def lire_journaux(dossier, motif="*.jsonl"):
+    """Toutes les lignes (aplaties) des journaux d'un dossier, par ordre de nom de fichier."""
+    import glob
+    import json
+    resultat = []
+    for chemin in sorted(glob.glob(os.path.join(dossier, motif))):
+        with open(chemin, encoding="utf-8") as f:
+            resultat.extend(aplatir(json.loads(l)) for l in f if l.strip())
+    return resultat
+
+
 class CasTemporaire(unittest.TestCase):
     """Chaque test dispose d'un dossier temporaire vide, supprime a la fin."""
 

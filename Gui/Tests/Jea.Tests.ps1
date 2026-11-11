@@ -155,7 +155,7 @@ Describe 'Droits de l''appelant' {
 Describe 'Dossiers d''un environnement par le point d''accès (chemins lus dans l''en-tête, jamais saisis)' {
     BeforeAll {
         $Script:Fich2 = Join-Path $Script:Dossier 'jeadossiers.jsonl'
-        $en = [ordered]@{ version = 1; environnement = 'jeadossiers'; base = (Join-Path $TestDrive 'jb\BDD\x.db'); dossier_logs = (Join-Path $TestDrive 'jb\LOG'); dossier_travail = (Join-Path $TestDrive 'jb\TMP') }
+        $en = [ordered]@{ version = 1; environnement = 'jeadossiers'; code_environnement = 'test'; base = (Join-Path $TestDrive 'jb\BDD\x.db'); dossier_logs = (Join-Path $TestDrive 'jb\LOG'); dossier_travail = (Join-Path $TestDrive 'jb\TMP') }
         [System.IO.File]::WriteAllText($Script:Fich2, (($en | ConvertTo-Json -Compress) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     }
     It 'contrôle en lecture : trois dossiers à créer, rien n''est créé' {

@@ -178,7 +178,7 @@ Describe 'Historique de bout en bout (moteur réel)' -Skip:(-not $Script:PythonD
             $m = Get-CopieModeleRegle -Config $cfg
             $dossier = Join-Path $d 'bout'; $null = New-Item -ItemType Directory -Path $dossier
             $fichier = Join-Path $dossier 'essai.jsonl'
-            $entete = [pscustomobject]@{ version = 1; environnement = 'essai'; base = (Join-Path $dossier 'x.db') }
+            $entete = [pscustomobject]@{ version = 1; environnement = 'essai'; code_environnement = 'test'; base = (Join-Path $dossier 'x.db') }
             [System.IO.File]::WriteAllText($fichier, ((ConvertTo-CopieLigneJson $entete) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
             $nouvelle = {
                 param($id)
@@ -216,7 +216,7 @@ Describe 'Historique de bout en bout (moteur réel)' -Skip:(-not $Script:PythonD
             $m = Get-CopieModeleRegle -Config $cfg
             $dossier = Join-Path $d 'restaure'; $null = New-Item -ItemType Directory -Path $dossier
             $fichier = Join-Path $dossier 'essai.jsonl'
-            $entete = [pscustomobject]@{ version = 1; environnement = 'essai'; base = (Join-Path $dossier 'x.db') }
+            $entete = [pscustomobject]@{ version = 1; environnement = 'essai'; code_environnement = 'test'; base = (Join-Path $dossier 'x.db') }
             [System.IO.File]::WriteAllText($fichier, ((ConvertTo-CopieLigneJson $entete) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
             $nouvelle = {
                 param($id)

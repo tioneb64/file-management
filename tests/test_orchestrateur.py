@@ -240,7 +240,7 @@ class TestBloquee(CasChaine):
                    si_condition_non_remplie="ERREUR", apres_erreur="continuer")
         self.amorcer()
         self.lancer_a(7, 20)
-        self.assertEqual(self.evenements("regle_non_lancee")[0]["niveau"], "ERREUR")
+        self.assertEqual(self.evenements("regle_non_lancee")[0]["niveau"], "ERROR")
 
     def test_blocage_visible_dans_l_etat(self):
         self.preparer()
@@ -363,7 +363,7 @@ class TestFilsReels(CasProcessus):
         self.assertEqual((etat["dernier_statut"], etat["arret_apres_erreur"]), ("ERREUR", 1))
         self.assertEqual(etat["derniere_erreur_situation"], "source_inaccessible")
         fin = self.evenements("regle_terminee")[0]
-        self.assertEqual((fin["statut"], fin["niveau"]), ("ERREUR", "ERREUR"))
+        self.assertEqual((fin["statut"], fin["niveau"]), ("ERREUR", "ERROR"))
 
     def test_parallelisme_et_limite(self):
         for ident in ("a", "b", "c"):
@@ -414,7 +414,7 @@ class TestDureeMaximale(CasProcessus):
         ex = self.execution("longue")
         self.assertEqual(ex["statut"], "ERREUR")
         self.assertFalse(self.vivant(ex["pid"]))                          # le fils a bien ete arrete
-        evenement = self.evenements("duree_depassee", "ERREUR")[0]
+        evenement = self.evenements("duree_depassee", "ERROR")[0]
         self.assertEqual(evenement["action"], "erreur")
 
     def test_alerter_laisse_tourner_et_termine_en_warning(self):

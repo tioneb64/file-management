@@ -8,7 +8,7 @@ import unittest
 
 from file_management import __main__ as cli
 from file_management import base
-from tests.outils import CasTemporaire
+from tests.outils import CasTemporaire, lire_journaux
 
 
 class TestLancerRegle(CasTemporaire):
@@ -41,11 +41,7 @@ class TestLancerRegle(CasTemporaire):
         self.assertEqual(self.commande("--initialiser-base")[0], 0)
 
     def evenements(self):
-        resultat = []
-        for chemin in glob.glob(self.chemin("logs", "*.jsonl")):
-            with open(chemin, encoding="utf-8") as f:
-                resultat.extend(json.loads(l) for l in f)
-        return resultat
+        return lire_journaux(self.chemin("logs"))
 
     def test_livraison_de_bout_en_bout(self):
         self.initialiser()

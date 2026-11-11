@@ -167,7 +167,7 @@ class TestDebloquer(CasDeblocage):
         def lancer():
             b = modele_base.ouvrir(self.chemin_base, "production")
             journal = journal_si.Journal()
-            journal.debut("file_management", "production", dossier=self.chemin("logs"))
+            journal.debut("file_management", "prod", dossier=self.chemin("logs"))
             try:
                 resultat["lancement"] = lancement.lancer(p, b, journal)
             finally:

@@ -49,6 +49,40 @@ Describe 'Saisie d''un environnement (sans moteur)' {
     }
 }
 
+Describe 'Code d''environnement de la plateforme d''observabilité (sans moteur)' {
+    It 'se déduit du nom comme le fait le moteur, ou reste inconnu' {
+        InModuleScope FileManagement.Gui {
+            $attendus = @{ production = 'prod'; preprod = 'pprod'; recette = 'test'; dev = 'dev'; int = 'int'; developpement = 'dev'; build = 'build' }
+            foreach ($n in $attendus.Keys) { Get-CopieCodeEnvironnement -Nom $n | Should -Be $attendus[$n] -Because $n }
+            foreach ($n in 'essai', 'copie', '', 'x') { Get-CopieCodeEnvironnement -Nom $n | Should -BeNullOrEmpty -Because "[$n]" }
+            (Get-CopieCodesPlateforme) -join ',' | Should -Be 'dev,build,test,pprod,prod,run,int'
+        }
+    }
+    It 'est contrôlé à la saisie : valeur de la liste, ou nom dont il se déduit' {
+        InModuleScope FileManagement.Gui {
+            @(Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'essai'; CodeEnvironnement = 'test'; Base = 'D:\e.db' }).Count | Should -Be 0
+            (Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'essai'; Base = 'D:\e.db' }) -join ' ' | Should -Match 'ne se déduit pas du nom'
+            (Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'recette'; CodeEnvironnement = 'production'; Base = 'D:\r.db' }) -join ' ' | Should -Match 'doit être l''une des valeurs'
+            (Test-CopieSaisieEnvironnement -Saisie @{ Nom = 'recette'; CodeEnvironnement = 'PROD'; Base = 'D:\r.db' }) -join ' ' | Should -Match 'doit être l''une des valeurs'
+        }
+    }
+    It 'est écrit dans l''en-tête quand il est saisi (après le nom), omis sinon, et relu' {
+        InModuleScope FileManagement.Gui {
+            $e = ConvertTo-CopieEnteteEnvironnement -Saisie @{ Nom = 'essai'; CodeEnvironnement = 'int'; Base = 'D:\e.db' }
+            ($e | ConvertTo-Json -Compress) | Should -Be '{"version":1,"environnement":"essai","code_environnement":"int","base":"D:\\e.db"}'
+            (ConvertFrom-CopieEnteteEnvironnement -Entete $e).CodeEnvironnement | Should -Be 'int'
+            $sans = ConvertTo-CopieEnteteEnvironnement -Saisie @{ Nom = 'recette'; Base = 'D:\r.db' }
+            $sans.PSObject.Properties.Name | Should -Not -Contain 'code_environnement'
+            (ConvertFrom-CopieEnteteEnvironnement -Entete $sans).CodeEnvironnement | Should -Be ''
+        }
+    }
+    It 'le formulaire d''environnement propose le champ' -Skip:(-not $Script:Sta) {
+        InModuleScope FileManagement.Gui {
+            (Import-CopieXaml -Nom 'Dialog.Environnement').FindName('CodeEnvironnement') | Should -Not -BeNullOrEmpty
+        }
+    }
+}
+
 Describe 'Dossier de paramétrage au lancement' {
     It 'propose de créer un dossier absent à un administrateur, qui peut refuser' {
         InModuleScope FileManagement.Gui -Parameters @{ d = (Join-Path $TestDrive 'nouveau\param') } {
@@ -332,7 +366,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
     It 'dossiers non prêts (question refusée) : l''environnement est créé, la base NON, et le résultat le dit' {
         InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'refus\BDD\refus.db') } {
             param($c, $d, $b)
-            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'refus'; Base = $b } -Compte 'u' -InitialiserBase $true -PreparerDossiers { param($f) $null = $f; $false }
+            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'refus'; CodeEnvironnement = 'test'; Base = $b } -Compte 'u' -InitialiserBase $true -PreparerDossiers { param($f) $null = $f; $false }
             $r.Etape | Should -Be 'base'
             $r.Base | Should -Match 'NON créée'
             Test-Path -LiteralPath (Join-Path $d 'refus.jsonl') | Should -BeTrue
@@ -343,7 +377,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'oui\BDD\oui.db') } {
             param($c, $d, $b)
             $Script:Recu = ''
-            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'oui'; Base = $b } -Compte 'u' -InitialiserBase $true `
+            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'oui'; CodeEnvironnement = 'test'; Base = $b } -Compte 'u' -InitialiserBase $true `
                 -PreparerDossiers { param($f) $Script:Recu = $f; $null = New-Item -ItemType Directory -Path (Split-Path -Parent (Get-Content -LiteralPath $f -Encoding UTF8 -TotalCount 1 | ConvertFrom-Json).base) -Force; $true }
             $r.Ok | Should -BeTrue -Because $r.Message
             $r.Base | Should -Be 'créée'
@@ -365,7 +399,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
     It 'sans base : l''environnement est créé, la base se crée ensuite ; une base existante n''est pas une erreur' {
         InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'sans.db') } {
             param($c, $d, $b)
-            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'sans'; Base = $b } -Compte 'u' -InitialiserBase $false
+            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'sans'; CodeEnvironnement = 'test'; Base = $b } -Compte 'u' -InitialiserBase $false
             $r.Ok | Should -BeTrue
             $r.Base | Should -Match 'non créée'
             Test-Path -LiteralPath $b | Should -BeFalse
@@ -407,6 +441,20 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
             Test-Path -LiteralPath (Join-Path $versions 'recette_b_20260101_101010_DOM_ben.jsonl') | Should -BeTrue
             @(Get-ChildItem -LiteralPath $versions -Filter 'production_*DOM_ben.meta.json').Count | Should -Be 1
             (Get-Content -Raw -Encoding UTF8 -LiteralPath (@(Get-ChildItem -LiteralPath $versions -Filter 'production_*.meta.json')[0].FullName)) | Should -Match 'mise en production'
+        }
+    }
+    It 'renomme vers un nom dont le code plateforme ne se déduit pas : le code de l''ancien nom est conservé dans l''en-tête' {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier } {
+            param($c, $d)
+            $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
+            $env = $existants | Where-Object Nom -eq 'production'
+            $r = Rename-CopieEnvironnement -Config $c -Environnement $env -NouveauNom 'prod2' -Profil 'Admin' -Compte 'u' -Commentaire 'x' -Existants $existants
+            $r.Ok | Should -BeTrue -Because $r.Message
+            (Read-CopieFichierParametrage -Chemin (Join-Path $d 'prod2.jsonl')).Entete.code_environnement | Should -Be 'prod'
+            $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
+            $env = $existants | Where-Object Nom -eq 'prod2'
+            $r = Rename-CopieEnvironnement -Config $c -Environnement $env -NouveauNom 'production' -Profil 'Admin' -Compte 'u' -Commentaire 'retour' -Existants $existants
+            $r.Ok | Should -BeTrue -Because $r.Message
         }
     }
     It 'supprime : fichier et versions rangés, base intacte, refus sans droit ni commentaire' {
@@ -483,7 +531,7 @@ Describe 'Copie d''un environnement (moteur réel)' -Skip:(-not $Script:PythonDi
             param($c, $d, $z)
             $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
             $source = Read-CopieFichierParametrage -Chemin (Join-Path $d 'production.jsonl')
-            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'actives'; Base = (Join-Path $z 'actives.db') } -Compte 'u' -InitialiserBase $false -Existants $existants -Regle @($source.Regles) -DesactiverRegles $false
+            $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'actives'; CodeEnvironnement = 'test'; Base = (Join-Path $z 'actives.db') } -Compte 'u' -InitialiserBase $false -Existants $existants -Regle @($source.Regles) -DesactiverRegles $false
             $r.Ok | Should -BeTrue -Because $r.Message
             $copie = Read-CopieFichierParametrage -Chemin (Join-Path $d 'actives.jsonl')
             ($copie.Regles | Where-Object id -eq 'r1').actif | Should -BeTrue

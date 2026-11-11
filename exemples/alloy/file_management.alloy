@@ -1,7 +1,8 @@
 // Exemple de configuration Grafana Alloy pour lire les journaux de file_management.
-// NON TESTE : a valider avec l'equipe de la plateforme de surveillance (version d'Alloy,
-// adresse de Loki, chemins reels). Le format lu est celui du module journal_si.py
-// (docs/02-moteur.md, section 11) ; un exemple de fichier est dans exemples/journal/.
+// NON TESTE : a valider avec l'equipe de la plateforme d'observabilite (version d'Alloy,
+// adresse de Loki, chemins reels). Le format lu est celui de la plateforme (docs de la plateforme :
+// format-log.md et labels-metadata.md), ecrit par le module journal_si.py (docs/02-moteur.md,
+// section 11) ; un exemple de fichier est dans exemples/journal/.
 
 // Un fichier par regle et par jour : <dossier_logs>\<regle>_<AAAA-MM-JJ>.jsonl
 local.file_match "file_management" {
@@ -15,30 +16,37 @@ loki.source.file "file_management" {
 }
 
 loki.process "file_management" {
-  // Chaque ligne est un objet JSON : on en extrait l'horodatage et quatre libelles.
+  // Chaque ligne est un objet JSON : on en extrait l'horodatage et les six libelles obligatoires.
+  // error.type n'existe que pour les niveaux ERROR et CRITICAL (libelle absent sinon).
   stage.json {
     expressions = {
-      horodatage    = "horodatage",
-      niveau        = "niveau",
-      application   = "application",
-      environnement = "environnement",
-      regle         = "regle",
+      timestamp     = "timestamp",
+      level         = "level",
+      service_name  = "service.name",
+      environnement = "service.environment",
+      instance      = "service.instance",
+      object        = "context.object",
+      error_type    = "error.type",
     }
   }
 
   // L'horodatage de la ligne (UTC, millisecondes) devient l'heure de l'evenement dans Loki.
   stage.timestamp {
-    source = "horodatage"
+    source = "timestamp"
     format = "RFC3339Nano"
   }
 
-  // Peu de valeurs differentes par libelle. Ne jamais mettre le nom d'un fichier en libelle.
+  // Libelles obligatoires de la plateforme. object_id (nom de fichier), trace_id, correlation_id, etc.
+  // restent dans la ligne (metadonnees) : ne jamais les mettre en libelle (cardinalite trop forte).
+  // service_name vaut "file_management.<regle>" : une valeur par regle (a valider, voir CHANGELOG).
   stage.labels {
     values = {
-      application   = "",
+      service_name  = "",
       environnement = "",
-      regle         = "",
-      niveau        = "",
+      instance      = "",
+      level         = "",
+      object        = "",
+      error_type    = "",
     }
   }
 

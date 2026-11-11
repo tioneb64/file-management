@@ -1,10 +1,11 @@
-"""Journal d'evenements JSON pour le systeme d'information (lu par Grafana Alloy).
+"""Journal d'evenements JSON pour le systeme d'information, au format de la plateforme
+d'observabilite (lu par Grafana Alloy, indexe par Loki).
 
 Module autonome (bibliotheque standard seulement) : un programme du S.I. le copie tel quel et
 n'appelle que trois fonctions.
 
     import journal_si as journal
-    journal.debut(application="file_management", environnement="production", dossier=r"D:\\Copie\\logs")
+    journal.debut(application="file_management", environnement="prod", dossier=r"D:\\Copie\\logs")
     journal.evenement("fichier_livre", regle="export_clients", fichier=chemin, taille=15234)
     journal.fin(statut="WARNING", compteurs={"livres": 4})
 
@@ -16,24 +17,32 @@ Regles :
   * la journalisation ne leve JAMAIS d'exception : en cas de panne, la ligne part sur la
     sortie d'erreur et dans un fichier de secours local, et pannes() compte les incidents.
 
-Format et catalogue : docs/02-moteur.md, section 11.
+Une ligne = timestamp, [duration_ms], level, message, trace{trace_id, span_id, correlation_id},
+service{name, version, environment, instance}, context{object, object_id, event, ...},
+et error{type, message, ...} pour les niveaux ERROR et CRITICAL.
+Format : docs/02-moteur.md, section 11 (fait foi : la documentation de la plateforme).
 """
+import hashlib
 import json
 import os
 import re
+import socket
 import sys
 import tempfile
 import time
 from datetime import datetime, timezone
 
-NIVEAUX = ("DEBUG", "INFO", "WARNING", "ERREUR")
-CHAMPS_RESERVES = ("horodatage", "niveau", "application", "environnement", "job", "build",
-                   "build_url", "noeud", "regle", "execution_id", "evenement")
+NIVEAUX = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")      # aucune autre valeur n'est admise
+ALIAS_NIVEAUX = {"ERREUR": "ERROR"}                               # vocabulaire interne du moteur
+ENVIRONNEMENTS = ("dev", "build", "test", "pprod", "prod", "run", "int")
+CHAMPS_RESERVES = ("object", "object_id", "event", "job", "build", "build_url", "noeud", "regle",
+                   "execution_id")
 VARIABLES_JENKINS = (("job", "JOB_NAME"), ("build", "BUILD_NUMBER"), ("build_url", "BUILD_URL"),
                      ("noeud", "NODE_NAME"))
 LONGUEUR_MAX_TEXTE = 8192        # un champ texte plus long est coupe (sorties de programmes)
 FICHIER_SANS_REGLE = "_orchestrateur"
 _INTERDITS = re.compile(r"[^A-Za-z0-9_.-]")
+_RE_TRACEPARENT = re.compile(r"^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$")
 
 
 # --------------------------------------------------------------------------- #
@@ -117,13 +126,26 @@ class Journal(object):
         self.contexte = {}
         self.debut_le = None
         self.nb_pannes = 0
+        self.catalogue = None        # fonction(nom, niveau, champs) -> messages, types d'erreur, niveau
+        self.version = None
+        self.instance = None
+        self.trace_id = None
+        self.span_lancement = None
         self._ouverts = {}
 
     def configurer(self, application, environnement, dossier=None, verbeux=False, console=False,
-                   dossier_secours=None, evenement_fin="fin", **contexte):
-        """Prepare le journal sans ecrire d'evenement (utilise aussi par la ligne de commande)."""
+                   dossier_secours=None, evenement_fin="fin", version=None, instance=None,
+                   trace_id=None, **contexte):
+        """Prepare le journal sans ecrire d'evenement (utilise aussi par la ligne de commande).
+        `environnement` : code de la plateforme (dev, build, test, pprod, prod, run, int).
+        `trace_id` : sinon celui de la variable TRACEPARENT (W3C), sinon un nouveau."""
         self.application = application
         self.environnement = environnement
+        self.version = version or os.environ.get("JOURNAL_SI_VERSION") or "0.0.0"
+        self.instance = instance or nom_machine()
+        parent = lire_traceparent()
+        self.trace_id = trace_id or (parent[0] if parent else None) or os.urandom(16).hex()
+        self.span_lancement = os.urandom(8).hex()
         self.dossier = dossier or os.environ.get("JOURNAL_SI_DOSSIER") or "logs"
         self.dossier_secours = dossier_secours
         self.verbeux, self.console = verbeux, console
@@ -133,9 +155,10 @@ class Journal(object):
 
     # ----- interface en trois fonctions ----- #
     def debut(self, application, environnement, dossier=None, verbeux=False, console=False,
-              dossier_secours=None, evenement_debut="debut", evenement_fin="fin", **contexte):
+              dossier_secours=None, evenement_debut="debut", evenement_fin="fin", version=None,
+              instance=None, trace_id=None, **contexte):
         self.configurer(application, environnement, dossier, verbeux, console, dossier_secours,
-                        evenement_fin, **contexte)
+                        evenement_fin, version, instance, trace_id, **contexte)
         self.evenement(evenement_debut)
 
     def evenement(self, nom, niveau="INFO", **champs):
@@ -143,15 +166,15 @@ class Journal(object):
             ligne = self._construire(nom, niveau, champs)
             if ligne is None:
                 return
-            niveau_ecrit, regle, octets, texte = ligne
+            niveau_ecrit, regle, octets, texte, message = ligne
             self._ecrire(regle, octets, texte)
             if self.console:
-                self._afficher(niveau_ecrit, nom, champs)
+                self._afficher(niveau_ecrit, nom, message, champs)
         except Exception as e:          # la journalisation ne doit jamais arreter un transfert
             self._panne("erreur interne: %s: %s" % (type(e).__name__, e))
 
     def fin(self, statut="OK", compteurs=None, **champs):
-        niveau = {"ERREUR": "ERREUR", "WARNING": "WARNING"}.get(str(statut).upper(), "INFO")
+        niveau = {"ERREUR": "ERROR", "ERROR": "ERROR", "WARNING": "WARNING"}.get(str(statut).upper(), "INFO")
         if self.debut_le is not None:
             champs["duree_ms"] = int((self.horloge() - self.debut_le) * 1000)
         self.evenement(self.evenement_fin, niveau, statut=statut, compteurs=compteurs or {}, **champs)
@@ -161,6 +184,10 @@ class Journal(object):
     def definir(self, **contexte):
         """Champs ajoutes a tous les evenements suivants (regle, execution_id...)."""
         self.contexte.update(contexte)
+
+    def traceparent(self):
+        """Valeur de la variable TRACEPARENT (W3C) a donner a un processus fils : meme trace."""
+        return "00-%s-%s-01" % (self.trace_id, self.span_lancement)
 
     def pannes(self):
         """Nombre d'evenements qui n'ont pas pu etre ecrits dans le dossier de journaux."""
@@ -175,35 +202,78 @@ class Journal(object):
         self._ouverts = {}
 
     # ----- interne ----- #
+    def _niveau(self, niveau):
+        niveau = ALIAS_NIVEAUX.get(str(niveau).upper(), str(niveau).upper())
+        return niveau if niveau in NIVEAUX else "INFO"
+
     def _construire(self, nom, niveau, champs):
-        niveau = str(niveau).upper()
-        if niveau not in NIVEAUX:
-            niveau = "INFO"
+        niveau = self._niveau(niveau)
         if niveau == "DEBUG" and not self.verbeux:
             return None
-        maintenant = self.horloge()
-        evenement = {
-            "horodatage": _horodatage(maintenant),
-            "niveau": niveau,
-            "application": self.application,
-            "environnement": self.environnement,
+        champs = dict(self.contexte, **champs)
+        complement = {}
+        if self.catalogue is not None:
+            try:
+                complement = self.catalogue(nom, niveau, champs) or {}
+            except Exception:                  # un catalogue defaillant ne doit jamais empecher d'ecrire
+                complement = {}
+        niveau = self._niveau(complement.get("niveau", niveau))
+        message = str(champs.pop("message", None) or complement.get("message") or nom.replace("_", " "))
+        duree = champs.pop("duree_ms", None)
+        regle = champs.get("regle")
+        execution_id = champs.get("execution_id")
+        job, build = os.environ.get("JOB_NAME"), os.environ.get("BUILD_NUMBER")
+        lancement = "%s-%s" % (job, build) if job and build else self.trace_id
+
+        objet = champs.pop("object", None) or complement.get("object")
+        objet_id = champs.pop("object_id", None) or complement.get("object_id")
+        if not objet:
+            if champs.get("fichier"):
+                objet, objet_id = "fichier", objet_id or _nom_fichier(champs["fichier"])
+            elif regle:
+                objet, objet_id = "regle", objet_id or regle
+            else:
+                objet, objet_id = "lancement", objet_id or lancement
+
+        evenement = {"timestamp": _horodatage(self.horloge())}
+        if duree is not None:
+            evenement["duration_ms"] = duree
+        evenement["level"] = niveau
+        evenement["message"] = _borner(message)
+        evenement["trace"] = {
+            "trace_id": self.trace_id,
+            "span_id": span_regle(self.trace_id, execution_id) if execution_id is not None else self.span_lancement,
+            "correlation_id": lancement + ("-" + _INTERDITS.sub("_", str(regle)) if regle else ""),
         }
+        evenement["service"] = {
+            "name": self.application + ("." + _INTERDITS.sub("_", str(regle)) if regle else ""),
+            "version": self.version, "environment": self.environnement, "instance": self.instance}
+        contexte = {"object": objet, "object_id": str(objet_id if objet_id is not None else lancement),
+                    "event": nom}
         for cle, variable in VARIABLES_JENKINS:
             if os.environ.get(variable):
-                evenement[cle] = os.environ[variable]
-        champs = dict(self.contexte, **champs)
-        regle = champs.get("regle")
+                contexte[cle] = os.environ[variable]
         for cle in ("regle", "execution_id"):
             if champs.get(cle) is not None:
-                evenement[cle] = champs[cle]
-        evenement["evenement"] = nom
+                contexte[cle] = champs[cle]
+        type_erreur = champs.pop("error_type", None) or complement.get("error_type")
+        exception = champs.pop("exception", None) or complement.get("exception")
+        trace_pile = champs.pop("stacktrace", None)
         for cle, valeur in champs.items():
             if cle in ("regle", "execution_id"):
                 continue
-            evenement["x_" + cle if cle in CHAMPS_RESERVES else cle] = _borner(valeur)
+            contexte["x_" + cle if cle in CHAMPS_RESERVES else cle] = _borner(valeur)
+        evenement["context"] = contexte
+        if niveau in ("ERROR", "CRITICAL"):
+            erreur = {"type": type_erreur or "UNKNOWN_ERROR", "message": evenement["message"]}
+            if exception:
+                erreur["exception"] = _borner(exception)
+            if trace_pile:
+                erreur["stacktrace"] = _borner(trace_pile)
+            evenement["error"] = erreur
         texte = json.dumps(evenement, ensure_ascii=False, separators=(",", ":"), default=_en_texte)
         octets = (texte + "\n").encode("utf-8", "backslashreplace")
-        return niveau, regle, octets, texte
+        return niveau, regle, octets, texte, evenement["message"]
 
     def _chemin(self, regle):
         nom = _INTERDITS.sub("_", str(regle)) if regle else FICHIER_SANS_REGLE
@@ -261,15 +331,38 @@ class Journal(object):
             except Exception:
                 pass
 
-    def _afficher(self, niveau, nom, champs):
+    def _afficher(self, niveau, nom, message, champs):
         try:
             detail = " ".join("%s=%s" % (k, _borner(v)) for k, v in champs.items()
-                              if k in ("regle", "message", "fichier", "statut"))
-            sys.stdout.write("%s %-7s %s %s\n" % (time.strftime("%H:%M:%S", time.localtime(
-                self.horloge())), niveau, nom, detail))
+                              if k in ("regle", "fichier", "statut"))
+            sys.stdout.write("%s %-8s %s %s message=%s\n" % (time.strftime("%H:%M:%S", time.localtime(
+                self.horloge())), niveau, nom, detail, message))
             sys.stdout.flush()
         except Exception:
             pass
+
+
+def nom_machine():
+    """Nom de la machine en minuscules (service.instance)."""
+    return (os.environ.get("COMPUTERNAME") or socket.gethostname() or "inconnue").lower()
+
+
+def lire_traceparent(valeur=None):
+    """(trace_id, span_id) de la variable TRACEPARENT (W3C Trace Context), ou None si absente ou invalide."""
+    m = _RE_TRACEPARENT.match((valeur if valeur is not None else os.environ.get("TRACEPARENT", "")).strip())
+    if not m or set(m.group(1)) == {"0"} or set(m.group(2)) == {"0"}:
+        return None
+    return m.group(1), m.group(2)
+
+
+def span_regle(trace_id, execution_id):
+    """Identifiant de span (16 hexadecimaux) de l'execution d'une regle : calcule, donc le meme dans
+    l'orchestrateur et dans le processus fils sans rien se transmettre."""
+    return hashlib.sha256(("%s:%s" % (trace_id, execution_id)).encode("utf-8")).hexdigest()[:16]
+
+
+def _nom_fichier(chemin):
+    return re.split(r"[\\/]", str(chemin).rstrip("\\/"))[-1]
 
 
 def _horodatage(instant):
@@ -313,6 +406,8 @@ def main(argv=None):
     p.add_argument("--evenement", required=True)
     p.add_argument("--niveau", default="INFO")
     p.add_argument("--regle")
+    p.add_argument("--message", help="message descriptif de l'evenement (obligatoire dans le format ; "
+                                     "sinon le nom de l'evenement)")
     p.add_argument("--champ", action="append", default=[], metavar="CLE=VALEUR",
                    help="champ texte (repetable) ; pour des valeurs typees, --champs-json")
     p.add_argument("--champs-json", metavar="FICHIER",
@@ -333,6 +428,11 @@ def main(argv=None):
                 champs[cle] = valeur
         if args.regle:
             champs["regle"] = args.regle
+        if args.message:
+            champs["message"] = args.message
+        if args.environnement not in ENVIRONNEMENTS:
+            sys.stderr.write("journal_si: environnement '%s' hors de la liste de la plateforme (%s)\n"
+                             % (args.environnement, ", ".join(ENVIRONNEMENTS)))
         journal.configurer(args.application, args.environnement, args.dossier, console=args.console)
         journal.evenement(args.evenement, args.niveau, **champs)
     except Exception as e:                     # y compris un fichier JSON illisible : jamais d'echec

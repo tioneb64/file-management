@@ -63,6 +63,7 @@ def listes():
         "jours": list(p.JOURS), "points_programme": list(p.PROGRAMMES),
         "variables_date": list(p.VARIABLES_DATE), "variables_renommage": list(p.VARIABLES_RENOMMAGE),
         "variables_par_point": {k: list(v) for k, v in p.VARIABLES_PAR_POINT.items()},
+        "codes_environnement": list(p.CODES_ENVIRONNEMENT),
     }
 
 
