@@ -1,6 +1,6 @@
-# Migration et recette
+﻿# Migration et recette
 
-Passage de l'ancien script (`copie_fichiers.py` v1 + `copies.conf` + historique JSON) à la v2, **règle par règle**, sans relivrer ce qui a déjà été livré et sans trou. L'ancien script n'est jamais modifié : il reste le plan de repli.
+Passage de l'ancien script (`file_management.py` v1 + `copies.conf` + historique JSON) à la v2, **règle par règle**, sans relivrer ce qui a déjà été livré et sans trou. L'ancien script n'est jamais modifié : il reste le plan de repli.
 
 ## 1. Outils fournis
 
@@ -9,7 +9,7 @@ Passage de l'ancien script (`copie_fichiers.py` v1 + `copies.conf` + historique 
 | `python -m copie --migrer-ancien COPIES.CONF --environnement E --base B [--sortie F] [--frequence-sec N] [--actives]` | Convertit `copies.conf` en fichier de paramétrage. **Ne demande pas `--config`**. Règles **inactives** par défaut ; refuse d'écraser un fichier existant ; le nom du fichier doit être `<environnement>.jsonl` |
 | `python -m copie --config F --importer-historique HISTORIQUE.JSON --utilisateur U [--commentaire C]` | Importe l'historique de l'ancien script dans la base : les fichiers déjà copiés ne seront **pas relivrés**. Idempotent, tracé |
 | `outils\comparer_dossiers.py ANCIEN NOUVEAU [--masque *.csv] [--dates]` | Compare deux dossiers cibles (présence, taille, SHA-256) : preuve que la v2 livre la même chose que la v1. Lecture seule |
-| `copie_fichiers_v2.py` | Lanceur de la v2 (équivalent de `python -m copie`) ; deviendra `copie_fichiers.py` à la fin (§6) |
+| `file_management_v2.py` | Lanceur de la v2 (équivalent de `python -m copie`) ; deviendra `file_management.py` à la fin (§6) |
 
 ## 2. Ce que la conversion fait (et ne fait pas)
 
@@ -42,7 +42,7 @@ Le fichier produit est immédiatement vérifié (syntaxe) et le compte rendu lis
 ### Étape 1 — Générer, relire, vérifier (aucun risque)
 
 ```powershell
-cd D:\Scripts\copie_fichiers
+cd D:\Scripts\file_management
 C:\Python314\python.exe -m copie --migrer-ancien D:\Anciens\copies.conf --environnement recette --base D:\Copie\recette.db --sortie D:\Parametrage\recette.jsonl
 # relire le fichier : renommer les id, régler les planifications, durcir si_existe_cible
 C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --verifier        # avec le compte de service
@@ -95,7 +95,7 @@ L'historique de l'ancien script n'a pas été modifié ; il recopie ce que la v2
 ### Étape 7 — Fin de migration
 
 - Toutes les règles basculées et stables (au moins deux semaines).
-- Dans le dépôt de déploiement : renommer `copie_fichiers.py` en `copie_fichiers_v1.py` (conservé pour le retour arrière) et `copie_fichiers_v2.py` en `copie_fichiers.py` ; dans les jobs Jenkins, rien à changer si le lanceur s'appelait déjà `copie_fichiers.py` (sinon `lanceur: 'copie_fichiers.py'`). Les tests de caractérisation du dépôt importent alors `copie_fichiers_v1`.
+- Dans le dépôt de déploiement : renommer `file_management.py` en `file_management_v1.py` (conservé pour le retour arrière) et `file_management_v2.py` en `file_management.py` ; dans les jobs Jenkins, rien à changer si le lanceur s'appelait déjà `file_management.py` (sinon `lanceur: 'file_management.py'`). Les tests de caractérisation du dépôt importent alors `file_management_v1`.
 - Garder `copies.conf` et l'historique de l'ancien script archivés avec la dernière sauvegarde de la base.
 
 ## 5. Différences de comportement à connaître

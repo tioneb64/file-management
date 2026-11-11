@@ -1,6 +1,6 @@
-> **Ancien script (v1).** Cette documentation décrit `copie_fichiers.py` et `copies.conf`, encore en service jusqu'à la bascule vers la v2 ([09-migration-et-recette](09-migration-et-recette.md)). La documentation de la v2 est à partir du [README](../README.md).
+﻿> **Ancien script (v1).** Cette documentation décrit `file_management.py` et `copies.conf`, encore en service jusqu'à la bascule vers la v2 ([09-migration-et-recette](09-migration-et-recette.md)). La documentation de la v2 est à partir du [README](../README.md).
 
-# copie_fichiers.py
+# file_management.py
 
 Script de copie incrémentale et vérifiée de fichiers, de la production vers les environnements de test. Il est conçu pour être ordonnancé par Jenkins sur Windows Server 2016.
 
@@ -29,7 +29,7 @@ Script de copie incrémentale et vérifiée de fichiers, de la production vers l
 ## Utilisation
 
 ```bat
-python copie_fichiers.py --config copies.conf [options]
+python file_management.py --config copies.conf [options]
 ```
 
 | Option | Défaut | Description |
@@ -47,10 +47,10 @@ python copie_fichiers.py --config copies.conf [options]
 
 ```bat
 REM Valider un nouveau paramétrage sans rien copier
-python D:\Scripts\copie_fichiers.py -c D:\Scripts\copies.conf --simulation
+python D:\Scripts\file_management.py -c D:\Scripts\copies.conf --simulation
 
 REM Exécution normale avec fichier de log
-python D:\Scripts\copie_fichiers.py -c D:\Scripts\copies.conf --log D:\Scripts\logs\copie.log
+python D:\Scripts\file_management.py -c D:\Scripts\copies.conf --log D:\Scripts\logs\copie.log
 ```
 
 ### Intégration Jenkins

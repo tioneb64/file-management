@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest import mock
 
-import copie_fichiers as v1
+import file_management as v1
 from copie import __main__ as cli
 from copie import base, migration
 from copie.controles import verifier_fichier
@@ -501,7 +501,7 @@ class TestLanceurV2(CasTemporaire):
         chemin = self.chemin("production.jsonl")
         with open(chemin, "w", encoding="utf-8") as f:
             f.write('{"version": 1, "environnement": "production", "base": "D:\\\\Copie\\\\production.db"}\n')
-        resultat = subprocess.run([sys.executable, os.path.join(RACINE, "copie_fichiers_v2.py"), "--config", chemin,
+        resultat = subprocess.run([sys.executable, os.path.join(RACINE, "file_management_v2.py"), "--config", chemin,
                                    "--verifier", "--syntaxe-seule", "--format", "json"], cwd=self.racine,
                                   capture_output=True)
         self.assertEqual((resultat.returncode, resultat.stderr), (0, b""))

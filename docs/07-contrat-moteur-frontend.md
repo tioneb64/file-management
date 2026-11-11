@@ -107,7 +107,7 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
 
 | Champ d'une règle | Type | Sens |
 |---|---|---|
-| `statut` | texte | `JAMAIS_LANCEE`, `SUCCES`, `WARNING`, `ERREUR`, `ACQUITTEE`, `ARRETEE`, `EN_COURS`, `EN_ATTENTE`, `BLOQUEE`, `INACTIVE` |
+| `statut` | texte | `JAMAIS_LANCEE`, `SUCCES`, `WARNING`, `ERREUR`, `ATTENTE`, `ACQUITTEE`, `ARRETEE`, `EN_COURS`, `EN_ATTENTE`, `BLOQUEE`, `INACTIVE` |
 | `attente`, `motif` | texte ou `null` | `EN_ATTENTE` / `BLOQUEE` et son explication (nomme la règle bloquante) ; `motif` reprend sinon le motif de la dernière exécution |
 | `planification` | texte | Planification en clair |
 | `dernier_lancement`, `dernier_creneau`, `prochain_creneau`, `dernier_succes` | entier ou `null` | **Secondes depuis 1970, UTC** (à convertir pour l'affichage) |
@@ -120,7 +120,7 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
 
 ### 4.3 Lancement et `--lancer-regle`
 
-`statut` vaut `SUCCES`, `WARNING` ou `ERREUR`. `compteurs` d'un **lancement** : `regles`, `lancees`, `SUCCES`, `WARNING`, `ERREUR`, `non_dues`, `non_lancees`, `orphelines`, `nettoyees`, `en_attente`, `bloquees`, `depassees`. `compteurs` d'une **règle** : `selectionnes`, `livres`, `ignores`, `erreurs`, `en_attente`, `octets`. Le détail fichier par fichier est dans les journaux (Grafana), pas dans cette réponse.
+`statut` vaut `SUCCES`, `WARNING` ou `ERREUR` ; `statut_final` (règle seule) vaut en plus `ATTENTE` pour une règle `count` / `size` hors bornes (le `statut` reste `SUCCES`, code 0). `mode` vaut `copie`, `deplacement`, `archivage`, `suppression`, `count` ou `size` ; `cible` est `null` pour les trois derniers. `compteurs` d'un **lancement** : `regles`, `lancees`, `SUCCES`, `WARNING`, `ERREUR`, `non_dues`, `non_lancees`, `orphelines`, `nettoyees`, `en_attente`, `bloquees`, `depassees`. `compteurs` d'une **règle** : `selectionnes`, `livres`, `ignores`, `erreurs`, `en_attente`, `octets`. Le détail fichier par fichier est dans les journaux (Grafana), pas dans cette réponse.
 
 ## 5. Enregistrement d'une modification (séquence recommandée)
 

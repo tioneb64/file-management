@@ -275,7 +275,7 @@ class TestRegle(CasParametrage):
         self.assertTrue(self.verifier([regle(mode="copie", archive="D:\\arch")])[1].ok)
 
     def test_r06_valeurs_hors_liste(self):
-        for modif in ({"mode": "suppression"}, {"identite": "hash"}, {"si_cible_absente": "x"},
+        for modif in ({"mode": "teleportation"}, {"identite": "hash"}, {"si_cible_absente": "x"},
                       {"si_existe_cible": "x"}, {"si_existe_archive": "ecraser_tout"},
                       {"si_duree_depassee": "x"}, {"apres_erreur": "x"},
                       {"si_condition_non_remplie": "info"},

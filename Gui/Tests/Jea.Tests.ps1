@@ -243,7 +243,7 @@ Describe 'Installateur' {
     }
     It 'ne touche à rien avec -WhatIf (et n''exige pas d''être administrateur)' {
         $script = Join-Path $PSScriptRoot '..\Installer-PointAccesJea.ps1'
-        $null = & $script -Nom 'CopieFichiersTest' -GroupeAdmin 'DOM\G' -Python $env:ComSpec -Racine $Script:Racine -DossierParametrage $Script:Dossier -DossierTraces (Join-Path $TestDrive 'traces') -WhatIf 4>&1 5>&1 6>&1
+        $null = & $script -Nom 'FileManagementTest' -GroupeAdmin 'DOM\G' -Python $env:ComSpec -Racine $Script:Racine -DossierParametrage $Script:Dossier -DossierTraces (Join-Path $TestDrive 'traces') -WhatIf 4>&1 5>&1 6>&1
         Test-Path (Join-Path $TestDrive 'traces') | Should -BeFalse
     }
 }

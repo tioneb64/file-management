@@ -362,6 +362,10 @@ function Read-CopieFormulaire {
         $r = Read-CopieControleChamp -Entree $e
         if ($r.Ok) { Set-CopieValeurChemin -Objet $regle -Chemin $e.Spec.Chemin -Valeur $r.Valeur } else { $erreurs.Add($r.Erreur) }
     }
+    $mode = "$(Get-CopieValeur $regle 'mode' '')"
+    if (@(Get-CopieModesRegle | Where-Object { $_.Nom -eq $mode -and $_.Transfert }).Count -gt 0 -and -not "$(Get-CopieValeur $regle 'cible' '')".Trim()) {
+        $erreurs.Add(('Dossier cible : obligatoire pour le mode {0}.' -f $mode))
+    }
     $id = "$(Get-CopieValeur $regle 'id' '')"
     if ($id -and $Etat.Mode -ne 'modification' -and @($Etat.IdsExistants | Where-Object { $_ -eq $id.ToLowerInvariant() }).Count -gt 0) {
         $erreurs.Add(('Identifiant : « {0} » existe déjà dans cet environnement.' -f $id))

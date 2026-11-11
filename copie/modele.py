@@ -28,6 +28,7 @@ def regle_par_defaut():
     return {
         "id": None, "description": r.description, "actif": r.actif,
         "source": None, "cible": None, "mode": None, "archive": r.archive,
+        "seuil_minimum": r.seuil_minimum, "seuil_maximum": r.seuil_maximum,
         "creer_dossiers": r.creer_dossiers, "dossier_temporaire": r.dossier_temporaire,
         "selection": {"masque": selection.masque, "exclure": selection.exclure,
                       "recursif": selection.recursif, "modifie_depuis": selection.modifie_depuis,

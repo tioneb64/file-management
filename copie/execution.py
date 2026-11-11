@@ -12,6 +12,7 @@ import time
 
 from copie import base as modele_base
 from copie import chemins, processus, programmes, selection, transfert
+from copie.parametrage import MODES_MESURE, MODES_TRANSFERT
 from copie.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
@@ -26,6 +27,8 @@ APERCU_MAX = 500                   # fichiers detailles dans la reponse d'une si
 class Bilan(object):
     def __init__(self):
         self.statut = "SUCCES"
+        self.attente = False                # modes count / size : bornes non respectees (statut ATTENTE)
+        self.statut_final = None            # statut enregistre en base : SUCCES, WARNING, ERREUR ou ATTENTE
         self.motif = None
         self.situation_finale = None
         self.compteurs = {"selectionnes": 0, "livres": 0, "ignores": 0, "erreurs": 0,
@@ -36,6 +39,13 @@ class Bilan(object):
         self.apercu = []                    # simulation : fichiers qui seraient livres (plafonne)
         self.apercu_total = 0
         self.octets_prevus = 0              # volume a livrer, connu avant la livraison (controle d'espace)
+
+
+def _octets_lisibles(n):
+    for unite in ("octets", "Ko", "Mo", "Go", "To"):
+        if n < 1024 or unite == "To":
+            return ("%d %s" % (n, unite)) if unite == "octets" else ("%.1f %s" % (n, unite)).replace(".0 ", " ")
+        n /= 1024.0
 
 
 class EchecSituation(Exception):
@@ -162,12 +172,17 @@ class ExecutionRegle(object):
             self._intentions_interrompues()
             self._controles_prealables()
             self._actions_en_attente()
-            a_livrer = self._selectionner()
-            if a_livrer:
-                a_livrer = self._avant_lot(a_livrer)
-            if a_livrer:
-                self._livrer_tout(a_livrer)
-                self._apres_lot()
+            if self.regle.mode in MODES_MESURE:
+                self._mesurer()
+            elif self.regle.mode == "suppression":
+                self._supprimer_tout()
+            else:
+                a_livrer = self._selectionner()
+                if a_livrer:
+                    a_livrer = self._avant_lot(a_livrer)
+                if a_livrer:
+                    self._livrer_tout(a_livrer)
+                    self._apres_lot()
         except ArretRegle as a:
             self.bilan.motif = a.message
             self.bilan.situation_finale = a.situation
@@ -285,7 +300,7 @@ class ExecutionRegle(object):
 
     def _preparer_chemins(self):
         regle = self.regle
-        self.cible = os.path.normpath(os.path.expandvars(regle.cible))
+        self.cible = os.path.normpath(os.path.expandvars(regle.cible)) if regle.cible else None
         self.source = os.path.normpath(os.path.expandvars(regle.source))
         if regle.mode == "archivage":
             self.archive_dir = chemins.resoudre_archive(regle.archive, self.source, self.debut)
@@ -293,7 +308,7 @@ class ExecutionRegle(object):
             self.source, regle.archive if regle.mode == "archivage" else None,
             [regle.dossier_temporaire])
         self.dossier_temporaire = (os.path.normpath(os.path.expandvars(regle.dossier_temporaire))
-                                   if regle.dossier_temporaire else None)
+                                   if regle.dossier_temporaire and regle.mode in MODES_TRANSFERT else None)
 
     # ----- 6.3 : livraisons interrompues ----------------------------------- #
     def _intentions_interrompues(self):
@@ -364,6 +379,8 @@ class ExecutionRegle(object):
         except EchecSituation as e:
             self._arreter(e)
         self._log("controle_prealable", "INFO", controle="source", chemin=self.source)
+        if regle.mode not in MODES_TRANSFERT:
+            return                          # suppression, count, size : pas de cible ni d'archive
 
         try:
             self._essayer(lambda: self._verifier_ecriture(self.cible), lambda e: "cible_inaccessible")
@@ -505,6 +522,76 @@ class ExecutionRegle(object):
                 if politique != "suffixe":
                     raise
         raise ErreurCible("aucun nom libre dans l'archive pour %s" % destination)
+
+    # ----- modes sans transfert : count, size, suppression ------------------ #
+    def _lister_brut(self):
+        """Tous les fichiers qui correspondent a la selection (sans anti-doublon : on mesure ou on supprime
+        ce qui est present maintenant)."""
+        regle = self.regle
+        interdits = [self.dossier_temporaire] if self.dossier_temporaire else []
+
+        def operation():
+            res = selection.lister(self.source, regle.selection, self.maintenant(), self.est_exclu, interdits)
+            if res.erreurs and not res.candidats:
+                raise res.erreurs[0][1]
+            return res
+        try:
+            res = self._essayer(operation, lambda e: "source_inaccessible")
+        except EchecSituation as e:
+            self._arreter(e)
+        self._bilan_selection(res)
+        return res
+
+    def _mesurer(self):
+        """Modes count et size : mesure la selection et compare aux bornes ; hors bornes, la regle
+        sort en ATTENTE (ni succes ni erreur) : les regles qui en dependent patientent."""
+        regle, b = self.regle, self.bilan
+        res = self._lister_brut()
+        nombre = len(res.candidats)
+        octets = sum(c.taille for c in res.candidats)
+        valeur, unite = (nombre, "fichier(s)") if regle.mode == "count" else (octets, "octet(s)")
+        mini, maxi = regle.seuil_minimum, regle.seuil_maximum
+        self._log("mesure", "INFO", mode=regle.mode, nombre=nombre, octets=octets, seuil_minimum=mini,
+                  seuil_maximum=maxi)
+        description = ("%d fichier(s)" % nombre) if regle.mode == "count" else \
+            "%s en %d fichier(s)" % (_octets_lisibles(octets), nombre)
+        if (mini is not None and valeur < mini) or (maxi is not None and valeur > maxi):
+            bornes = " et ".join(t for t in (("au moins %d %s" % (mini, unite)) if mini is not None else None,
+                                             ("au plus %d %s" % (maxi, unite)) if maxi is not None else None) if t)
+            b.attente = True
+            b.motif = "condition non remplie : %s, attendu %s" % (description, bornes)
+            self._log("condition_non_remplie", "INFO", message=b.motif)
+        else:
+            b.motif = description
+
+    def _supprimer_tout(self):
+        """Mode suppression : supprime definitivement les fichiers selectionnes (original verifie inchange)."""
+        regle, b = self.regle, self.bilan
+        res = self._lister_brut()
+        a_supprimer = res.candidats
+        sel = regle.selection
+        if sel.limite_fichiers is not None and len(a_supprimer) > sel.limite_fichiers:
+            self._log("limite_atteinte", "INFO", limite=sel.limite_fichiers,
+                      restants=len(a_supprimer) - sel.limite_fichiers)
+            a_supprimer = a_supprimer[:sel.limite_fichiers]
+        for c in a_supprimer:
+            champs = {"fichier": c.chemin}
+            if self.simulation:
+                b.compteurs["livres"] += 1
+                b.compteurs["octets"] += c.taille
+                self._log("fichier_a_supprimer", "INFO", taille=c.taille, **champs)
+                self._noter_apercu(c, None)
+                continue
+            try:
+                resultat = self._executer_action("suppression", c.chemin, c.taille, c.mtime_ns, None, **champs)
+            except EchecSituation as e:
+                cfg = self._signaler(e.situation, e.message, **champs)
+                if cfg.suite == "arreter_regle":
+                    raise ArretRegle(e.situation, e.message)
+                continue                    # le fichier reste selectionne : retente au prochain lancement
+            if resultat == "supprime":
+                b.compteurs["livres"] += 1
+                b.compteurs["octets"] += c.taille
 
     # ----- 4 + 6 : selection et anti-doublon -------------------------------- #
     def _selectionner(self):
@@ -845,7 +932,9 @@ class ExecutionRegle(object):
         b.compteurs["en_attente"] = max(b.compteurs["en_attente"], len(self.base.actions(self.no)))
         if b.motif is None:
             c = b.compteurs
-            if b.statut == "SUCCES":
+            if b.statut == "SUCCES" and self.regle.mode == "suppression":
+                b.motif = "%d fichier(s) supprime(s)" % c["livres"] if c["livres"] else "rien a supprimer"
+            elif b.statut == "SUCCES":
                 b.motif = "%d fichier(s) livre(s)" % c["livres"] if c["livres"] else "rien a livrer"
             elif b.erreur:
                 b.motif = b.erreur["message"]
@@ -910,15 +999,17 @@ def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=
         if not simulation:
             base.liberer_flag(no, "interrompue")
         raise
+    statut_final = "ATTENTE" if bilan.attente else bilan.statut
+    bilan.statut_final = statut_final
     if not simulation:
-        base.terminer_execution(execution_id, no, bilan.statut, motif=bilan.motif,
+        base.terminer_execution(execution_id, no, statut_final, motif=bilan.motif,
                                 compteurs=bilan.compteurs, situation_finale=bilan.situation_finale,
                                 message=bilan.motif, erreur=bilan.erreur,
                                 arret_apres_erreur=bilan.arret_apres_erreur)
     bilan.duree_ms = int((time.time() - debut) * 1000)
     if journaliser_fin:
         journal.evenement("regle_terminee", NIVEAU_STATUT[bilan.statut],
-                          statut=bilan.statut, motif=bilan.motif, compteurs=bilan.compteurs,
+                          statut=statut_final, motif=bilan.motif, compteurs=bilan.compteurs,
                           duree_ms=bilan.duree_ms, **({"simulation": True} if simulation else {}))
     journal.definir(regle=None, execution_id=None)
     return bilan

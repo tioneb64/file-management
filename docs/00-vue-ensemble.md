@@ -1,4 +1,4 @@
-# Spécifications — transfert sécurisé de fichiers (copie_fichiers v2)
+﻿# Spécifications — transfert sécurisé de fichiers (file_management v2)
 
 | | |
 |---|---|
@@ -65,7 +65,7 @@ Le script actuel copie de façon incrémentale et vérifiée des fichiers de la 
  Jenkins : un job par environnement, déclenché toutes les N minutes, builds parallèles autorisés
    │  Jenkinsfile + Shared Library (journaux de job : début, fin, statut)
    ▼
- copie_fichiers.py --config production.jsonl                    « orchestrateur »
+ file_management.py --config production.jsonl                    « orchestrateur »
    │  lit le paramétrage · évalue planification et dépendances · lit/écrit la base
    ├──► processus fils « règle A » ──► copie vérifiée ──► logs\regle_A_AAAA-MM-JJ.jsonl
    ├──► processus fils « règle B » ──► …
@@ -124,7 +124,7 @@ Le script actuel copie de façon incrémentale et vérifiée des fichiers de la 
 |---|---|
 | **Environnement** | Production, recette, développement… Un fichier de paramétrage et une base par environnement. |
 | **Règle** | Une ligne du paramétrage : un couple source / cible avec son mode, sa sélection, sa planification et ses réactions. Identifiée par un `id`. |
-| **Lancement** | Une exécution du programme `copie_fichiers.py` par Jenkins. Il évalue toutes les règles. |
+| **Lancement** | Une exécution du programme `file_management.py` par Jenkins. Il évalue toutes les règles. |
 | **Exécution** | Un traitement complet d'une règle, dans un processus fils. |
 | **Créneau** | Un instant prévu par la planification d'une règle (7h15, ou 5h00 + k × 5 min). |
 | **Version d'un fichier** | Un fichier à un instant donné : même nom, même taille, même date de modification. |

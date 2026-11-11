@@ -92,7 +92,16 @@ function ConvertTo-CopieResumeSimulation {
     $remarques = New-Object System.Collections.Generic.List[string]
 
     $verbe = switch ($mode) { 'deplacement' { 'Déplacera' } 'archivage' { 'Copiera' } default { 'Copiera' } }
-    if ($n -gt 0) {
+    if ($mode -eq 'suppression') {
+        if ($n -gt 0) { $phrase = 'Supprimera DÉFINITIVEMENT {0} fichier(s) ({1}) du répertoire {2}. Aucune copie n''est conservée.' -f $n, (Format-CopieTaille -Octets $octets), $source }
+        else { $phrase = 'Aucun fichier à supprimer dans le répertoire {0} pour le moment.' -f $source }
+    }
+    elseif ($mode -in 'count', 'size') {
+        $phrase = 'Mesure du répertoire {0} : {1}.' -f $source, $(if ($motif) { $motif } else { 'résultat indisponible' })
+        if ($statut -eq 'ATTENTE') { $phrase += ' La règle sortirait en ATTENTE : les règles qui en dépendent patienteraient.' }
+        else { $phrase += ' Les seuils sont respectés : la règle sortirait en succès. Aucun fichier n''est touché.' }
+    }
+    elseif ($n -gt 0) {
         $phrase = '{0} {1} fichier(s) ({2}) du répertoire {3} vers le répertoire {4}.' -f $verbe, $n, (Format-CopieTaille -Octets $octets), $source, $cible
         if ($mode -eq 'archivage') {
             $archive = @($apercu | Where-Object { Get-CopieValeur $_ 'archive' } | Select-Object -First 1)
@@ -104,6 +113,7 @@ function ConvertTo-CopieResumeSimulation {
     else { $phrase = 'Aucun fichier à traiter dans le répertoire {0} pour le moment.' -f $source }
 
     $niveau = 'INFO'
+    if ($statut -eq 'ATTENTE') { $niveau = 'WARNING' }
     if ($statut -eq 'ERREUR') {
         $niveau = 'ERREUR'
         $remarques.Add('La règle ne pourrait pas s''exécuter : ' + $(if ($motif) { $motif } else { 'voir le journal du moteur' }))

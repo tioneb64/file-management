@@ -45,7 +45,7 @@ function Show-CopieDiagnostics {
 function Set-CopieFiltres {
     <#
     .SYNOPSIS
-        Applique les filtres (recherche, statut, mode, actives) à la grille des règles.
+        Applique les filtres (recherche, statut, mode, activité) à la grille des règles.
     .PARAMETER Vue
         Vue d'un environnement (New-CopieVueEnvironnement).
     #>
@@ -55,11 +55,13 @@ function Set-CopieFiltres {
     $texte = $Vue.Recherche.Text.Trim().ToLowerInvariant()
     $statut = "$($Vue.FiltreStatut.SelectedItem)"
     $mode = "$($Vue.FiltreMode.SelectedItem)"
-    $actives = [bool]$Vue.Actives.IsChecked
+    $activite = "$($Vue.FiltreActivite.SelectedItem)"
+    # Statut : celui du dernier lancement, ou la situation du moment (EN_COURS, EN_ATTENTE, BLOQUEE).
     $visibles = @($Vue.Lignes | Where-Object {
-            ($statut -in '', 'Tous' -or $_.Statut -eq $statut) -and
+            ($statut -in '', 'Tous' -or $_.Statut -eq $statut -or $_.Attente -eq $statut -or ($statut -eq 'EN_COURS' -and $_.EnCours)) -and
             ($mode -in '', 'Tous' -or $_.Mode -eq $mode) -and
-            (-not $actives -or $_.Actif -eq 'Oui') -and
+            ($activite -ne 'Actives' -or $_.Actif -eq 'Oui') -and
+            ($activite -ne 'Inactives' -or $_.Actif -eq 'Non') -and
             (-not $texte -or ($_.Id + ' ' + $_.Description + ' ' + $_.Chemins).ToLowerInvariant().Contains($texte))
         })
     $Vue.Grille.ItemsSource = $visibles
@@ -78,7 +80,7 @@ function Select-CopieRegle {
     $ligne = $Vue.Grille.SelectedItem
     if ($null -ne $Vue.Ajouter) { Update-CopieBoutons -Vue $Vue }
     if ($null -eq $ligne) { $Vue.Detail.ItemsSource = $null; $Vue.Etat.ItemsSource = $null; return }
-    $Vue.Detail.ItemsSource = ConvertTo-CopieGroupeRegle -Regle $ligne.Regle
+    $Vue.Detail.ItemsSource = ConvertTo-CopieGroupeRegle -Regle $ligne.Regle -Entete $Vue.Env.Parametrage.Entete
     $Vue.Etat.ItemsSource = ConvertTo-CopieGroupeEtat -Etat $ligne.Etat
 }
 
@@ -131,12 +133,14 @@ function Set-CopieLignesVue {
     try {
         $lignes = foreach ($regle in $Vue.Env.Parametrage.Regles) {
             $id = ("$(Get-CopieValeur $regle 'id' '')").ToLowerInvariant()
-            ConvertTo-CopieLigneRegle -Regle $regle -Etat $Etat[$id]
+            ConvertTo-CopieLigneRegle -Regle $regle -Etat $Etat[$id] -Entete $Vue.Env.Parametrage.Entete
         }
         $Vue.Lignes = @($lignes)
 
         $tiret = [string][char]0x2014
-        $statuts = @('Tous') + @($Vue.Lignes | ForEach-Object { $_.Statut } | Where-Object { $_ -ne $tiret } | Sort-Object -Unique)
+        # Tous les statuts possibles, présents ou non dans la grille : on peut ainsi chercher « ERREUR » même quand il n'y en a aucune.
+        $connus = @('SUCCES', 'WARNING', 'ERREUR', 'ATTENTE', 'ARRETEE', 'ACQUITTEE', 'JAMAIS_LANCEE', 'EN_COURS', 'EN_ATTENTE', 'BLOQUEE', 'INACTIVE')
+        $statuts = @('Tous') + $connus + @($Vue.Lignes | ForEach-Object { $_.Statut } | Where-Object { $_ -ne $tiret -and $_ -notin $connus } | Sort-Object -Unique)
         $precedent = "$($Vue.FiltreStatut.SelectedItem)"
         $Vue.FiltreStatut.Items.Clear()
         foreach ($s in $statuts) { $null = $Vue.FiltreStatut.Items.Add($s) }
@@ -314,7 +318,7 @@ function New-CopieVueEnvironnement {
         Grille = $tab.FindName('GrilleRegles'); Detail = $tab.FindName('Detail'); Etat = $tab.FindName('Etat')
         Compteur = $tab.FindName('Compteur'); Recherche = $tab.FindName('Recherche')
         FiltreStatut = $tab.FindName('FiltreStatut'); FiltreMode = $tab.FindName('FiltreMode')
-        Actives = $tab.FindName('ActivesSeules'); Info = $tab.FindName('InfoFichier')
+        FiltreActivite = $tab.FindName('FiltreActivite'); Info = $tab.FindName('InfoFichier')
         Bandeau = $tab.FindName('Bandeau'); BandeauTexte = $tab.FindName('BandeauTexte')
         Verifier = $tab.FindName('BtnVerifier')
         Ajouter = $tab.FindName('BtnAjouter'); Dupliquer = $tab.FindName('BtnDupliquer'); Modifier = $tab.FindName('BtnModifier')
@@ -336,15 +340,17 @@ function New-CopieVueEnvironnement {
     if ($Contexte.Profil -ne 'Admin') { $messages.Add('Votre compte n''est pas administrateur : consultation uniquement.') }
     $vue.Messages = $messages.ToArray()
 
-    foreach ($m in @('Tous', 'copie', 'deplacement', 'archivage')) { $null = $vue.FiltreMode.Items.Add($m) }
+    foreach ($m in @('Tous') + @(Get-CopieModesRegle | ForEach-Object { $_.Nom })) { $null = $vue.FiltreMode.Items.Add($m) }
     $vue.FiltreMode.SelectedIndex = 0
+    foreach ($m in 'Toutes', 'Actives', 'Inactives') { $null = $vue.FiltreActivite.Items.Add($m) }
+    $vue.FiltreActivite.SelectedIndex = 0
 
-    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.Actives, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Trancher, $vue.Purger, $vue.Promouvoir, $vue.Historique, $vue.Simuler) { $controle.Tag = $cle }
+    foreach ($controle in $vue.Grille, $vue.Recherche, $vue.FiltreStatut, $vue.FiltreMode, $vue.FiltreActivite, $vue.Verifier, $vue.Ajouter, $vue.Dupliquer, $vue.Modifier, $vue.Activer, $vue.Supprimer, $vue.Actualiser, $vue.Reprise, $vue.Lancer, $vue.Acquitter, $vue.Debloquer, $vue.Trancher, $vue.Purger, $vue.Promouvoir, $vue.Historique, $vue.Simuler) { $controle.Tag = $cle }
     $vue.Grille.Add_SelectionChanged({ param($emetteur) Select-CopieRegle -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Recherche.Add_TextChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreStatut.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.FiltreMode.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
-    $vue.Actives.Add_Click({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
+    $vue.FiltreActivite.Add_SelectionChanged({ param($emetteur) Set-CopieFiltres -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Verifier.Add_Click({ param($emetteur) Invoke-CopieVerification -Vue $Script:Vues[$emetteur.Tag] })
     $vue.Ajouter.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'ajout' })
     $vue.Dupliquer.Add_Click({ param($emetteur) Invoke-CopieEdition -Vue $Script:Vues[$emetteur.Tag] -Action 'duplication' })

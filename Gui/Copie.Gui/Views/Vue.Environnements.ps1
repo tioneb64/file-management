@@ -1,6 +1,34 @@
 ﻿# Gestion des environnements (étape F) : créer, modifier / renommer, créer la base, supprimer. Administrateurs seulement.
 # La logique est dans Private\Environnements.ps1 ; ici, les fenêtres et les confirmations.
 
+function Update-CopieApercuChemins {
+    <#
+    .SYNOPSIS
+        Met à jour, dans la fenêtre d'un environnement, l'aperçu des chemins complets (racines et chemins partiels résolus).
+    .PARAMETER Fenetre
+        Fenêtre Dialog.Environnement (Tag : Noms).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [System.Windows.Window] $Fenetre)
+    $t = $Fenetre.Tag
+    if ($null -eq $t -or $null -eq $t.Noms) { return }
+    $v = @{}
+    foreach ($n in $t.Noms) { $v[$n] = $Fenetre.FindName($n).Text.Trim() }
+    $entete = [pscustomobject]@{ racine = $v.Racine; racine_source = $v.RacineSource; racine_cible = $v.RacineCible
+        base = $v.Base; dossier_logs = $v.DossierLogs; dossier_travail = $v.DossierTravail }
+    $c = Get-CopieCheminsEnvironnement -Entete $entete
+    $vide = '(à saisir)'
+    $racineSource = $(if ($c.RacineSource) { $c.RacineSource } elseif ($c.Racine) { $c.Racine } else { '(chemins complets seulement)' })
+    $racineCible = $(if ($c.RacineCible) { $c.RacineCible } elseif ($c.Racine) { $c.Racine } else { '(chemins complets seulement)' })
+    $lignes = @(
+        ('Base            : ' + $(if ($c.Base) { $c.Base } else { $vide }))
+        ('Journaux        : ' + $(if ($c.DossierLogs) { $c.DossierLogs } else { $vide }))
+        ('Travail         : ' + $(if ($c.DossierTravail) { $c.DossierTravail } else { $vide }))
+        ('Sources (règles): ' + $racineSource)
+        ('Cibles (règles) : ' + $racineCible))
+    $Fenetre.FindName('Apercu').Text = ($lignes -join "`n")
+}
+
 function Read-CopieSaisieEnvironnement {
     <#
     .SYNOPSIS
@@ -29,13 +57,13 @@ function Read-CopieSaisieEnvironnement {
     )
     $fenetre = Import-CopieXaml -Nom 'Dialog.Environnement'
     if ($null -ne $Contexte.Fenetre) { $fenetre.Owner = $Contexte.Fenetre }
-    $noms = 'Nom', 'Base', 'DossierLogs', 'DossierTravail', 'ParalleleMax', 'RetentionExecutions', 'RetentionJournaux', 'MargeEspaceMo'
+    $noms = 'Nom', 'Racine', 'RacineSource', 'RacineCible', 'Base', 'DossierLogs', 'DossierTravail', 'ParalleleMax', 'RetentionExecutions', 'RetentionJournaux', 'MargeEspaceMo'
     foreach ($n in $noms) { $fenetre.FindName($n).Text = $(if ($Saisie.ContainsKey($n)) { "$($Saisie[$n])" } else { '' }) }
     $fenetre.Tag = @{ Mode = $Mode; Origine = $Saisie; Existants = $Existants; Noms = $noms; Resultat = $null }
     if ($Mode -eq 'copie') {
         $fenetre.Title = 'Copier vers un nouvel environnement'
-        $fenetre.FindName('Intro').Text = 'Le nouvel environnement reçoit toutes les règles de l''original. Donnez-lui un nom et sa propre base ; modifiez ensuite les répertoires des règles si besoin.'
-        $fenetre.FindName('Avis').Text = 'Les dossiers des journaux et de travail ne sont pas repris : ils sont propres à chaque environnement.'
+        $fenetre.FindName('Intro').Text = 'Le nouvel environnement reçoit toutes les règles de l''original. Donnez-lui un nom et sa propre racine : les chemins partiels (base, journaux, travail, règles) la suivent, il n''y a rien d''autre à modifier.'
+        $fenetre.FindName('Avis').Text = 'Les chemins complets de la base, des journaux et du travail ne sont pas repris : ils sont propres à chaque environnement. Les chemins partiels sont conservés et se placent sous la nouvelle racine.'
         $fenetre.FindName('DesactiverRegles').Visibility = 'Visible'
     }
     elseif ($Mode -eq 'creation') {
@@ -50,6 +78,10 @@ function Read-CopieSaisieEnvironnement {
         $fenetre.FindName('CreerBase').IsChecked = $false
         $fenetre.FindName('CreerBase').Content = 'Créer la base à son emplacement (sans effet si elle existe déjà)'
     }
+    foreach ($n in 'Racine', 'RacineSource', 'RacineCible', 'Base', 'DossierLogs', 'DossierTravail') {
+        $fenetre.FindName($n).Add_TextChanged({ param($s) Update-CopieApercuChemins -Fenetre ([System.Windows.Window]::GetWindow($s)) })
+    }
+    Update-CopieApercuChemins -Fenetre $fenetre
     $fenetre.FindName('BtnOk').Add_Click({
             param($s)
             $f = [System.Windows.Window]::GetWindow($s)
@@ -251,10 +283,12 @@ function Invoke-CopieCopierEnvironnement {
     }
     $existants = Get-CopieEnvironnementsActuels -Contexte $ctx
     $saisie = ConvertFrom-CopieEnteteEnvironnement -Entete $source.Entete
+    # Un chemin partiel est conservé (il suit la nouvelle racine) ; un chemin complet appartient à l'original : il est vidé.
     $saisie.Nom = ''
-    $saisie.Base = ''
-    $saisie.DossierLogs = ''
-    $saisie.DossierTravail = ''
+    $saisie.Racine = ''
+    foreach ($n in 'Base', 'DossierLogs', 'DossierTravail', 'RacineSource', 'RacineCible') {
+        if (Test-CopieCheminAbsolu -Chemin "$($saisie[$n])") { $saisie[$n] = '' }
+    }
     while ($true) {
         $reponse = Read-CopieSaisieEnvironnement -Contexte $ctx -Mode 'copie' -Saisie $saisie -Existants $existants
         if ($null -eq $reponse) { return }
@@ -316,7 +350,7 @@ function Invoke-CopieModifierEnvironnement {
         }
         if ($change) {
             if ($nouveau.Base -cne $origine.Base) {
-                $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Vous changez le chemin de la base.`n`nL'historique et l'état des règles restent dans l'ancienne base ({0}) ; la nouvelle base démarre vide : les fichiers déjà livrés ne seront plus reconnus et pourraient être relivrés.`n`nContinuer ?" -f $origine.Base), 'Changement de base', 'YesNo', 'Warning', 'No')
+                $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Vous changez le chemin de la base.`n`nL'historique et l'état des règles restent dans l'ancienne base ({0}) ; la nouvelle base démarre vide : les fichiers déjà livrés ne seront plus reconnus et pourraient être relivrés.`n`nContinuer ?" -f (Get-CopieCheminsEnvironnement -Entete $Vue.Env.Parametrage.Entete).Base), 'Changement de base', 'YesNo', 'Warning', 'No')
                 if ($r -ne [System.Windows.MessageBoxResult]::Yes) { $saisie = $nouveau; continue }
             }
             $entete = ConvertTo-CopieEnteteEnvironnement -Saisie $nouveau
@@ -387,7 +421,7 @@ function Invoke-CopieCreerBase {
     param([Parameter(Mandatory)] [hashtable] $Vue)
     $ctx = $Vue.Contexte
     if ($ctx.Profil -ne 'Admin' -or $Vue.Occupe) { return }
-    $chemin = "$(Get-CopieValeur $Vue.Env.Parametrage.Entete 'base' '')"
+    $chemin = (Get-CopieCheminsEnvironnement -Entete $Vue.Env.Parametrage.Entete).Base
     $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Créer la base de l'environnement « {0} » ?`n`n{1}`n`nLe moteur refuse d'écraser une base qui existe déjà." -f $Vue.Env.Nom, $chemin), 'Créer la base', 'YesNo', 'Question')
     if ($r -ne [System.Windows.MessageBoxResult]::Yes) { return }
     if (-not (Invoke-CopieQuestionDossiers -Contexte $ctx -Fichier $Vue.Env.Fichier)) {

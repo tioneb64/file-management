@@ -29,7 +29,7 @@ function Resolve-CopieMoteurLocal {
         Mode Local : vérifie que Moteur.Python et Moteur.Racine existent ; sinon les cherche et propose de les utiliser.
 
     .DESCRIPTION
-        Le fichier de configuration modèle porte des chemins d'exemple (C:\Python314\python.exe, D:\Scripts\copie_fichiers)
+        Le fichier de configuration modèle porte des chemins d'exemple (C:\Python314\python.exe, D:\Scripts\file_management)
         qui n'existent pas sur un poste de développement. Python est cherché dans le PATH puis par le lanceur py ; la
         racine du moteur est le dossier qui contient « copie\__main__.py » au-dessus de ce module (dépôt). Une seule
         question est posée pour tout ce qui est corrigé. Rien n'est écrit dans le fichier de configuration : la

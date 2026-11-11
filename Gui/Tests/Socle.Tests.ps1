@@ -56,9 +56,9 @@ Describe 'Get-CopieConfig' {
     }
     It 'accepte un point d''accès JEA sans Python ni Racine' {
         $f = Join-Path $TestDrive 'jea.psd1'
-        Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Distant'; Serveur = 'S'; ConfigurationJea = 'CopieFichiers' } }"
+        Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Distant'; Serveur = 'S'; ConfigurationJea = 'FileManagement' } }"
         $c = InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f }
-        $c.Moteur.ConfigurationJea | Should -Be 'CopieFichiers'
+        $c.Moteur.ConfigurationJea | Should -Be 'FileManagement'
     }
     It 'refuse la JEA en mode Local, un mode inconnu et un fichier absent' {
         $f = Join-Path $TestDrive 'jealocal.psd1'

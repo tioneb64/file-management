@@ -39,7 +39,9 @@ Le bouton **Actualiser** de la fenêtre relit tout le dossier de paramétrage et
 
 Une ligne par règle : identifiant, description, mode, chemins source → cible, planification en clair, actif, **statut**, dernier lancement et prochain créneau.
 
-Filtres en haut de la liste : recherche libre (identifiant, description, chemins), statut, mode (`copie`, `deplacement`, `archivage`) et « Règles actives seulement ». Le compteur indique « N règle(s) affichée(s) sur M ».
+Filtres en haut de la liste : recherche libre (identifiant, description, chemins), **statut** (tous les statuts du §3.2, même ceux qu'aucune règle n'a pour le moment : on peut chercher `ERREUR` ou `WARNING`), **mode** (`copie`, `deplacement`, `archivage`, `suppression`, `count`, `size`) et **Règles** : toutes, actives seulement ou inactives seulement. Les chemins affichés sont les **chemins complets** (racine comprise, §13).
+
+Couleurs : ligne **grise** = règle inactive ; ligne **rouge** = dernière exécution en erreur, règle arrêtée ou bloquée ; ligne **bleu ciel** = règle sélectionnée. Le compteur indique « N règle(s) affichée(s) sur M ».
 
 ### 3.2 Les statuts
 
@@ -49,6 +51,7 @@ Filtres en haut de la liste : recherche libre (identifiant, description, chemins
 | `SUCCES` | Dernière exécution sans erreur ni avertissement | Rien |
 | `WARNING` | Terminée avec au moins un avertissement (archive indisponible, fichier ignoré…) | Lire le motif dans l'onglet **État** |
 | `ERREUR` | Dernière exécution en erreur, ou arrêtée | Voir §6 : corriger la cause, puis **Reprise** ou **Acquitter** |
+| `ATTENTE` | Règle `count` ou `size` dont les seuils ne sont pas atteints (par exemple 4 fichiers sur 5 attendus) : ni succès ni erreur | Rien : les règles qui en dépendent patientent ; elle sort en succès dès que le seuil est atteint |
 | `ACQUITTEE` | Erreur déclarée corrigée par un administrateur | Rien |
 | `EN_COURS` | Une exécution est en cours | Attendre ; **Débloquer** seulement si elle est figée |
 | `EN_ATTENTE` | Son heure est passée, mais une règle dont elle dépend n'a pas encore tourné | Normal ; partira toute seule |
@@ -225,13 +228,20 @@ Au-dessus des onglets, la barre **Environnements** n'est visible que pour un adm
 
 | Bouton | Ce qu'il fait |
 |---|---|
-| **Nouvel environnement…** | Formulaire : nom (minuscules, chiffres, `_`, `-`, 32 maximum), chemin **complet et local** de la base (pas de partage réseau, lettre de lecteur avec son `:`), dossiers des journaux et de travail, parallélisme, rétentions, marge d'espace. Refus d'un nom ou d'une base déjà utilisés. Le fichier est écrit **sans règle**, puis les dossiers sont contrôlés (voir ci-dessous) et la base est créée si la case est cochée. Proposé d'office quand le dossier est vide |
+| **Nouvel environnement…** | Formulaire : nom (minuscules, chiffres, `_`, `-`, 32 maximum), **racine** de l'environnement (facultative), racine des sources et des cibles, chemin de la base (local, pas de partage réseau ; partiel sous la racine, par exemple `BDD\preprod.db`, ou complet), dossiers des journaux et de travail (idem : `LOGS`, `TMP`), parallélisme, rétentions, marge d'espace. Refus d'un nom ou d'une base déjà utilisés. Le fichier est écrit **sans règle**, puis les dossiers sont contrôlés (voir ci-dessous) et la base est créée si la case est cochée. Proposé d'office quand le dossier est vide |
 | **Modifier / renommer…** | Modifie l'en-tête. **Renommer** change le nom du fichier, de l'environnement dans la base, et de l'historique des versions ; il se fait **seul**, sans autre changement, et est refusé tant qu'une règle s'exécute. Les **jobs Jenkins** qui citent l'ancien nom de fichier restent à modifier. Changer le chemin de la base ne déplace pas l'historique : la nouvelle base démarre vide (confirmation demandée) |
-| **Copier vers un nouvel environnement…** | Nouvel environnement avec **toutes les règles** de l'original, même en-tête (le nom, la base et les dossiers propres à chaque environnement sont à saisir). Les règles **gardent leurs répertoires** : c'est à vous de les modifier ensuite. Par défaut elles sont copiées **désactivées**, pour que deux environnements ne livrent pas les mêmes fichiers au même endroit ; décochez la case pour les garder actives |
+| **Copier vers un nouvel environnement…** | Nouvel environnement avec **toutes les règles** de l'original, même en-tête (le nom, la base et les dossiers propres à chaque environnement sont à saisir). Les règles **gardent leurs répertoires** : s'ils sont partiels (sous la racine des sources / cibles), ils suivent la nouvelle racine sans rien modifier ; s'ils sont complets, c'est à vous de les modifier ensuite. Par défaut elles sont copiées **désactivées**, pour que deux environnements ne livrent pas les mêmes fichiers au même endroit ; décochez la case pour les garder actives |
 | **Créer la base…** | Crée la base d'un environnement qui n'en a pas encore ; refuse d'écraser une base existante |
 | **Supprimer…** | **Double validation** : (1) un avertissement qui détaille les conséquences, (2) la saisie du **nom exact** de l'environnement et d'un commentaire. Rien n'est effacé : le fichier et ses versions sont rangés dans `.supprimes\<nom>_<date>\` avec une fiche (compte, date, commentaire, chemin de la base) ; pour annuler, remettre le fichier `.jsonl` dans le dossier de paramétrage. La **base, les journaux et les archives ne sont jamais touchés**. Refusé tant qu'une règle s'exécute |
 
+**Racines.** Un chemin *partiel* est placé sous la racine, un chemin *complet* (`D:\LOGS`, `\\serveur\partage`) est conservé ; le `\` final de la racine est facultatif. Avec la racine `D:\Transferts\preprod`, la base `BDD\preprod.db` devient `D:\Transferts\preprod\BDD\preprod.db`. La zone « Chemins complets » de la boîte montre le résultat tel que le moteur l'utilisera. Racine des sources et des cibles : elles complètent les dossiers source / cible partiels des règles ; vides, la racine de l'environnement sert aux deux.
+
 **Dossiers de la base, des journaux et du travail.** Dès que le fichier d'un environnement est écrit (création, copie, modification de ces chemins, bouton « Créer la base… »), l'interface contrôle les trois dossiers là où tourne le moteur. S'il en manque, **une seule question** les liste et propose de les créer (Oui / Non), en rappelant le compte dont les droits sont contrôlés. Oui : ils sont créés (tracé dans le journal), puis la base. Non : le fichier reste créé, la base ne l'est pas, et le message le dit. Un dossier qu'on ne peut pas créer (lecteur introuvable, droits) est signalé en clair. Cette règle vaut pour **tout chemin saisi dans l'outil** : dossier de paramétrage, dossiers d'un environnement, répertoires d'une règle (§5.4) et simulation (§14).
+
+## 13 bis. Les modes `suppression`, `count` et `size`
+
+- **`suppression`** : supprime **définitivement** les fichiers sélectionnés (par exemple ceux de plus de 365 jours : critère d'âge de la sélection). Pas de dossier cible. L'enregistrement affiche un avertissement ; sans critère d'âge ni de date, tous les fichiers du masque sont supprimés à chaque lancement. Commencez toujours par **Simuler la règle** (§14).
+- **`count`** / **`size`** : comptent (nombre) ou mesurent (octets) les fichiers sélectionnés et écrivent le résultat dans le journal, sans rien toucher. Avec un `seuil_minimum` et / ou `seuil_maximum`, la règle sort en succès dans les bornes et en **`ATTENTE`** sinon. **Déclencheur** : un flux dépose 5 fichiers ; une règle `count` (minimum 5) attend qu'ils soient là ; la règle de déplacement qui en dépend (condition `succes`) ne part qu'ensuite.
 
 ## 14. Simuler une règle
 

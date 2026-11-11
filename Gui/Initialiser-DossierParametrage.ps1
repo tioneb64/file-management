@@ -1,6 +1,6 @@
 ﻿<#
     .SYNOPSIS
-        Crée et protège le dossier des fichiers de paramétrage de copie_fichiers.
+        Crée et protège le dossier des fichiers de paramétrage de file_management.
 
     .DESCRIPTION
         Le fichier de paramétrage décide quels programmes le compte de service exécute et où il lit et

@@ -1,8 +1,8 @@
-# Tests et outils de développement
+﻿# Tests et outils de développement
 
 | Élément | Rôle |
 |---|---|
-| `tests/test_v1_caracterisation.py` | Fige le comportement du script actuel (`copie_fichiers.py`, v1) : paramétrage, copie vérifiée, historique, verrou, codes retour. |
+| `tests/test_v1_caracterisation.py` | Fige le comportement du script actuel (`file_management.py`, v1) : paramétrage, copie vérifiée, historique, verrou, codes retour. |
 | `tests/outils.py` | Classe de base `CasTemporaire` : dossier temporaire par test, création de fichiers datés. |
 | `outils/lancer_tests.ps1` | Lance tous les tests avec le Python choisi ; un avertissement de dépréciation fait échouer. |
 | `outils/controle_serveur.py` | À exécuter **sur le serveur de recette** avec Python 3.14 : vérifie SQLite (WAL, écritures concurrentes), espace disque, verrous, Job Object, remplacement atomique, partage réseau. |
@@ -14,7 +14,7 @@
 | `tests/test_programmes.py` | J7 : programmes externes aux six points d'appel (codes retour, tentatives, variables, listes, arbre de processus, avant_fichier qui modifie la source, apres_fichier en echec, reprise, simulation). |
 | `tests/test_acces.py`, `tests/test_contrat.py` | J8 : controles d'acces A01-A07, comparaison de versions V01-V04, `--debloquer` (processus reels), contrat JSON avec le front-end (cles exactes, UTF-8, aucune pollution de la sortie). |
 | `tests/test_jenkins.py` | J9 : `journal_si.py` en ligne de commande (evenements de job), coherence statique des Jenkinsfile et de la bibliotheque Groovy (non executee), builds simultanes et abandon d'un build avec de vrais processus. |
-| `jenkins/` | Jenkinsfile (transfert, sauvegarde, verification) et bibliotheque partagee `journal-si` (`vars/journalSI.groovy`, `vars/copieFichiers.groovy`). |
+| `jenkins/` | Jenkinsfile (transfert, sauvegarde, verification) et bibliotheque partagee `journal-si` (`vars/journalSI.groovy`, `vars/fileManagement.groovy`). |
 | `tests/test_migration.py` | J11 : conversion de `copies.conf`, import de l'historique, parcours reel ancien script -> nouveau (rien n'est relivre), comparateur de dossiers, lanceur v2. |
 | `Gui/Tests/` | J10 étapes A à E : tests Pester 5 de l'interface (configuration, droits, dossier de paramétrage, mise en forme, appel du moteur réel, fenêtre WPF, enregistrement sécurisé, formulaire de règle, exploitation et exécution en arrière-plan, graphe, historique, promotion, point d'accès JEA, livraisons incertaines) ; à lancer avec `Gui\\Tests\\Run-Tests.ps1` sous Windows PowerShell 5.1. |
 | `tests/test_purge.py` | J12 : purge des journaux (retention d'en-tete et de regle, limite exacte, regles inconnues), des archives datees (jour, mois, sous-dossiers, garde-fous, liens, actions en attente), de la base, commande `--purger`. |

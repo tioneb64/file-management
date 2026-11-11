@@ -79,7 +79,7 @@ Describe 'Interface' -Skip:(-not $Script:Sta) {
                 $w.FindName($n) | Should -Not -BeNullOrEmpty -Because $n
             }
             $t = Import-CopieXaml -Nom 'Environnement'
-            foreach ($n in 'GrilleRegles', 'Detail', 'Etat', 'Compteur', 'Recherche', 'FiltreStatut', 'FiltreMode', 'ActivesSeules', 'InfoFichier', 'Bandeau', 'BandeauTexte', 'BtnVerifier') {
+            foreach ($n in 'GrilleRegles', 'Detail', 'Etat', 'Compteur', 'Recherche', 'FiltreStatut', 'FiltreMode', 'FiltreActivite', 'InfoFichier', 'Bandeau', 'BandeauTexte', 'BtnVerifier') {
                 $t.FindName($n) | Should -Not -BeNullOrEmpty -Because $n
             }
             $d = Import-CopieXaml -Nom 'Dialog.Diagnostics'
@@ -219,6 +219,6 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $lignes = @(Get-Content -LiteralPath $fichier.FullName -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json })
         ($lignes | Where-Object evenement -eq 'ouverture').Count | Should -BeGreaterThan 0
         ($lignes | Where-Object evenement -eq 'moteur_appel').Count | Should -BeGreaterThan 2
-        $lignes[0].application | Should -Be 'copie_fichiers_gui'
+        $lignes[0].application | Should -Be 'file_management_gui'
     }
 }

@@ -1,6 +1,6 @@
 """Tests de caracterisation du script actuel (v1).
 
-Ils figent le comportement observable de copie_fichiers.py avant la refonte : la v2 devra soit
+Ils figent le comportement observable de file_management.py avant la refonte : la v2 devra soit
 le reproduire, soit s'en ecarter volontairement (et ces tests seront alors modifies avec une
 explication). Ils ne modifient pas le script v1.
 """
@@ -13,7 +13,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import copie_fichiers as v1  # noqa: E402
+import file_management as v1  # noqa: E402
 
 from tests.outils import CasTemporaire  # noqa: E402
 

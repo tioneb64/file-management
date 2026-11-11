@@ -126,16 +126,21 @@ class Controleur(object):
     # ----- A01 a A04 et A07 ------------------------------------------------ #
     def regle(self, regle):
         source = os.path.normpath(os.path.expandvars(regle.source))
-        cible = os.path.normpath(os.path.expandvars(regle.cible))
+        cible = os.path.normpath(os.path.expandvars(regle.cible)) if regle.cible else None
 
         ok, detail = tester_lecture(source)
         if not ok:
             self.signaler("A01", "source illisible (%s) : %s" % (source, detail), regle)
 
-        ok, detail = self.ecriture(cible, regle.creer_dossiers)
-        if not ok:
-            self.signaler("A02", "cible inaccessible en ecriture (%s) : %s" % (cible, detail), regle)
-        if regle.dossier_temporaire:
+        if regle.mode == "suppression":
+            ok, detail = self.ecriture(source, False)       # supprimer demande le droit d'ecrire dans la source
+            if not ok:
+                self.signaler("A01", "source non modifiable, la suppression echouera (%s) : %s" % (source, detail), regle)
+        if cible is not None and regle.mode in ("copie", "deplacement", "archivage"):
+            ok, detail = self.ecriture(cible, regle.creer_dossiers)
+            if not ok:
+                self.signaler("A02", "cible inaccessible en ecriture (%s) : %s" % (cible, detail), regle)
+        if regle.dossier_temporaire and cible is not None:
             temporaire = os.path.normpath(os.path.expandvars(regle.dossier_temporaire))
             ok, detail = self.ecriture(temporaire, regle.creer_dossiers)
             if not ok:
@@ -159,7 +164,8 @@ class Controleur(object):
             if present is False:
                 self.signaler("A04", "programme %s introuvable : %s" % (point, programme.commande[0]), regle)
 
-        for libelle, dossier in (("cible", cible), ("archive", archive)):
+        for libelle, dossier in (("cible", cible if regle.mode in ("copie", "deplacement", "archivage") else None),
+                                 ("archive", archive)):
             if dossier is None:
                 continue
             try:
@@ -219,9 +225,12 @@ def controler_dossiers_regle(regle, entete, octets=0, maintenant=None):
     marge, et possibilite de creer un dossier absent. Meme logique que le lancement reel."""
     maintenant = maintenant or datetime.datetime.now()
     source = os.path.normpath(os.path.expandvars(regle.source))
-    cible = os.path.normpath(os.path.expandvars(regle.cible))
     besoin = octets + entete.marge_espace_mo * MO
-    resultat = [_controle_dossier("source", source, regle.mode != "copie", regle.creer_dossiers, False)]
+    resultat = [_controle_dossier("source", source, regle.mode not in ("copie", "count", "size"),
+                                  regle.creer_dossiers, False)]
+    if regle.mode not in ("copie", "deplacement", "archivage"):
+        return resultat                 # suppression, count, size : ni cible ni archive
+    cible = os.path.normpath(os.path.expandvars(regle.cible))
     c = _controle_dossier("cible", cible, True, regle.creer_dossiers, True)
     _controle_espace(c, cible, besoin)
     resultat.append(c)

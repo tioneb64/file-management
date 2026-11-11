@@ -52,7 +52,7 @@
         $ligne = [ordered]@{
             ts          = $maintenant.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
             niveau      = $Niveau
-            application = 'copie_fichiers_gui'
+            application = 'file_management_gui'
             evenement   = $Evenement
             utilisateur = $Contexte.Utilisateur
             message     = $Message

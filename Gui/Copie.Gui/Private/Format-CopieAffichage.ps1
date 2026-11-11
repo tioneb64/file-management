@@ -92,7 +92,7 @@ function Get-CopieCouleurStatut {
     .SYNOPSIS
         Couleur d'affichage (#RRGGBB) d'un statut de règle.
     .PARAMETER Statut
-        JAMAIS_LANCEE, SUCCES, WARNING, ERREUR, ACQUITTEE, ARRETEE, EN_COURS, EN_ATTENTE, BLOQUEE, INACTIVE.
+        JAMAIS_LANCEE, SUCCES, WARNING, ERREUR, ATTENTE, ACQUITTEE, ARRETEE, EN_COURS, EN_ATTENTE, BLOQUEE, INACTIVE.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -103,6 +103,7 @@ function Get-CopieCouleurStatut {
         'ERREUR' { '#C0392B' }
         'ARRETEE' { '#8E2A1F' }
         'ACQUITTEE' { '#1B7F7A' }
+        'ATTENTE' { '#2C7DA0' }
         'EN_COURS' { '#1F6FB2' }
         'EN_ATTENTE' { '#6A5ACD' }
         'BLOQUEE' { '#8E44AD' }

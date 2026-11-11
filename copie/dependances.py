@@ -57,6 +57,8 @@ def evaluer(regle, ligne, lignes, base, bloquees=()):
             bloquee_par = ("%s est en ERREUR" % d["id"]) if en_erreur else ("%s est elle-meme bloquee" % d["id"])
         elif d["en_cours"]:
             attente.append("%s est en cours" % d["id"])
+        elif d["dernier_statut"] == "ATTENTE" and (d["dernier_statut_le"] or 0) > ref:
+            attente.append("%s : %s" % (d["id"], d.get("dernier_motif") or "condition non remplie"))
         else:
             attente.append("%s n'a pas encore tourne depuis le dernier lancement" % d["id"])
     if bloquante:

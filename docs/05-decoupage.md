@@ -1,4 +1,4 @@
-# Découpage du développement
+﻿# Découpage du développement
 
 Ordre pensé pour traiter **d'abord ce qui est le plus risqué** (base, moteur de copie) et pour que chaque jalon soit **testable seul**. Les tailles sont relatives : **S** = quelques heures, **M** = 1 à 2 jours, **L** = plusieurs jours, **XL** = une à deux semaines. Ce ne sont pas des engagements de calendrier.
 
@@ -55,7 +55,7 @@ Dès que le format de journal (J3) et les sorties du moteur (J8) sont figés, tr
 
 ### J0 — Socle
 
-- Package `copie/` (modules : paramétrage, base, planification, sélection, transfert, situations, programmes, orchestrateur, journal) et lanceur `copie_fichiers.py`.
+- Package `copie/` (modules : paramétrage, base, planification, sélection, transfert, situations, programmes, orchestrateur, journal) et lanceur `file_management.py`.
 - Tests avec `unittest` (bibliothèque standard, aucune installation sur le serveur), dossiers temporaires, outils d'injection de pannes (fichier verrouillé, dossier absent, disque plein simulé, source modifiée pendant la copie).
 - Installation de Python 3.14 sur le serveur de recette (Windows Server 2016) et vérification que `sqlite3`, `ctypes`, `multiprocessing` et la création d'un Job Object fonctionnent. **C'est le premier test du projet** : si la 3.14 ne s'installe pas ou ne fonctionne pas correctement sur Windows Server 2016, on le sait avant d'avoir écrit du code.
 - Script d'exécution des tests ; le code ne doit utiliser aucun module retiré (contrôle par `python -W error`).

@@ -6,7 +6,7 @@ Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER], --initialiser-ba
 --debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --modele-regle, --lancer-regle ID (une seule regle, planification
 ignoree). Avec --format json, TOUTES les commandes ecrivent un seul objet JSON UTF-8 sur la
 sortie standard (contrat : docs/07-contrat-moteur-frontend.md).
-Le lanceur copie_fichiers.py (v1) reste en place tant que la v2 n'est pas livree.
+Le lanceur file_management.py (v1) reste en place tant que la v2 n'est pas livree.
 """
 import argparse
 import getpass
@@ -53,7 +53,7 @@ def _ouvrir_base(args, parametrage, lecture_seule=False):
 def _journal(args, parametrage, console=True):
     import journal_si
     journal = journal_si.Journal()
-    journal.debut("copie_fichiers", parametrage.entete.environnement, dossier=parametrage.entete.dossier_logs,
+    journal.debut("file_management", parametrage.entete.environnement, dossier=parametrage.entete.dossier_logs,
                   console=console and args.format != "json", evenement_debut="debut_lancement",
                   evenement_fin="fin_lancement")
     return journal
@@ -210,7 +210,7 @@ def _executer_fils(args, parametrage):
         return CODE_CONFIG
     import journal_si
     journal = journal_si.Journal()
-    journal.debut("copie_fichiers", entete.environnement, dossier=entete.dossier_logs,
+    journal.debut("file_management", entete.environnement, dossier=entete.dossier_logs,
                   console=not os.environ.get("COPIE_SANS_CONSOLE"),
                   evenement_debut="processus_regle_demarre", regle=regle.id)
     with b:
@@ -267,7 +267,7 @@ def _lancer_regle(args, parametrage):
                          source=regle.source, cible=regle.cible, mode=regle.mode, apercu=bilan.apercu,
                          apercu_total=bilan.apercu_total, apercu_tronque=bilan.apercu_total > len(bilan.apercu),
                          situation=bilan.situation_finale)
-        return _repondre(args, code, bilan.motif or "", regle=regle.id, statut=bilan.statut,
+        return _repondre(args, code, bilan.motif or "", regle=regle.id, statut=bilan.statut_final or bilan.statut,
                          compteurs=bilan.compteurs, simulation=bool(args.simulation), **extra)
     return code
 
@@ -438,7 +438,7 @@ def _exploitation(args, parametrage):
 
 # --------------------------------------------------------------------------- #
 def _arguments(argv=None):
-    p = argparse.ArgumentParser(prog="copie", description="copie_fichiers v2 %s" % __version__)
+    p = argparse.ArgumentParser(prog="copie", description="file_management v2 %s" % __version__)
     p.add_argument("--config", help="fichier de parametrage (.jsonl) ; absent seulement avec --migrer-ancien")
     commande = p.add_mutually_exclusive_group()
     commande.add_argument("--verifier", action="store_true", help="valide le parametrage (et les acces)")

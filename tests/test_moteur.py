@@ -44,7 +44,7 @@ class CasMoteur(CasTemporaire):
         self.entete = Entete()
         self.entete.environnement = "production"
         self.journal = journal_si.Journal()
-        self.journal.debut("copie_fichiers", "production", dossier=self.chemin("logs"), verbeux=True)
+        self.journal.debut("file_management", "production", dossier=self.chemin("logs"), verbeux=True)
         self.addCleanup(self.journal.fermer)
         self.maintenant = datetime.datetime.now()
         self.pauses = []

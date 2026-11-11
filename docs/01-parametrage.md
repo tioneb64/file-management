@@ -1,4 +1,4 @@
-# Fichier de paramétrage
+﻿# Fichier de paramétrage
 
 ## 1. Principes
 
@@ -21,13 +21,18 @@
 |---|---|---|---|
 | `version` | entier | oui | Version du format : `1` |
 | `environnement` | texte | oui | `[a-z0-9_-]{1,32}`, égal au nom du fichier |
-| `base` | chemin | oui | Fichier SQLite. **Disque local**, jamais un chemin UNC |
+| `racine` | chemin complet | non | **Racine de l'environnement.** Un chemin partiel de l'en-tête (`base`, `dossier_logs`, `dossier_travail`) ou d'une règle (`dossier_temporaire`, et `source` / `cible` à défaut de racine dédiée) se place sous elle ; un chemin complet est conservé. Le `\` final est facultatif. Copier un environnement n'oblige plus à réécrire tous les chemins : il suffit de changer la racine |
+| `racine_source` | chemin | non | Racine des dossiers `source` partiels des règles. Partielle, elle se place elle-même sous `racine`. Absente : `racine` |
+| `racine_cible` | chemin | non | Racine des dossiers `cible` partiels des règles. Mêmes règles. Absente : `racine` |
+| `base` | chemin | oui | Fichier SQLite (partiel : `BDD\preprod.db` sous la racine). **Disque local**, jamais un chemin UNC |
 | `dossier_logs` | chemin | non | Défaut : `logs` à côté de la base |
 | `dossier_travail` | chemin | non | Listes de fichiers transmises aux programmes, résultats. Défaut : `travail` à côté de la base |
 | `parallele_max` | entier ou `null` | non | Nombre maximum de règles en parallèle. `null` (défaut) : pas de limite |
 | `retention_executions_jours` | entier | non | Durée de conservation des exécutions en base. Défaut : `365` |
 | `retention_journaux_jours` | entier | non | Durée de conservation des fichiers de journaux (`<règle>_<AAAA-MM-JJ>.jsonl`, `_orchestrateur_…`), d'après la **date inscrite dans leur nom**. Absent : jamais purgés. Peut être surchargé par règle |
 | `marge_espace_mo` | entier | non | Espace libre à conserver en plus de la taille des fichiers à livrer, pour la cible et l'archive. Défaut : `64` |
+
+**Chemins complets et partiels.** Un chemin est *complet* s'il commence par un lecteur (`D:\...`) ou un partage (`\\serveur\partage`). Exemple avec `"racine": "D:\\Transferts\\preprod"` : `"base": "BDD\\preprod.db"` donne `D:\Transferts\preprod\BDD\preprod.db` ; `"dossier_logs": "D:\\LOGS"` reste `D:\LOGS`. Un chemin partiel sans racine est refusé (**E07** pour l'en-tête, **R14** pour une règle). Le dossier d'archive n'est pas touché : relatif, il se calcule depuis la source à chaque lancement.
 
 ## 3. Règle : référence des champs
 
@@ -46,11 +51,18 @@ Les durées sont des **entiers**, l'unité figure dans le nom du champ (`_sec`, 
 | Champ | Type | Oblig. | Défaut | Description |
 |---|---|---|---|---|
 | `source` | chemin | oui | — | Dossier à lire |
-| `cible` | chemin | oui | — | Dossier de dépôt. Créé s'il n'existe pas et si `creer_dossiers` |
-| `mode` | texte | oui | — | `copie` : l'original reste en place ; `deplacement` : l'original est supprimé après copie vérifiée ; `archivage` : l'original est déplacé dans `archive` après copie vérifiée |
+| `cible` | chemin | si `mode` = `copie`, `deplacement` ou `archivage` | — | Dossier de dépôt. Créé s'il n'existe pas et si `creer_dossiers`. Sans objet (ignoré, **R16**) pour `suppression`, `count`, `size` |
+| `mode` | texte | oui | — | `copie` : l'original reste en place ; `deplacement` : l'original est supprimé après copie vérifiée ; `archivage` : l'original est déplacé dans `archive` après copie vérifiée ; `suppression` : **supprime définitivement** les fichiers sélectionnés (avertissement **R15**) ; `count` / `size` : comptent / mesurent les fichiers sélectionnés et les comparent aux seuils, sans rien toucher |
+| `seuil_minimum`, `seuil_maximum` | entier ou `null` | non | `null` | Modes `count` (nombre de fichiers) et `size` (octets) seulement. En dessous du minimum ou au-dessus du maximum, la règle sort en **ATTENTE** (§3.2 bis). Ignorés avec un autre mode (**R16**) ; minimum > maximum : refus (**R07**) |
 | `archive` | chemin ou `null` | si `mode = archivage` | `null` | Absolu (`C:\archive`) ou relatif (`.\archive`, calculé depuis la **racine** de `source`). Variables de date acceptées (§5.2) |
 | `creer_dossiers` | booléen | non | `true` | Créer `cible` et `archive` s'ils n'existent pas |
 | `dossier_temporaire` | chemin ou `null` | non | `null` | Dossier où écrire les fichiers en cours de copie. `null` : dans `cible`, avec le suffixe `.copie_en_cours`. Si renseigné, il doit être **sur le même volume que `cible`** (renommage atomique) et hors du périmètre surveillé par le logiciel destinataire |
+
+### 3.2 bis Modes `suppression`, `count` et `size`
+
+- **`suppression`** : supprime définitivement les fichiers sélectionnés (masque, âge, date). Exemple : `"selection": {"masque": "*.log", "age_minimum_sec": 31536000}` supprime les journaux de plus de 365 jours. Sans critère d'âge ni de date, **tous** les fichiers du masque sont supprimés à chaque lancement : le diagnostic **R15** le précise. L'interface avertit à l'enregistrement et la simulation annonce « supprimera DÉFINITIVEMENT ». Pas de cible ni d'archive.
+- **`count`** et **`size`** : comptent (nombre de fichiers) ou mesurent (octets) les fichiers sélectionnés, inscrivent le résultat au journal et le comparent à `seuil_minimum` / `seuil_maximum`. Aucun fichier n'est touché. Résultat dans les bornes : **succès**. Hors bornes : statut d'exécution **`ATTENTE`**, ni succès ni erreur (bilan `SUCCES`, code retour 0).
+- **Déclencheur.** Un flux SSIS dépose 5 fichiers : une règle `count` (`seuil_minimum: 5`) sort en `ATTENTE` tant qu'il en manque ; la règle de déplacement qui en dépend (`apres` avec `condition: succes`) **patiente** (statut `EN_ATTENTE`) au lieu d'être bloquée, et part dès que le `count` sort en succès. Une règle en `ATTENTE` ne compte pas comme un succès pour les dépendances.
 
 ### 3.3 Sélection
 
@@ -260,7 +272,7 @@ Le **niveau final** détermine le statut de l'exécution : `ERREUR` → statut `
 
 ## 7. Contrôles de validation
 
-Ces contrôles sont réalisés **par le moteur** (`copie_fichiers.py --verifier`, à chaque démarrage et à la demande du front-end). Le front-end affiche les codes et ne refait pas la logique, sauf les contrôles de saisie simples (champ vide, format de l'heure). Gravité : **refus** = enregistrement impossible et rien n'est lancé (code retour 2) ; **avert.** = enregistrement possible, avertissement affiché.
+Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier`, à chaque démarrage et à la demande du front-end). Le front-end affiche les codes et ne refait pas la logique, sauf les contrôles de saisie simples (champ vide, format de l'heure). Gravité : **refus** = enregistrement impossible et rien n'est lancé (code retour 2) ; **avert.** = enregistrement possible, avertissement affiché.
 
 ### 7.1 Syntaxe et cohérence (`--verifier --syntaxe-seule`)
 
@@ -272,7 +284,8 @@ Ces contrôles sont réalisés **par le moteur** (`copie_fichiers.py --verifier`
 | E04 | refus | `base` renseigné |
 | E05 | refus | `base` n'est pas un chemin réseau (SQLite en mode WAL ne le supporte pas) |
 | E06 | refus | Ligne JSON invalide, champ inconnu ou de mauvais type (avec le numéro de ligne) |
-| R01 | refus | Champs obligatoires présents (`id`, `source`, `cible`, `mode`, `planification`) |
+| E07 | refus | `racine`, `racine_source` ou `racine_cible` non complète ; chemin partiel de l'en-tête sans racine pour le compléter |
+| R01 | refus | Champs obligatoires présents (`id`, `source`, `mode`, `planification`, et `cible` pour les modes de transfert) |
 | R02 | refus | `id` valide et unique, sans tenir compte de la casse |
 | R03 | refus | `source` différente de `cible` ; en mode récursif, `cible` hors de `source` |
 | R04 | refus | `mode = archivage` impose `archive` |
@@ -280,6 +293,9 @@ Ces contrôles sont réalisés **par le moteur** (`copie_fichiers.py --verifier`
 | R06 | refus | Valeur hors liste (mode, niveaux, `suite` non autorisée pour la situation, `ordre`, `identite`…) |
 | R07 | refus | Nombres hors bornes (`tentatives` < 1, `delai_sec` < 0, `age_minimum_sec` ≥ `age_maximum_sec`…) |
 | R08 | refus | `retention_historique_jours` doit être supérieure à la fenêtre de sélection, quand il y en a une (`modifie_depuis = J-N`, ou `age_maximum_sec`) |
+| R14 | refus | `source`, `cible` ou `dossier_temporaire` partiel alors que l'en-tête n'a pas de racine pour le compléter |
+| R15 | avert. | Mode `suppression` : suppression définitive des fichiers sélectionnés (précise s'il n'y a ni âge ni date) |
+| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode |
 | R13 | refus | `retention_archive_jours` sans mode `archivage`, ou avec une archive sans date (`{AAAA}` absent) : la date du dossier est la seule date d'archivage fiable (un déplacement conserve la date de modification d'origine) |
 | R09 | avert. | `duree_max_sec` inférieure à la somme des attentes prévues dans `situations` |
 | R10 | avert. | Deux règles avec la même source, cible et masque |

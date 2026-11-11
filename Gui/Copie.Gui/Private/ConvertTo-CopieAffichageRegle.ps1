@@ -38,6 +38,9 @@ function ConvertTo-CopieLigneRegle {
     .PARAMETER Etat
         Entrée de la règle dans la réponse de --etat, ou $null (base non initialisée, moteur injoignable).
 
+    .PARAMETER Entete
+        En-tête du fichier : ses racines complètent les chemins partiels (Chemins affiche les chemins complets).
+
     .OUTPUTS
         [pscustomobject] Copie.LigneRegle.
     #>
@@ -45,7 +48,8 @@ function ConvertTo-CopieLigneRegle {
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)] $Regle,
-        [AllowNull()] $Etat
+        [AllowNull()] $Etat,
+        [AllowNull()] $Entete = $null
     )
     $actif = Get-CopieValeur $Regle 'actif' $true
     if ($null -ne $Etat) {
@@ -56,14 +60,23 @@ function ConvertTo-CopieLigneRegle {
         $statut = $(if ($actif) { '' } else { 'INACTIVE' })
         $planification = Format-CopiePlanification -Planification (Get-CopieValeur $Regle 'planification')
     }
-    $source = "$(Get-CopieValeur $Regle 'source' '')"
-    $cible = "$(Get-CopieValeur $Regle 'cible' '')"
+    $chemins = Get-CopieCheminsRegle -Regle $Regle -Entete $Entete
+    $mode = "$(Get-CopieValeur $Regle 'mode' '')"
+    $transfert = (@(Get-CopieModesRegle | Where-Object { $_.Nom -eq $mode -and -not $_.Transfert }).Count -eq 0)
+    $affichageChemins = $(if ($transfert) { '{0}  {1}  {2}' -f $chemins.Source, [char]0x2192, $chemins.Cible } else { $chemins.Source })
+    $enCours = [bool](Get-CopieValeur $Etat 'en_cours' $false)
+    $attente = "$(Get-CopieValeur $Etat 'attente' '')"
+    # Aspect de la ligne dans la grille : inactive (grise) prime sur erreur (rouge).
+    $aspect = $(if (-not $actif) { 'inactive' } elseif ($statut -in 'ERREUR', 'ARRETEE' -or $attente -eq 'BLOQUEE') { 'erreur' } else { '' })
     [pscustomobject]@{
         PSTypeName     = 'Copie.LigneRegle'
         Id             = "$(Get-CopieValeur $Regle 'id' '')"
         Description    = "$(Get-CopieValeur $Regle 'description' '')"
-        Mode           = "$(Get-CopieValeur $Regle 'mode' '')"
-        Chemins        = ('{0}  {1}  {2}' -f $source, [char]0x2192, $cible)
+        Mode           = $mode
+        Chemins        = $affichageChemins
+        EnCours        = $enCours
+        Attente        = $attente
+        Aspect         = $aspect
         Planification  = $planification
         Actif          = $(if ($actif) { 'Oui' } else { 'Non' })
         Statut         = $(if ($statut) { $statut } else { [string][char]0x2014 })
@@ -85,12 +98,25 @@ function ConvertTo-CopieGroupeRegle {
         répète pas les valeurs de secours du moteur (une seule source de vérité : docs/01 §6).
     .PARAMETER Regle
         Règle lue dans le fichier.
+    .PARAMETER Entete
+        En-tête du fichier : ses racines complètent les chemins partiels (le détail montre les chemins complets).
     .OUTPUTS
         [pscustomobject[]] Titre, Lignes (Libelle, Valeur).
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject[]])]
-    param([Parameter(Mandatory)] $Regle)
+    param([Parameter(Mandatory)] $Regle, [AllowNull()] $Entete = $null)
+
+    $chemins = Get-CopieCheminsRegle -Regle $Regle -Entete $Entete
+    $tiretLong = [string][char]0x2014
+    # Chemin complet ; quand il diffère de ce qui est écrit dans le fichier, la saisie d'origine est rappelée.
+    $complet = {
+        param($resolu, $nom, $defaut)
+        $saisi = "$(Get-CopieValeur $Regle $nom '')".Trim()
+        if (-not $saisi) { return $defaut }
+        if ($resolu -ceq $saisi) { return $resolu }
+        '{0}   (saisi : {1})' -f $resolu, $saisi
+    }
 
     $v = { param($objet, $nom) Format-CopieTexte (Get-CopieValeur $objet $nom) }
     $sel = Get-CopieValeur $Regle 'selection'
@@ -104,11 +130,13 @@ function ConvertTo-CopieGroupeRegle {
         (New-CopieLigne 'Ligne du fichier' (& $v $Regle 'Ligne')))
     & $ajouter 'Source, cible, mode' @(
         (New-CopieLigne 'Mode' (& $v $Regle 'mode')),
-        (New-CopieLigne 'Source' (& $v $Regle 'source')),
-        (New-CopieLigne 'Cible' (& $v $Regle 'cible')),
+        (New-CopieLigne 'Source' (& $complet $chemins.Source 'source' 'défaut du moteur')),
+        (New-CopieLigne 'Cible' (& $complet $chemins.Cible 'cible' $tiretLong)),
+        (New-CopieLigne 'Seuil minimum (count : fichiers, size : octets)' (Format-CopieTexte (Get-CopieValeur $Regle 'seuil_minimum') $tiretLong)),
+        (New-CopieLigne 'Seuil maximum (count : fichiers, size : octets)' (Format-CopieTexte (Get-CopieValeur $Regle 'seuil_maximum') $tiretLong)),
         (New-CopieLigne 'Archive' (Format-CopieTexte (Get-CopieValeur $Regle 'archive') ([string][char]0x2014))),
         (New-CopieLigne 'Créer les dossiers' (& $v $Regle 'creer_dossiers')),
-        (New-CopieLigne 'Dossier temporaire' (Format-CopieTexte (Get-CopieValeur $Regle 'dossier_temporaire') 'dans la cible')))
+        (New-CopieLigne 'Dossier temporaire' $(if ("$(Get-CopieValeur $Regle 'dossier_temporaire' '')".Trim()) { & $complet $chemins.DossierTemporaire 'dossier_temporaire' '' } else { 'dans la cible' })))
     & $ajouter 'Sélection' @(
         (New-CopieLigne 'Masque' (& $v $sel 'masque')),
         (New-CopieLigne 'Exclure' (Format-CopieTexte (Get-CopieValeur $sel 'exclure') ([string][char]0x2014))),

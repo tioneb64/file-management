@@ -1,6 +1,6 @@
 ﻿<#
     .SYNOPSIS
-        Lance l'interface de gestion des transferts de fichiers (copie_fichiers).
+        Lance l'interface de gestion des transferts de fichiers (file_management).
 
     .PARAMETER DossierParametrage
         Dossier qui contient les fichiers de paramétrage (un .jsonl par environnement). Obligatoire :

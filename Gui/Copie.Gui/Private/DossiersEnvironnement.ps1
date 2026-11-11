@@ -28,12 +28,19 @@
         }
         catch { throw ('en-tête du fichier illisible : ' + $_.Exception.Message) }
         $lire = { param($nom) $p = $en.PSObject.Properties[$nom]; if ($null -ne $p -and "$($p.Value)".Trim()) { "$($p.Value)".Trim() } else { '' } }
-        $base = & $lire 'base'
+        # Racine de l'environnement : un chemin partiel (BDD\preprod.db, LOGS, TMP) se place dessous, un chemin complet reste tel quel.
+        $racineEnv = & $lire 'racine'
+        $complet = {
+            param([string] $chemin)
+            if (-not $chemin -or -not $racineEnv -or $chemin -match '^([A-Za-z]:[\\/]|\\\\[^\\]|//[^/])') { return $chemin }
+            [System.IO.Path]::Combine($racineEnv.TrimEnd('\', '/'), $chemin.TrimStart('\', '/'))
+        }
+        $base = & $complet (& $lire 'base')
         if (-not $base) { throw 'l''en-tête ne contient pas de chemin de base' }
         $racine = [System.IO.Path]::GetDirectoryName($base)
-        $logs = & $lire 'dossier_logs'
+        $logs = & $complet (& $lire 'dossier_logs')
         if (-not $logs) { $logs = [System.IO.Path]::Combine($racine, 'logs') }
-        $travail = & $lire 'dossier_travail'
+        $travail = & $complet (& $lire 'dossier_travail')
         if (-not $travail) { $travail = [System.IO.Path]::Combine($racine, 'travail') }
         $sortie = New-Object System.Collections.Generic.List[object]
         foreach ($d in @(@('base', $racine), @('journaux', $logs), @('travail', $travail))) {

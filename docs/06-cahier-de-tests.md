@@ -7,13 +7,13 @@ Ce cahier est **complété à chaque jalon**. Tout est d'abord exécuté sur le 
 ### 1.1 Préparer le serveur
 
 1. Installer Python 3.14 pour tous les utilisateurs (ou en copie portable) ; noter le chemin (`C:\Python314\python.exe` dans les exemples).
-2. Copier le dépôt (ou le dossier du jalon testé) sur le serveur, par exemple `D:\Scripts\copie_fichiers_test\`.
+2. Copier le dépôt (ou le dossier du jalon testé) sur le serveur, par exemple `D:\Scripts\file_management_test\`.
 3. Les tests ne touchent à aucun dossier de production : ils travaillent dans des dossiers temporaires (`%TEMP%`) qu'ils suppriment. Seuls les tests marqués **manuel** utilisent des dossiers que vous indiquez.
 
 ### 1.2 Lancer les tests automatiques
 
 ```powershell
-cd D:\Scripts\copie_fichiers_test
+cd D:\Scripts\file_management_test
 .\outils\lancer_tests.ps1 -Python C:\Python314\python.exe
 ```
 
@@ -79,7 +79,7 @@ Environnement de développement : Windows 10 (19045), Python 3.14.10, SQLite 3.5
 
 Testé le 2026-11-03 sur Windows 10, Python 3.14.10 : 91 tests au total (33 de J0, 58 pour J1), tous OK ; contrôles manuels J1-M03 et J1-M05 à J1-M07 déjà rejoués sur le PC avec PowerShell 5.1.
 
-Commande de vérification (provisoire, le lanceur `copie_fichiers.py` reste la v1 jusqu'à la livraison) :
+Commande de vérification (provisoire, le lanceur `file_management.py` reste la v1 jusqu'à la livraison) :
 
 ```powershell
 C:\Python314\python.exe -m copie --config exemples\production.jsonl --verifier --syntaxe-seule [--format json] [--periode-declencheur-sec 300]
@@ -201,7 +201,7 @@ C:\Python314\python.exe outils\charge_journal.py --processus 8 --lignes 2000 --t
 | J3-M02 | Écriture atomique réellement vérifiée sur Windows Server 2016 | Même test ; en cas d'échec : joindre la sortie | Aucune corruption. (Sur le PC, `O_APPEND` seul corrompt les lignes ; le module utilise `FILE_APPEND_DATA`.) | |
 | J3-M03 | Dossier de journaux sur un **partage réseau** (information) | Même test avec `--dossier \\SERVEUR\partage\tmp` | Noter le résultat. Si des lignes sont corrompues, le dossier de journaux doit rester **local** (Alloy lit sur le serveur) | |
 | J3-M04 | Panne de journalisation | Retirer le droit d'écriture du compte sur le dossier de journaux puis lancer un petit programme utilisant le module (`python -c "import journal_si as j; j.debut('t','recette',dossier=r'D:\\Copie\\logs'); j.evenement('essai'); print(j.pannes())"`) | Aucune exception, message sur la console, ligne dans `journal_si_secours_<jour>.jsonl` du dossier temporaire du compte, `pannes()` affiche `2` | |
-| J3-M05 | Lecture par **Grafana Alloy** | Avec l'équipe de surveillance : déposer `exemples\journal\*.jsonl` dans le dossier lu, adapter `exemples\alloy\copie_fichiers.alloy` | Les événements apparaissent dans Loki avec les libellés `application`, `environnement`, `regle`, `niveau` et l'heure de la ligne ; les champs sont consultables (`| json`) ; **validation formelle du format par l'équipe** | |
+| J3-M05 | Lecture par **Grafana Alloy** | Avec l'équipe de surveillance : déposer `exemples\journal\*.jsonl` dans le dossier lu, adapter `exemples\alloy\file_management.alloy` | Les événements apparaissent dans Loki avec les libellés `application`, `environnement`, `regle`, `niveau` et l'heure de la ligne ; les champs sont consultables (`| json`) ; **validation formelle du format par l'équipe** | |
 | J3-M06 | Accents et caractères spéciaux dans la console Jenkins | Job Jenkins exécutant un script qui appelle `debut(..., console=True)` avec `message="é à ü"` | Les accents s'affichent correctement dans la console et sont intacts dans le fichier | |
 | J3-M07 | Changement de jour | Laisser un programme tourner autour de minuit (ou changer l'heure de la VM de recette) | Deux fichiers `<regle>_<jour>.jsonl`, aucune ligne perdue | |
 
@@ -271,7 +271,7 @@ Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 375 tests au total (307 pr
 
 La planification est vérifiée avec une **horloge simulée** et un **fuseau fictif (France 2026)** : les tests de changement d'heure donnent le même résultat quel que soit le fuseau du poste. Les tests manuels sur le serveur contrôlent le comportement avec la vraie horloge et le vrai fuseau.
 
-Commandes (provisoires, le lanceur `copie_fichiers.py` reste la v1) :
+Commandes (provisoires, le lanceur `file_management.py` reste la v1) :
 
 ```powershell
 # lancement de l'environnement : exécute les règles dues, l'une après l'autre
@@ -458,7 +458,7 @@ Guide de mise en place : [08-jenkins](08-jenkins.md). **Les fichiers Groovy n'on
 ```powershell
 # ce que fait la bibliothèque partagée pour écrire un événement de job
 $env:JOB_NAME='COPIE_PROD'; $env:BUILD_NUMBER='1'
-C:\Python314\python.exe journal_si.py --dossier D:\Copie\logs --application copie_fichiers --environnement production --evenement fin_job --niveau WARNING --champs-json champs.json
+C:\Python314\python.exe journal_si.py --dossier D:\Copie\logs --application file_management --environnement production --evenement fin_job --niveau WARNING --champs-json champs.json
 ```
 
 ### 11.1 Tests automatiques (fichier `tests/test_jenkins.py`)
@@ -515,7 +515,7 @@ C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recet
 | J11-A04 | **Import de l'historique** : versions copiées → `TERMINE` avec la bonne clé et les bonnes dates, **idempotent** et tracé, entrées sans règle (autre dossier, autre cible, autre nom, mauvais masque, sous-dossier d'une règle non récursive), règles récursives, choix de la règle par le masque, casse et variables d'environnement, historique absent / cassé / mal formé, entrées incomplètes, 20 000 entrées en quelques secondes | OK | |
 | J11-A05 | **Parcours réel ancien script → nouveau** : l'ancien script copie vraiment, on migre, on importe → le nouveau moteur **ne relivre rien** (trois fichiers ignorés) ; **sans l'import il aurait tout relivré** ; une nouveauté et une version modifiée sont livrées comme avant, le résultat est identique à celui de l'ancien script ; un fichier perdu par la cible est recopié comme avant | OK | |
 | J11-A06 | **Comparateur de dossiers** : identiques, absents d'un côté, taille ou contenu différent, casse, masque, temporaires ignorés, dates, codes retour | OK | |
-| J11-A07 | Lanceur `copie_fichiers_v2.py` équivalent à `python -m copie` | OK | |
+| J11-A07 | Lanceur `file_management_v2.py` équivalent à `python -m copie` | OK | |
 
 ### 12.2 Tests manuels sur le serveur (sur des copies, puis en recette)
 
@@ -529,7 +529,7 @@ C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recet
 | J11-M06 | **Bascule d'une règle** | Étape 5 du guide (import, ancienne ligne commentée, règle `actif: true`) | Premier lancement : seules les nouveautés livrées, aucun doublon, journaux lisibles | |
 | J11-M07 | **Retour arrière** | Après J11-M06 : règle v2 inactive, ligne `copies.conf` rétablie | L'ancien script reprend sans rien relivrer d'inutile ni perdre de fichier | |
 | J11-M08 | Bascule de toutes les règles, une par une | Une règle par jour, la plus critique en dernier | Chaque bascule observée une journée complète avant la suivante | |
-| J11-M09 | Fin de migration | Renommage des lanceurs (étape 7), jobs Jenkins inchangés | `python copie_fichiers.py --config … --verifier` répond ; `copie_fichiers_v1.py` conservé | |
+| J11-M09 | Fin de migration | Renommage des lanceurs (étape 7), jobs Jenkins inchangés | `python file_management.py --config … --verifier` répond ; `file_management_v1.py` conservé | |
 | J11-M10 | **Restauration de la base** | Restaurer la dernière sauvegarde dans un dossier de recette et ouvrir (J2-M06) après quelques jours de production v2 | La base restaurée connaît les fichiers livrés ; un lancement ne relivre rien | |
 
 ## 13. Jalon J12 — Purge des journaux et des archives
@@ -721,8 +721,8 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 127 
 
 | ID | Objectif | Procédure | Attendu | Serveur |
 |---|---|---|---|---|
-| J10E-M01 | **Installer le point d'accès** | En administrateur sur le serveur d'exécution : `Installer-PointAccesJea.ps1 -WhatIf` puis sans, avec le groupe, Python, la racine, le dossier de paramétrage et `-CompteService` | Message de fin ; `Get-PSSessionConfiguration CopieFichiers` existe ; module dans `Program Files\WindowsPowerShell\Modules` | |
-| J10E-M02 | **Session restreinte** | `Enter-PSSession -ComputerName SERVEUR -ConfigurationName CopieFichiers` puis `Get-Command` | Seule `Invoke-CopieMoteurJea` (et les commandes de base de JEA) ; `Get-Process`, `dir`, `python` refusés | |
+| J10E-M01 | **Installer le point d'accès** | En administrateur sur le serveur d'exécution : `Installer-PointAccesJea.ps1 -WhatIf` puis sans, avec le groupe, Python, la racine, le dossier de paramétrage et `-CompteService` | Message de fin ; `Get-PSSessionConfiguration FileManagement` existe ; module dans `Program Files\WindowsPowerShell\Modules` | |
+| J10E-M02 | **Session restreinte** | `Enter-PSSession -ComputerName SERVEUR -ConfigurationName FileManagement` puis `Get-Command` | Seule `Invoke-CopieMoteurJea` (et les commandes de base de JEA) ; `Get-Process`, `dir`, `python` refusés | |
 | J10E-M03 | **Consultation par un membre du groupe de lecture** | Interface en mode `Distant` + `ConfigurationJea` : ouvrir un environnement, « Actualiser l'état », « Vérifier » | État et vérification affichés ; les contrôles d'accès reflètent le compte de service | |
 | J10E-M04 | **Écriture refusée au lecteur** | Même compte, tenter une reprise (appel direct de la fonction) | « commande réservée aux administrateurs » | |
 | J10E-M05 | **Compte tracé** | Reprise par un administrateur depuis l'interface | Dans la base, le journal du moteur et la transcription : le compte de l'administrateur, pas le compte de service | |
@@ -778,6 +778,30 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10F-M10 | **Python introuvable** | Lancer avec la configuration modèle (chemins d'exemple) sur un poste où Python est dans le PATH | Une question propose Python et le dépôt trouvés ; Oui : tout fonctionne pour la session ; le fichier de configuration est inchangé | |
 | J10F-M11 | **Dossiers par JEA** | Créer un environnement avec `ConfigurationJea`, dossiers absents, avec puis sans le groupe administrateur | Administrateur : question puis création avec le compte de service ; autre : création refusée, message clair | |
 | J10F-M08 | **Simulation par JEA** | Même simulation avec `ConfigurationJea` | Résultat identique ; la commande n'est pas refusée ; `--lancer-regle` sans `--simulation` refusé | |
+
+## 19 bis. Jalon J10, étape G — Racines, modes `suppression` / `count` / `size`, filtres (2026-11-11)
+
+### Automatiques
+
+| N° | Fichier | Vérifie | État | Date |
+|---|---|---|---|---|
+| J10G-A01 | `tests/test_modes_et_racines.py` | **Racines** : chemin partiel sous la racine (avec ou sans `\` final), chemin complet conservé, racines de sources / cibles, E07 (racine relative, chemin partiel sans racine), R14 | OK | 2026-11-11 |
+| J10G-A02 | `tests/test_modes_et_racines.py` | **Suppression** : âge minimum, avertissement R15, pas de cible, R16 si cible renseignée | OK | 2026-11-11 |
+| J10G-A03 | `tests/test_modes_et_racines.py` | **count / size** : nombre et volume, seuils, ATTENTE persisté, bilan `SUCCES` code 0, dépendance `succes` qui patiente puis part | OK | 2026-11-11 |
+| J10G-A04 | `Gui/Tests/Racines.Tests.ps1` | `Resolve-CopieChemin`, chemins complets d'un environnement et d'une règle, saisie avec racine, en-tête, création des dossiers sous la racine | OK | 2026-11-11 |
+| J10G-A05 | `Gui/Tests/Racines.Tests.ps1` | Ligne de la grille (chemins selon le mode, aspect inactive / erreur), détail, couleur `ATTENTE`, modes, simulation suppression et mesure | OK | 2026-11-11 |
+
+Suite complète : 682 tests Python OK ; Pester 187 réussis, 0 échec, 4 ignorés (droits administrateur, voir le CHANGELOG).
+
+### Manuels
+
+| N° | Essai | Marche à suivre | Attendu | État |
+|---|---|---|---|---|
+| J10G-M01 | Racine à la création d'un environnement | Renseigner la racine, la base `BDD\x.db`, les journaux `LOGS`, le travail `D:\TMP` | L'aperçu montre `<racine>\BDD\x.db`, `<racine>\LOGS`, `D:\TMP` ; une seule question pour créer les dossiers manquants | |
+| J10G-M02 | Copie d'un environnement | Copier un environnement en changeant seulement la racine | Les chemins partiels des règles suivent la nouvelle racine | |
+| J10G-M03 | Couleurs et filtres | Rendre une règle inactive, en provoquer une en erreur, filtrer sur `ERREUR`, `count`, « Inactives » | Ligne grise / rouge / bleu ciel ; filtres corrects | |
+| J10G-M04 | Déclencheur `count` | Règle `count` (minimum 5) sur un dossier de 4 fichiers, règle de déplacement dépendante (`succes`) ; ajouter le 5e fichier | `ATTENTE` puis succès ; le déplacement patiente puis part | |
+| J10G-M05 | Suppression | Règle `suppression` d'âge minimum sur un dossier d'essai ; simulation puis exécution | Avertissement à l'enregistrement ; simulation annonce la suppression définitive ; seuls les fichiers assez anciens sont supprimés | |
 
 ## 20. Jalons suivants
 

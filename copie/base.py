@@ -20,7 +20,7 @@ SECONDES_PAR_JOUR = 86400
 
 # etats d'un fichier (table fichiers)
 INTENTION, LIVRE, TERMINE, INCERTAIN = 1, 2, 3, 9
-STATUTS_EXECUTION = ("SUCCES", "WARNING", "ERREUR", "ARRETEE")
+STATUTS_EXECUTION = ("SUCCES", "WARNING", "ERREUR", "ARRETEE", "ATTENTE")
 TYPES_ACTION = ("livraison", "suppression", "archivage")
 
 
@@ -811,7 +811,7 @@ def ouvrir(chemin, environnement=None, lecture_seule=False, busy_timeout_ms=BUSY
         except sqlite3.DatabaseError:
             env_base = None
         if env_base is None:
-            raise BaseIncoherente("%s n'est pas une base de copie_fichiers" % chemin)
+            raise BaseIncoherente("%s n'est pas une base de file_management" % chemin)
         if environnement is not None and env_base["valeur"] != environnement:
             raise BaseIncoherente("la base est celle de l'environnement '%s', pas '%s'"
                                   % (env_base["valeur"], environnement))

@@ -1,11 +1,11 @@
 ﻿# Moteur
 
-Le moteur est le programme Python `copie_fichiers.py` (lanceur léger) et son package. Il évalue les règles d'un environnement et exécute celles qui sont à lancer.
+Le moteur est le programme Python `file_management.py` (lanceur léger) et son package. Il évalue les règles d'un environnement et exécute celles qui sont à lancer.
 
 ## 1. Ligne de commande et codes retour
 
 ```bat
-python copie_fichiers.py --config D:\Parametrage\production.jsonl [options]
+python file_management.py --config D:\Parametrage\production.jsonl [options]
 ```
 
 | Commande / option | Rôle |
@@ -203,6 +203,10 @@ Voir [03-base-de-donnees §4](03-base-de-donnees.md). En résumé : avant toute 
 | `copie` | Aucune. L'original reste en place. |
 | `deplacement` | Suppression de l'original, après vérification que sa taille et sa date sont **inchangées** depuis la copie (G4). Attribut lecture seule levé si besoin. |
 | `archivage` | Déplacement de l'original dans le dossier d'archive (§7), après la même vérification. |
+| `suppression` | Pas de livraison : les fichiers sélectionnés sont **supprimés définitivement** (journal : un événement par fichier, motif = âge / date). Pas de cible, ni de contrôle d'espace. |
+| `count`, `size` | Pas de livraison : le nombre ou le volume des fichiers sélectionnés est inscrit au journal et comparé à `seuil_minimum` / `seuil_maximum`. Hors bornes : statut **`ATTENTE`** (persisté en base seulement ; le bilan reste `SUCCES`, code 0). |
+
+**Dépendances et `ATTENTE`.** Pour `condition: succes`, l'évaluateur de dépendances ne compte pas `ATTENTE` parmi les statuts réussis : la règle dépendante est mise en attente (`EN_ATTENTE`, message « en attente : … ») et non bloquée. Elle repart au lancement suivant dès que l'amont sort en succès.
 
 Si l'original a changé : il est conservé, `source_modifiee` est journalisé, et la nouvelle version sera livrée comme un nouveau fichier. Si la suppression ou l'archivage échoue : situation `suppression_echec` / `archivage_echec`, et avec `continuer_en_differe` l'action est mémorisée en base et retentée au début des exécutions suivantes, **sans relivrer** le fichier.
 
@@ -351,7 +355,7 @@ Cas d'exploitation :
 ### 11.1 Interface du module commun
 
 ```python
-journal.debut(application="copie_fichiers", environnement="production")
+journal.debut(application="file_management", environnement="production")
 journal.evenement("fichier_livre", regle="export_clients", fichier=..., taille=..., sha256=..., duree_ms=...)
 journal.fin(statut="WARNING", compteurs={...})
 ```
@@ -375,7 +379,7 @@ Les programmes n'appellent que ces trois fonctions. Le fonctionnement interne (a
 ### 11.3 Format
 
 ```json
-{"horodatage":"2026-11-03T06:30:12.481Z","niveau":"INFO","application":"copie_fichiers",
+{"horodatage":"2026-11-03T06:30:12.481Z","niveau":"INFO","application":"file_management",
  "environnement":"production","job":"COPIE_PROD","build":"1542","build_url":"https://jenkins/job/COPIE_PROD/1542/",
  "noeud":"SRV-JENKINS01","regle":"export_clients","execution_id":8812,
  "evenement":"fichier_livre","fichier":"\\\\SRV-PROD01\\exports\\clients\\C1.xml","cible":"D:\\SFTP\\out\\clients\\C1_20261103_063012.xml",
@@ -422,7 +426,7 @@ Le module est le fichier autonome [journal_si.py](../journal_si.py), à la racin
 - **Panne (G7)** : jamais d'exception. En cas d'échec (dossier absent et non créable, disque plein, droits), la ligne est écrite sur la sortie d'erreur et dans `journal_si_secours_<jour>.jsonl` (dossier `dossier_secours`, sinon dossier temporaire du compte), `pannes()` compte les incidents et la prochaine écriture retente le dossier normal. Le moteur doit ajouter un WARNING au bilan quand `pannes() > 0`.
 - **Console** : avec `console=True`, chaque événement est aussi écrit en une ligne lisible sur la sortie standard (console Jenkins).
 - **Ligne de commande** (jalon J9) : `python journal_si.py --dossier D --application A --environnement E --evenement NOM [--niveau INFO] [--regle ID] [--champ cle=valeur] [--champs-json FICHIER] [--console]` écrit un événement au format du module (utilisée par la bibliothèque Jenkins). Sort **toujours avec le code 0** ; une panne est signalée sur la sortie d'erreur et repliée dans le fichier de secours. `--champs-json` accepte un objet JSON UTF-8 (avec ou sans BOM) et conserve les types.
-- **Exemple de sortie** : [exemples/journal/](../exemples/journal/) ; **exemple de configuration Alloy** (non testé) : [exemples/alloy/copie_fichiers.alloy](../exemples/alloy/copie_fichiers.alloy).
+- **Exemple de sortie** : [exemples/journal/](../exemples/journal/) ; **exemple de configuration Alloy** (non testé) : [exemples/alloy/file_management.alloy](../exemples/alloy/file_management.alloy).
 
 ## 12. Intégration Jenkins
 

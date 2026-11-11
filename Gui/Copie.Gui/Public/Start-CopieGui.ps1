@@ -1,7 +1,7 @@
 ﻿function Start-CopieGui {
     <#
     .SYNOPSIS
-        Ouvre l'interface de gestion du paramétrage et de l'état des règles de copie_fichiers.
+        Ouvre l'interface de gestion du paramétrage et de l'état des règles de file_management.
 
     .DESCRIPTION
         Le dossier des fichiers de paramétrage est un paramètre de lancement : il n'est écrit nulle part

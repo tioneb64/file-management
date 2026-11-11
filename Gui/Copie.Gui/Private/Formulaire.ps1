@@ -165,10 +165,12 @@ function Get-CopieChampsRegle {
                 (champ 'id' 'Identifiant' 'texte' $null $true 'Lettres, chiffres, _ et -, 64 caractères au plus. Ne se modifie plus une fois la règle créée.')
                 (champ 'description' 'Description' 'texte')
                 (champ 'actif' 'Règle active' 'bool' $null $false 'Une règle inactive n''est jamais lancée.')
-                (champ 'mode' 'Mode' 'choix' 'modes' $true)
-                (champ 'source' 'Dossier source' 'texte' $null $true)
-                (champ 'cible' 'Dossier cible' 'texte' $null $true)
-                (champ 'archive' 'Dossier d''archive' 'texte' $null $false 'Vide : pas d''archivage.')
+                (champ 'mode' 'Mode' 'choix' 'modes' $true 'copie, deplacement, archivage : transfèrent vers la cible. suppression : SUPPRIME DÉFINITIVEMENT les fichiers sélectionnés (avertissement à l''enregistrement). count / size : comptent ou mesurent les fichiers sélectionnés et les comparent aux seuils, sans rien toucher.')
+                (champ 'source' 'Dossier source' 'texte' $null $true 'Chemin complet, ou partiel : il se place alors sous la racine des sources de l''environnement.')
+                (champ 'cible' 'Dossier cible' 'texte' $null $false 'Chemin complet, ou partiel (racine des cibles de l''environnement). Obligatoire pour copie, deplacement et archivage ; sans objet pour suppression, count et size.')
+                (champ 'archive' 'Dossier d''archive' 'texte' $null $false 'Vide : pas d''archivage. Relatif, il se calcule depuis la source.')
+                (champ 'seuil_minimum' 'Seuil minimum (count, size)' 'entier' $null $false 'count : nombre de fichiers ; size : octets. La règle sort en ATTENTE (ni succès ni erreur) tant que la valeur est en dessous : les règles qui en dépendent patientent.')
+                (champ 'seuil_maximum' 'Seuil maximum (count, size)' 'entier' $null $false 'Même unité. Vide : pas de maximum.')
                 (champ 'creer_dossiers' 'Créer les dossiers manquants' 'bool')
                 (champ 'dossier_temporaire' 'Dossier temporaire' 'texte' $null $false 'Vide : le moteur choisit.')
                 (champ 'identite' 'Identité d''un fichier' 'choix' 'identites')
@@ -196,7 +198,7 @@ function Get-CopieChampsRegle {
         }
         [pscustomobject]@{ Titre = 'Dépendances'; Champs = @(
                 (champ 'apres' 'Se lance après (une règle par ligne)' 'lignes' $null $false 'Identifiants de règles du même fichier ; elles seront rangées avant celle-ci.')
-                (champ 'condition' 'Conditions (cumulables)' 'cases' 'conditions' $false 'termine : la règle amont a fini, quel qu''en soit le résultat. succes : finie sans erreur. fichiers : a livré au moins un fichier.')
+                (champ 'condition' 'Conditions (cumulables)' 'cases' 'conditions' $false 'termine : la règle amont a fini, quel qu''en soit le résultat. succes : finie sans erreur (une règle count ou size en ATTENTE n''est pas un succès). fichiers : a livré au moins un fichier.')
                 (champ 'si_condition_non_remplie' 'Si la condition n''est pas remplie' 'choix' 'niveaux')
             )
         }

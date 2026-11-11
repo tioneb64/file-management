@@ -226,7 +226,7 @@ class TestLancerRegle(CasTemporaire):
         self.assertIn("recette", erreur)
 
     def test_parametrage_invalide(self):
-        self.ecrire_conf(mode="suppression")
+        self.ecrire_conf(mode="teleportation")
         code, _, erreur = self.commande("--lancer-regle", "export")
         self.assertEqual(code, 2)
         self.assertIn("R06", erreur)

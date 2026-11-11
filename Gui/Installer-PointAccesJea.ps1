@@ -1,6 +1,6 @@
 ﻿<#
     .SYNOPSIS
-        Installe sur le serveur d'exécution le point d'accès JEA de copie_fichiers.
+        Installe sur le serveur d'exécution le point d'accès JEA de file_management.
 
     .DESCRIPTION
         Le point d'accès n'expose que deux fonctions : Invoke-CopieMoteurJea (qui n'accepte que les commandes
@@ -49,11 +49,11 @@
         Dossier des transcriptions de session (qui a lancé quoi) : par défaut sous ProgramData.
 
     .EXAMPLE
-        .\Installer-PointAccesJea.ps1 -GroupeAdmin 'DOMAINE\GG_Copie_Admins' -Python C:\Python314\python.exe -Racine D:\copie_fichiers -DossierParametrage D:\Parametrage -CompteService 'DOMAINE\gmsa-copie$' -WhatIf
+        .\Installer-PointAccesJea.ps1 -GroupeAdmin 'DOMAINE\GG_Copie_Admins' -Python C:\Python314\python.exe -Racine D:\file_management -DossierParametrage D:\Parametrage -CompteService 'DOMAINE\gmsa-copie$' -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
 param(
-    [string] $Nom = 'CopieFichiers',
+    [string] $Nom = 'FileManagement',
     [Parameter(Mandatory)] [string] $GroupeAdmin,
     [string] $GroupeLecture,
     [Parameter(Mandatory)] [string] $Python,
@@ -61,7 +61,7 @@ param(
     [Parameter(Mandatory)] [string] $DossierParametrage,
     [string] $CompteService,
     [ValidateRange(10, 86400)] [int] $DelaiMaxSec = 600,
-    [string] $DossierTraces = (Join-Path $env:ProgramData 'CopieFichiers\Jea')
+    [string] $DossierTraces = (Join-Path $env:ProgramData 'FileManagement\Jea')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -97,14 +97,14 @@ if ($PSCmdlet.ShouldProcess($env:COMPUTERNAME, "installer le point d'accès JEA 
     [System.IO.File]::WriteAllText((Join-Path $cible 'Copie.Jea.config.psd1'), $texte + "`r`n", (New-Object System.Text.UTF8Encoding($true)))
 
     $null = New-Item -ItemType Directory -Path $DossierTraces -Force
-    $roles = @{ $GroupeAdmin = @{ RoleCapabilities = 'CopieFichiers' } }
-    if ($GroupeLecture) { $roles[$GroupeLecture] = @{ RoleCapabilities = 'CopieFichiers' } }
+    $roles = @{ $GroupeAdmin = @{ RoleCapabilities = 'FileManagement' } }
+    if ($GroupeLecture) { $roles[$GroupeLecture] = @{ RoleCapabilities = 'FileManagement' } }
     $session = @{
         Path                = $fichierSession
         SessionType         = 'RestrictedRemoteServer'
         TranscriptDirectory = $DossierTraces
         RoleDefinitions     = $roles
-        Description         = 'copie_fichiers : point d''accès au moteur'
+        Description         = 'file_management : point d''accès au moteur'
     }
     if ($CompteService) { $session['GroupManagedServiceAccount'] = $CompteService } else { $session['RunAsVirtualAccount'] = $true }
     New-PSSessionConfigurationFile @session

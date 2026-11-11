@@ -4,7 +4,7 @@ Module autonome (bibliotheque standard seulement) : un programme du S.I. le copi
 n'appelle que trois fonctions.
 
     import journal_si as journal
-    journal.debut(application="copie_fichiers", environnement="production", dossier=r"D:\\Copie\\logs")
+    journal.debut(application="file_management", environnement="production", dossier=r"D:\\Copie\\logs")
     journal.evenement("fichier_livre", regle="export_clients", fichier=chemin, taille=15234)
     journal.fin(statut="WARNING", compteurs={"livres": 4})
 

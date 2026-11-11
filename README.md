@@ -1,4 +1,4 @@
-# copie_fichiers v2
+﻿# file_management v2
 
 Transfert **fiable** de fichiers entre dossiers, ordonnancé par Jenkins sur Windows Server 2016 : copie, déplacement ou archivage, réglés **règle par règle**, avec planification, dépendances entre règles, reprise après erreur et journaux pour Grafana. Les logiciels du système d'information échangent en déposant des fichiers dans un dossier ; cet outil les y dépose sans jamais en perdre, doubler ou livrer à moitié.
 
@@ -33,7 +33,7 @@ Vue d'ensemble, architecture et décisions : [docs/00-vue-ensemble.md](docs/00-v
 ## Le moteur en une minute
 
 ```bat
-cd /d D:\Scripts\copie_fichiers
+cd /d D:\Scripts\file_management
 python -m copie --config D:\Parametrage\production.jsonl --verifier                  REM valider le paramétrage et les accès
 python -m copie --config D:\Parametrage\production.jsonl --initialiser-base          REM une seule fois
 python -m copie --config D:\Parametrage\production.jsonl --simulation               REM voir ce qui serait livré
@@ -63,7 +63,7 @@ powershell.exe -NoProfile -STA -File .\Gui\Tests\Run-Tests.ps1 -Python C:\Python
 
 ## Ancien script (v1)
 
-`copie_fichiers.py` et `copies.conf` restent en service jusqu'à la bascule, règle par règle. Leur documentation est conservée dans [docs/12-ancien-script-v1.md](docs/12-ancien-script-v1.md).
+`file_management.py` et `copies.conf` restent en service jusqu'à la bascule, règle par règle. Leur documentation est conservée dans [docs/12-ancien-script-v1.md](docs/12-ancien-script-v1.md).
 
 ## Responsable
 

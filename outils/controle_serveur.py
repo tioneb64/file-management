@@ -1,4 +1,4 @@
-"""Controle d'un serveur d'execution : Python et Windows savent-ils faire ce dont copie_fichiers v2 a besoin ?
+"""Controle d'un serveur d'execution : Python et Windows savent-ils faire ce dont file_management v2 a besoin ?
 
 A lancer sur le serveur de recette (puis de production) avec le Python cible :
 

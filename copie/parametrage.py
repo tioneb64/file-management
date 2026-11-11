@@ -16,7 +16,9 @@ RE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 RE_HEURE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 RE_MODIFIE_DEPUIS = re.compile(r"^(TOUT|J|J-(\d+))$")
 
-MODES = ("copie", "deplacement", "archivage")
+MODES = ("copie", "deplacement", "archivage", "suppression", "count", "size")
+MODES_TRANSFERT = ("copie", "deplacement", "archivage")     # ces modes ont une cible
+MODES_MESURE = ("count", "size")                            # ces modes comptent, sans rien toucher
 NIVEAUX = ("INFO", "WARNING", "ERREUR")
 ORDRES = ("nom", "date_modification")
 IDENTITES = ("version", "contenu")
@@ -78,6 +80,9 @@ class Entete(object):
     def __init__(self):
         self.version = VERSION_FORMAT
         self.environnement = ""
+        self.racine = None                        # dossier racine de l'environnement (chemins relatifs)
+        self.racine_source = None                 # racine des dossiers source des regles
+        self.racine_cible = None                  # racine des dossiers cible des regles
         self.base = ""
         self.dossier_logs = None
         self.dossier_travail = None
@@ -146,6 +151,8 @@ class Regle(object):
         self.cible = None
         self.mode = None
         self.archive = None
+        self.seuil_minimum = None                 # modes count / size : bornes de la valeur mesuree
+        self.seuil_maximum = None
         self.creer_dossiers = True
         self.dossier_temporaire = None
         self.selection = Selection()
@@ -287,6 +294,23 @@ def est_chemin_reseau(chemin):
     return chemin.startswith("\\\\") or chemin.startswith("//")
 
 
+def est_absolu(chemin):
+    """Chemin complet : lettre de lecteur suivie d'un separateur, partage reseau, ou absolu pour le systeme."""
+    c = chemin.strip()
+    return bool(re.match(r"^[A-Za-z]:[\\/]", c)) or est_chemin_reseau(c) \
+        or (os.name != "nt" and os.path.isabs(c))
+
+
+def resoudre_chemin(chemin, racine):
+    """Chemin complet d'un chemin saisi : un chemin complet est conserve tel quel, un chemin partiel
+    est place sous `racine` (avec ou sans separateur final). Sans racine, le chemin reste inchange."""
+    if not chemin or not chemin.strip() or not racine or not racine.strip():
+        return chemin
+    if est_absolu(os.path.expandvars(chemin)):
+        return chemin
+    return os.path.normpath(os.path.join(racine.strip(), chemin.strip().lstrip("\\/")))
+
+
 def lire_entete(objet, ligne, chemin_fichier, rapport):
     """Renvoie l'en-tete, ou None si le fichier ne peut pas etre interprete (E01, E02)."""
     if not isinstance(objet, dict) or "version" not in objet:
@@ -302,6 +326,9 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
     lecteur = Lecteur(objet, rapport, ligne, contexte="")
     lecteur.valeur("version", "entier", VERSION_FORMAT)
     e.environnement = lecteur.valeur("environnement", "texte", "")
+    e.racine = lecteur.valeur("racine", "texte_ou_null", None)
+    e.racine_source = lecteur.valeur("racine_source", "texte_ou_null", None)
+    e.racine_cible = lecteur.valeur("racine_cible", "texte_ou_null", None)
     e.base = lecteur.valeur("base", "texte", "")
     e.dossier_logs = lecteur.valeur("dossier_logs", "texte_ou_null", None)
     e.dossier_travail = lecteur.valeur("dossier_travail", "texte_ou_null", None)
@@ -318,6 +345,30 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
     elif e.environnement != nom_fichier:
         rapport.signaler("E03", "l'environnement '%s' doit etre egal au nom du fichier '%s'"
                          % (e.environnement, nom_fichier), ligne=ligne)
+
+    # Racines : la racine de l'environnement doit etre un chemin complet ; les racines des sources et des
+    # cibles peuvent etre partielles (elles se placent alors sous la racine de l'environnement).
+    e.racine = (e.racine or "").strip() or None
+    if e.racine and not est_absolu(os.path.expandvars(e.racine)):
+        rapport.signaler("E07", "racine : '%s' n'est pas un chemin complet (exemple : D:\\Transferts\\preprod)"
+                         % e.racine, ligne=ligne)
+        e.racine = None
+    for nom in ("racine_source", "racine_cible"):
+        valeur = (getattr(e, nom) or "").strip() or None
+        valeur = resoudre_chemin(valeur, e.racine) if valeur else None
+        if valeur and not est_absolu(os.path.expandvars(valeur)):
+            rapport.signaler("E07", "%s : '%s' n'est pas un chemin complet et il n'y a pas de racine de "
+                             "l'environnement pour le completer" % (nom, valeur), ligne=ligne)
+            valeur = None
+        setattr(e, nom, valeur)
+    for nom in ("base", "dossier_logs", "dossier_travail"):
+        valeur = getattr(e, nom)
+        if valeur and valeur.strip():
+            complet = resoudre_chemin(valeur, e.racine)
+            if not est_absolu(os.path.expandvars(complet)):
+                rapport.signaler("E07", "%s : '%s' n'est pas un chemin complet et il n'y a pas de racine de "
+                                 "l'environnement pour le completer" % (nom, valeur), ligne=ligne)
+            setattr(e, nom, complet)
 
     if not e.base.strip():
         rapport.signaler("E04", "le champ 'base' est obligatoire", ligne=ligne)
@@ -500,10 +551,11 @@ def _lire_programme(nom, valeur, ligne, regle, rapport):
     return Programme(tuple(commande), timeout)
 
 
-def lire_regle(objet, ligne, rapport):
+def lire_regle(objet, ligne, rapport, entete=None):
     """Construit une regle depuis un objet JSON. Les valeurs erronees sont remplacees par leur
     valeur de secours : la regle reste exploitable par les controles croises, le rapport porte
-    les refus."""
+    les refus. `entete` : fournit les racines qui completent les chemins partiels (source, cible,
+    dossier temporaire) ; sans entete, les chemins restent tels que saisis."""
     r = Regle(ligne)
     if not isinstance(objet, dict):
         rapport.signaler("E06", "la ligne doit etre un objet JSON", ligne=ligne)
@@ -519,20 +571,59 @@ def lire_regle(objet, ligne, rapport):
     r.description = lecteur.valeur("description", "texte", "")
     r.actif = lecteur.valeur("actif", "booleen", True)
     r.source = lecteur.valeur("source", "texte", None, obligatoire=True)
-    r.cible = lecteur.valeur("cible", "texte", None, obligatoire=True)
+    r.cible = lecteur.valeur("cible", "texte_ou_null", None)
+    r.mode = lecteur.choix("mode", MODES, None, obligatoire=True)
+    transfert = r.mode is None or r.mode in MODES_TRANSFERT      # mode inconnu : on ne dit rien de plus
+    if r.cible is None and transfert and "cible" not in objet:
+        lecteur.signaler("R01", "champ obligatoire absent : cible")
+    elif r.cible is None and transfert:
+        lecteur.signaler("E06", "cible : un texte attendu")
     for nom in ("source", "cible"):
         if getattr(r, nom) is not None and not getattr(r, nom).strip():
-            lecteur.signaler("R01", "champ obligatoire vide : %s" % nom)
-    r.mode = lecteur.choix("mode", MODES, None, obligatoire=True)
+            if nom == "source" or transfert:
+                lecteur.signaler("R01", "champ obligatoire vide : %s" % nom)
+            setattr(r, nom, None)
     r.archive = lecteur.valeur("archive", "texte_ou_null", None)
     r.creer_dossiers = lecteur.valeur("creer_dossiers", "booleen", True)
     r.dossier_temporaire = lecteur.valeur("dossier_temporaire", "texte_ou_null", None)
+    r.seuil_minimum = lecteur.entier("seuil_minimum", None, minimum=0, nullable=True)
+    r.seuil_maximum = lecteur.entier("seuil_maximum", None, minimum=0, nullable=True)
+
+    # Chemins partiels : places sous la racine des sources / des cibles (ou de l'environnement)
+    if entete is not None:
+        for nom, racine in (("source", entete.racine_source or entete.racine),
+                            ("cible", entete.racine_cible or entete.racine),
+                            ("dossier_temporaire", entete.racine)):
+            valeur = getattr(r, nom)
+            if not valeur or not valeur.strip():
+                continue
+            complet = resoudre_chemin(valeur, racine)
+            if not est_absolu(os.path.expandvars(complet)):
+                lecteur.signaler("R14", "%s : '%s' n'est pas un chemin complet et l'en-tete n'a pas de racine "
+                                 "pour le completer" % (nom, valeur))
+            setattr(r, nom, complet)
 
     if r.mode == "archivage" and not (r.archive and r.archive.strip()):
         lecteur.signaler("R04", "le mode archivage impose le champ 'archive'")
-    elif r.archive and r.mode in ("copie", "deplacement"):
+    elif r.archive and r.mode in ("copie", "deplacement") + ("suppression",) + MODES_MESURE:
         lecteur.signaler("R05", "'archive' est renseigne mais le mode est '%s' : il sera ignore"
                          % r.mode)
+    if r.mode in ("suppression",) + MODES_MESURE and r.cible:
+        lecteur.signaler("R16", "'cible' est renseignee mais le mode est '%s' : elle sera ignoree" % r.mode)
+    if r.mode == "suppression":
+        s = lecteur.objet.get("selection") if isinstance(lecteur.objet.get("selection"), dict) else {}
+        borne = any(s.get(c) for c in ("age_minimum_sec", "age_maximum_sec")) \
+            or str(s.get("modifie_depuis", "TOUT")).upper() != "TOUT"
+        lecteur.signaler("R15", "mode suppression : les fichiers selectionnes seront supprimes DEFINITIVEMENT"
+                         + ("" if borne else " (aucun critere d'age ni de date : tous les fichiers du masque "
+                            "seront supprimes a chaque lancement)"))
+    if r.mode in MODES_MESURE:
+        if r.seuil_minimum is not None and r.seuil_maximum is not None and r.seuil_minimum > r.seuil_maximum:
+            lecteur.signaler("R07", "seuil_minimum (%d) doit etre inferieur ou egal a seuil_maximum (%d)"
+                             % (r.seuil_minimum, r.seuil_maximum))
+    elif r.seuil_minimum is not None or r.seuil_maximum is not None:
+        lecteur.signaler("R16", "seuil_minimum / seuil_maximum n'ont de sens que pour les modes count et size : "
+                         "ils seront ignores")
     if r.archive:
         for v in variables_inconnues(r.archive, VARIABLES_DATE):
             lecteur.signaler("R12", "archive : variable inconnue {%s}" % v)
@@ -617,7 +708,7 @@ def charger(chemin, rapport=None):
             if p.entete is None:
                 return None, rapport
         else:
-            regle = lire_regle(objet, numero, rapport)
+            regle = lire_regle(objet, numero, rapport, p.entete)
             regle.brut = ligne
             p.regles.append(regle)
 

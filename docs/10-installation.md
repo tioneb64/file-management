@@ -1,6 +1,6 @@
 ﻿# Installation
 
-Ce guide installe copie_fichiers v2 (moteur Python, Jenkins, journaux, interface de gestion) **dans l'ordre**, avec une vérification à la fin de chaque étape. Il s'adresse à l'exploitation. Les spécifications sont dans les autres documents de ce dossier ; l'usage de l'interface est dans [11-guide-utilisateur](11-guide-utilisateur.md).
+Ce guide installe file_management v2 (moteur Python, Jenkins, journaux, interface de gestion) **dans l'ordre**, avec une vérification à la fin de chaque étape. Il s'adresse à l'exploitation. Les spécifications sont dans les autres documents de ce dossier ; l'usage de l'interface est dans [11-guide-utilisateur](11-guide-utilisateur.md).
 
 > **État de validation.** Les commandes ci-dessous ont été vérifiées sur un poste Windows 10 avec Python 3.14.10 et Windows PowerShell 5.1. **Rien n'a encore été joué sur le serveur Windows Server 2016**, ni dans votre Jenkins, ni avec une vraie session JEA, ni avec Alloy. Chaque étape indique ce qui reste à confirmer ; les tests correspondants sont dans le [cahier de tests](06-cahier-de-tests.md).
 
@@ -12,7 +12,7 @@ Ce guide installe copie_fichiers v2 (moteur Python, Jenkins, journaux, interface
 | Compte de service | Celui de l'agent Jenkins. Droits : **lecture** des sources, **écriture** des cibles et archives, écriture de la base, des journaux et du dossier de travail, **lecture seule** du paramétrage |
 | Groupe AD des administrateurs | Les membres modifient le paramétrage ; les autres consultent. Distinct du compte de service |
 | Poste de l'administrateur | Windows avec PowerShell 5.1 (l'interface est en WPF). Il peut être le serveur lui-même ou un autre poste |
-| Dossier du dépôt | Exemples de ce guide : `D:\Scripts\copie_fichiers` (le dépôt), `D:\Parametrage` (paramétrage), `D:\Copie` (bases et journaux). À adapter |
+| Dossier du dépôt | Exemples de ce guide : `D:\Scripts\file_management` (le dépôt), `D:\Parametrage` (paramétrage), `D:\Copie` (bases et journaux). À adapter |
 | Python | **3.14** (`C:\Python314\python.exe` dans les exemples) : la 3.15 n'est pas retenue pour Windows Server 2016 |
 
 ## 1. Python et contrôle du serveur
@@ -36,15 +36,15 @@ Le rapport est écrit dans `rapports\tests_<machine>_<date>.txt`. **Attendu : to
 
 ## 2. Le moteur
 
-1. Copier le dépôt sur le serveur (`D:\Scripts\copie_fichiers`). Le moteur n'utilise que la bibliothèque standard : **aucun `pip install`**.
+1. Copier le dépôt sur le serveur (`D:\Scripts\file_management`). Le moteur n'utilise que la bibliothèque standard : **aucun `pip install`**.
 2. Vérifier l'appel :
 
 ```bat
-cd /d D:\Scripts\copie_fichiers
+cd /d D:\Scripts\file_management
 C:\Python314\python.exe -m copie --help
 ```
 
-Le moteur se lance toujours par `python -m copie` depuis ce dossier (ou par `copie_fichiers_v2.py`, qui est équivalent). `copie_fichiers.py` reste l'**ancien** script v1 tant que la bascule n'est pas faite ([09-migration-et-recette](09-migration-et-recette.md)).
+Le moteur se lance toujours par `python -m copie` depuis ce dossier (ou par `file_management_v2.py`, qui est équivalent). `file_management.py` reste l'**ancien** script v1 tant que la bascule n'est pas faite ([09-migration-et-recette](09-migration-et-recette.md)).
 
 ## 3. Dossier de paramétrage protégé
 
@@ -106,7 +106,7 @@ Affiche ce qui serait livré sans rien copier ni modifier.
 
 ## 5. Jenkins
 
-Les quatre Jenkinsfile (transfert toutes les 5 minutes, sauvegarde et vérification nocturnes, purge) et la bibliothèque `journal-si` sont dans `jenkins\`. La mise en place pas à pas (agent étiqueté `copie-fichiers`, bibliothèque partagée, jobs *Pipeline*, nombre d'exécuteurs) est dans [08-jenkins](08-jenkins.md) §1 à §8.
+Les quatre Jenkinsfile (transfert toutes les 5 minutes, sauvegarde et vérification nocturnes, purge) et la bibliothèque `journal-si` sont dans `jenkins\`. La mise en place pas à pas (agent étiqueté `file-management`, bibliothèque partagée, jobs *Pipeline*, nombre d'exécuteurs) est dans [08-jenkins](08-jenkins.md) §1 à §8.
 
 Points à ne pas manquer :
 
@@ -119,7 +119,7 @@ Points à ne pas manquer :
 
 ## 6. Journaux, Alloy, Grafana
 
-Le moteur écrit des fichiers JSON Lines dans `dossier_logs` ; la plateforme de surveillance les lit. Un exemple de configuration Alloy (non testé) est dans `exemples\alloy\copie_fichiers.alloy`, un exemple de sortie dans `exemples\journal\`. Les tableaux de bord et la configuration Alloy relèvent de l'équipe de la plateforme de surveillance. Le journal de l'interface (`Journal.Dossier`, §7) peut être lu de la même façon.
+Le moteur écrit des fichiers JSON Lines dans `dossier_logs` ; la plateforme de surveillance les lit. Un exemple de configuration Alloy (non testé) est dans `exemples\alloy\file_management.alloy`, un exemple de sortie dans `exemples\journal\`. Les tableaux de bord et la configuration Alloy relèvent de l'équipe de la plateforme de surveillance. Le journal de l'interface (`Journal.Dossier`, §7) peut être lu de la même façon.
 
 ## 7. L'interface de gestion
 
@@ -166,17 +166,17 @@ JEA évite de donner aux administrateurs un accès complet au serveur : la sessi
 1. Sur le serveur d'exécution, **en administrateur** (invite PowerShell élevée) :
 
 ```powershell
-.\Gui\Installer-PointAccesJea.ps1 -GroupeAdmin 'DOMAINE\GG_Copie_Admins' -Python C:\Python314\python.exe -Racine D:\Scripts\copie_fichiers -DossierParametrage '\\SERVEUR\Parametrage' -CompteService 'DOMAINE\gmsa-copie$' -WhatIf
+.\Gui\Installer-PointAccesJea.ps1 -GroupeAdmin 'DOMAINE\GG_Copie_Admins' -Python C:\Python314\python.exe -Racine D:\Scripts\file_management -DossierParametrage '\\SERVEUR\Parametrage' -CompteService 'DOMAINE\gmsa-copie$' -WhatIf
 ```
 
-puis sans `-WhatIf`. Options : `-GroupeLecture` (membres qui ne peuvent que consulter), `-Nom` (par défaut `CopieFichiers`), `-DelaiMaxSec`, `-DossierTraces`.
+puis sans `-WhatIf`. Options : `-GroupeLecture` (membres qui ne peuvent que consulter), `-Nom` (par défaut `FileManagement`), `-DelaiMaxSec`, `-DossierTraces`.
 
 2. **Compte d'exécution** : le compte virtuel (si `-CompteService` est absent) est **local au serveur** : il ne peut pas utiliser les droits du compte de service de Jenkins sur les partages réseau. Pour cela, utiliser un **compte de service géré** (`DOMAINE\gmsa-copie$`), déjà installé sur le serveur (`Install-ADServiceAccount`).
 3. **`-DossierParametrage` doit être écrit exactement comme l'interface le voit** (même chemin UNC ou même lecteur) : le point d'accès refuse tout fichier dont le chemin n'est pas dans ce dossier, sans chercher d'équivalence entre `D:\Parametrage` et `\\SERVEUR\Parametrage`.
-4. Dans `Gestion-Copie.config.psd1` : `Moteur.Mode = 'Distant'`, `Moteur.Serveur = 'SERVEUR'`, `Moteur.ConfigurationJea = 'CopieFichiers'`.
-5. Les sessions sont transcrites dans `%ProgramData%\CopieFichiers\Jea` (qui a lancé quoi).
+4. Dans `Gestion-Copie.config.psd1` : `Moteur.Mode = 'Distant'`, `Moteur.Serveur = 'SERVEUR'`, `Moteur.ConfigurationJea = 'FileManagement'`.
+5. Les sessions sont transcrites dans `%ProgramData%\FileManagement\Jea` (qui a lancé quoi).
 
-Pour **modifier** le point d'accès (groupe, chemins), relancer le script : il remplace le module, la configuration et l'enregistrement. Pour le retirer : `Unregister-PSSessionConfiguration -Name CopieFichiers` puis supprimer `C:\Program Files\WindowsPowerShell\Modules\Copie.Jea`.
+Pour **modifier** le point d'accès (groupe, chemins), relancer le script : il remplace le module, la configuration et l'enregistrement. Pour le retirer : `Unregister-PSSessionConfiguration -Name FileManagement` puis supprimer `C:\Program Files\WindowsPowerShell\Modules\Copie.Jea`.
 
 > **Jamais essayé dans une vraie session JEA** : le module est testé en l'appelant directement. Tests à jouer : J10E-M01 à M08 du cahier. Surveiller en particulier le point 3 et le fonctionnement du compte de service géré.
 

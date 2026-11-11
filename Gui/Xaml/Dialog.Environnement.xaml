@@ -2,7 +2,7 @@
 <!-- Création ou modification d'un environnement. Le moteur revérifie tout avant l'écriture. -->
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Environnement" Height="560" Width="820" MinHeight="520" MinWidth="640"
+        Title="Environnement" Height="760" Width="860" MinHeight="600" MinWidth="680"
         WindowStartupLocation="CenterOwner" Background="#F3F5F8" FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="False">
   <Window.Resources>
     <ResourceDictionary>
@@ -18,7 +18,7 @@
     </StackPanel>
     <TextBlock x:Name="Intro" DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#1F3A5F" FontWeight="SemiBold" Margin="0,0,0,10"/>
     <CheckBox x:Name="DesactiverRegles" DockPanel.Dock="Bottom" Margin="0,4,0,0" IsChecked="True" Visibility="Collapsed"
-              Content="Désactiver les règles copiées (recommandé : elles gardent les répertoires de l'original tant que vous ne les avez pas modifiés)"/>
+              Content="Désactiver les règles copiées (recommandé : leurs chemins complets restent ceux de l'original tant que vous ne les avez pas modifiés)"/>
     <CheckBox x:Name="CreerBase" DockPanel.Dock="Bottom" Margin="0,4,0,0" IsChecked="True"
               Content="Créer la base maintenant (nécessaire avant le premier lancement ; sans effet si elle existe déjà)"/>
     <TextBlock x:Name="Avis" DockPanel.Dock="Bottom" TextWrapping="Wrap" Foreground="#6B4A00" Margin="0,6,0,0"/>
@@ -37,31 +37,53 @@
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
       <TextBlock Grid.Row="0" Grid.Column="0" Text="Nom" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
       <TextBox Grid.Row="0" Grid.Column="1" x:Name="Nom" Margin="0,0,0,8"/>
       <TextBlock Grid.Row="0" Grid.Column="2" Text="minuscules, chiffres, _ et -" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Base (SQLite)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="1" Grid.Column="1" x:Name="Base" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="1" Grid.Column="2" Text="chemin local complet, ex. D:\Copie\production.db" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="Dossier des journaux" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="2" Grid.Column="1" x:Name="DossierLogs" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="2" Grid.Column="2" Text="vide : « logs » à côté de la base" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="3" Grid.Column="0" Text="Dossier de travail" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="3" Grid.Column="1" x:Name="DossierTravail" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="3" Grid.Column="2" Text="vide : « travail » à côté de la base" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="4" Grid.Column="0" Text="Règles en parallèle" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="4" Grid.Column="1" x:Name="ParalleleMax" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="4" Grid.Column="2" Text="vide : défaut du moteur" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="5" Grid.Column="0" Text="Historique (jours)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="5" Grid.Column="1" x:Name="RetentionExecutions" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="5" Grid.Column="2" Text="vide : 365" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="6" Grid.Column="0" Text="Journaux (jours)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="6" Grid.Column="1" x:Name="RetentionJournaux" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="6" Grid.Column="2" Text="vide : pas de purge" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
-      <TextBlock Grid.Row="7" Grid.Column="0" Text="Marge d'espace (Mo)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <TextBox Grid.Row="7" Grid.Column="1" x:Name="MargeEspaceMo" Margin="0,0,0,8"/>
-      <TextBlock Grid.Row="7" Grid.Column="2" Text="vide : 64" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Racine de l'environnement" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="1" Grid.Column="1" x:Name="Racine" Margin="0,0,0,8"
+               ToolTip="Dossier qui complète les chemins partiels de la base, des journaux et du travail. Un chemin complet reste tel quel. Le « \ » final est facultatif."/>
+      <TextBlock Grid.Row="1" Grid.Column="2" Text="ex. D:\Transferts\preprod (facultatif)" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Racine des sources" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="2" Grid.Column="1" x:Name="RacineSource" Margin="0,0,0,8"
+               ToolTip="Complète les dossiers source partiels des règles. Partielle, elle se place elle-même sous la racine de l'environnement."/>
+      <TextBlock Grid.Row="2" Grid.Column="2" Text="vide : racine de l'environnement" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="3" Grid.Column="0" Text="Racine des cibles" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="3" Grid.Column="1" x:Name="RacineCible" Margin="0,0,0,8"
+               ToolTip="Complète les dossiers cible partiels des règles. Partielle, elle se place elle-même sous la racine de l'environnement."/>
+      <TextBlock Grid.Row="3" Grid.Column="2" Text="vide : racine de l'environnement" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="4" Grid.Column="0" Text="Base (SQLite)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="4" Grid.Column="1" x:Name="Base" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="4" Grid.Column="2" Text="complet, ou partiel sous la racine (BDD\preprod.db)" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="5" Grid.Column="0" Text="Dossier des journaux" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="5" Grid.Column="1" x:Name="DossierLogs" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="5" Grid.Column="2" Text="vide : « logs » à côté de la base" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="6" Grid.Column="0" Text="Dossier de travail" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="6" Grid.Column="1" x:Name="DossierTravail" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="6" Grid.Column="2" Text="vide : « travail » à côté de la base" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="7" Grid.Column="0" Text="Règles en parallèle" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="7" Grid.Column="1" x:Name="ParalleleMax" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="7" Grid.Column="2" Text="vide : défaut du moteur" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="8" Grid.Column="0" Text="Historique (jours)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="8" Grid.Column="1" x:Name="RetentionExecutions" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="8" Grid.Column="2" Text="vide : 365" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="9" Grid.Column="0" Text="Journaux (jours)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="9" Grid.Column="1" x:Name="RetentionJournaux" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="9" Grid.Column="2" Text="vide : pas de purge" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <TextBlock Grid.Row="10" Grid.Column="0" Text="Marge d'espace (Mo)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
+      <TextBox Grid.Row="10" Grid.Column="1" x:Name="MargeEspaceMo" Margin="0,0,0,8"/>
+      <TextBlock Grid.Row="10" Grid.Column="2" Text="vide : 64" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
+      <Border Grid.Row="11" Grid.Column="0" Grid.ColumnSpan="3" Background="#EAF1FB" BorderBrush="#BCD0EA" BorderThickness="1" CornerRadius="4" Padding="10,6" Margin="0,4,0,0">
+        <StackPanel>
+          <TextBlock Text="Chemins complets (tels que le moteur les utilisera)" FontWeight="SemiBold" Foreground="#1F3A5F"/>
+          <TextBlock x:Name="Apercu" TextWrapping="Wrap" Foreground="#1F2D3D" FontFamily="Consolas" Margin="0,4,0,0"/>
+        </StackPanel>
+      </Border>
     </Grid>
   </DockPanel>
 </Window>

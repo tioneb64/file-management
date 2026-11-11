@@ -33,7 +33,7 @@ class CasJournal(CasTemporaire):
         self.addCleanup(patcher.stop)
 
     def demarrer(self, **kw):
-        self.j.debut("copie_fichiers", "production", dossier=self.dossier, **kw)
+        self.j.debut("file_management", "production", dossier=self.dossier, **kw)
 
     def lignes(self, motif="*.jsonl"):
         """Toutes les lignes ecrites, en objets (chaque ligne doit etre un JSON valide)."""
@@ -62,7 +62,7 @@ class TestFormat(CasJournal):
         self.assertEqual(livre["horodatage"], "2026-11-03T06:30:12.481Z")
         self.assertEqual((livre["niveau"], livre["application"], livre["environnement"],
                           livre["regle"], livre["execution_id"], livre["evenement"]),
-                         ("INFO", "copie_fichiers", "production", "export_clients", 8812,
+                         ("INFO", "file_management", "production", "export_clients", 8812,
                           "fichier_livre"))
         self.assertEqual((livre["fichier"], livre["taille"], livre["duree_ms"]),
                          ("\\\\SRV\\x\\C1.xml", 15234, 182))
@@ -104,7 +104,7 @@ class TestFormat(CasJournal):
         self.demarrer()
         self.j.evenement("test", horodatage="faux", niveau_x=1, application="autre", job="pirate")
         e = self.lignes()[1]
-        self.assertEqual(e["application"], "copie_fichiers")
+        self.assertEqual(e["application"], "file_management")
         self.assertEqual(e["x_horodatage"], "faux")
         self.assertEqual(e["x_application"], "autre")
         self.assertEqual(e["x_job"], "pirate")
@@ -341,7 +341,7 @@ class TestInterfaceDeModule(CasJournal):
     def test_trois_fonctions_du_module(self):
         journal_si._journal.fermer()
         with mock.patch.object(journal_si, "_journal", journal_si.Journal(horloge=lambda: INSTANT)):
-            journal_si.debut(application="copie_fichiers", environnement="production",
+            journal_si.debut(application="file_management", environnement="production",
                              dossier=self.dossier)
             journal_si.definir(regle="r1")
             journal_si.evenement("fichier_livre", fichier="a.csv")

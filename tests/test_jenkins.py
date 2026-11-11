@@ -49,7 +49,7 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
         environnement.update(env or {})
         from unittest import mock
         with mock.patch.dict(os.environ, environnement, clear=True), redirect_stdout(sortie), redirect_stderr(erreur):
-            code = journal_si.main(["--dossier", self.logs, "--application", "copie_fichiers",
+            code = journal_si.main(["--dossier", self.logs, "--application", "file_management",
                                     "--environnement", "production"] + list(args))
         return code, sortie.getvalue(), erreur.getvalue()
 
@@ -57,7 +57,7 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
         self.ecrire("--evenement", "debut_job", "--champ", "message=bonjour", env=ENV_JENKINS)
         (e,) = evenements_de(self.logs)
         j = journal_si.Journal()
-        j.configurer("copie_fichiers", "production", self.chemin("autre"))
+        j.configurer("file_management", "production", self.chemin("autre"))
         from unittest import mock
         with mock.patch.dict(os.environ, ENV_JENKINS):
             j.evenement("debut_job", message="bonjour")
@@ -128,7 +128,7 @@ class TestJournalEnLigneDeCommande(CasTemporaire):
             f.write(json.dumps({"statut": "SUCCESS", "duree_ms": 4200}))
         env = dict(os.environ, **ENV_JENKINS)
         resultat = subprocess.run([sys.executable, os.path.join(RACINE, "journal_si.py"), "--dossier", self.logs,
-                                   "--application", "copie_fichiers", "--environnement", "production",
+                                   "--application", "file_management", "--environnement", "production",
                                    "--evenement", "fin_job", "--niveau", "INFO", "--champs-json", champs],
                                   cwd=self.racine, env=env, capture_output=True)
         self.assertEqual((resultat.returncode, resultat.stdout, resultat.stderr), (0, b"", b""))
@@ -177,7 +177,7 @@ class TestFichiersJenkins(unittest.TestCase):
     def test_les_fichiers_existent(self):
         noms = {os.path.relpath(f, JENKINS) for f in fichiers_jenkins()}
         self.assertEqual(noms, {"Jenkinsfile.transfert", "Jenkinsfile.sauvegarde", "Jenkinsfile.verification",
-                                "Jenkinsfile.purge", os.path.join("vars", "journalSI.groovy"), os.path.join("vars", "copieFichiers.groovy")})
+                                "Jenkinsfile.purge", os.path.join("vars", "journalSI.groovy"), os.path.join("vars", "fileManagement.groovy")})
 
     def test_delimiteurs_equilibres_et_pas_de_tabulation(self):
         for chemin in fichiers_jenkins():
@@ -218,8 +218,8 @@ class TestFichiersJenkins(unittest.TestCase):
         self.assertIn("debut_job", texte)
         self.assertIn("fin_job", texte)
 
-    def test_bibliotheque_copieFichiers_traduit_les_codes_retour(self):
-        texte = lire(os.path.join(JENKINS, "vars", "copieFichiers.groovy"))
+    def test_bibliotheque_fileManagement_traduit_les_codes_retour(self):
+        texte = lire(os.path.join(JENKINS, "vars", "fileManagement.groovy"))
         self.assertIn("def call(Map p)", texte)
         self.assertIn("rc == 0", texte)
         self.assertIn("rc == 4", texte)
@@ -342,7 +342,7 @@ class TestJobSimule(CasLancementProcessus):
         with open(fichier, "w", encoding="utf-8") as f:
             json.dump(champs, f)
         subprocess.run([sys.executable, os.path.join(RACINE, "journal_si.py"), "--dossier", self.chemin("logs"),
-                        "--application", "copie_fichiers", "--environnement", "production", "--evenement", evenement,
+                        "--application", "file_management", "--environnement", "production", "--evenement", evenement,
                         "--niveau", niveau, "--champs-json", fichier], cwd=self.racine, env=env, check=True)
 
     def test_sequence_complete_succes_et_avertissement(self):

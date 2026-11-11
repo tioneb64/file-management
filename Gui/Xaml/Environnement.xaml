@@ -60,10 +60,12 @@
       <TextBlock Text="Recherche" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,6"/>
       <TextBox x:Name="Recherche" Width="200" Margin="0,0,14,6"/>
       <TextBlock Text="Statut" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,6"/>
-      <ComboBox x:Name="FiltreStatut" Width="140" Margin="0,0,14,6"/>
+      <ComboBox x:Name="FiltreStatut" Width="150" Margin="0,0,14,6"
+                ToolTip="Dernier statut de la règle, ou sa situation du moment (EN_COURS, EN_ATTENTE, BLOQUEE). ATTENTE : règle de comptage dont les seuils ne sont pas atteints."/>
       <TextBlock Text="Mode" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,6"/>
       <ComboBox x:Name="FiltreMode" Width="120" Margin="0,0,14,6"/>
-      <CheckBox x:Name="ActivesSeules" Content="Règles actives seulement" VerticalAlignment="Center" Margin="0,0,16,6"/>
+      <TextBlock Text="Règles" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,6"/>
+      <ComboBox x:Name="FiltreActivite" Width="100" Margin="0,0,16,6" ToolTip="Toutes les règles, seulement les actives, ou seulement les inactives."/>
       <Button x:Name="BtnVerifier" Content="Vérifier le paramétrage" Style="{StaticResource BtnPrimary}" Margin="0,0,8,6"/>
       <Button x:Name="BtnAjouter" Content="Ajouter" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <Button x:Name="BtnDupliquer" Content="Dupliquer" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
@@ -89,6 +91,37 @@
     </StackPanel>
 
     <DataGrid x:Name="GrilleRegles" Grid.Row="2">
+      <!-- Lignes : grise = règle inactive, rouge = en erreur, bleu ciel = sélectionnée (la sélection l'emporte). -->
+      <DataGrid.RowStyle>
+        <Style TargetType="DataGridRow">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding Aspect}" Value="inactive">
+              <Setter Property="Background" Value="#E4E8ED"/>
+              <Setter Property="Foreground" Value="#7B8794"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Aspect}" Value="erreur">
+              <Setter Property="Background" Value="#F8D4D0"/>
+              <Setter Property="Foreground" Value="#7A1F16"/>
+            </DataTrigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Background" Value="#BFE3FF"/>
+              <Setter Property="Foreground" Value="#10253F"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </DataGrid.RowStyle>
+      <DataGrid.CellStyle>
+        <Style TargetType="DataGridCell">
+          <Setter Property="BorderThickness" Value="0"/>
+          <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Background" Value="Transparent"/>
+              <Setter Property="BorderBrush" Value="Transparent"/>
+              <Setter Property="Foreground" Value="#10253F"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </DataGrid.CellStyle>
       <DataGrid.Columns>
         <DataGridTextColumn Header="Règle" Binding="{Binding Id}" Width="190"/>
         <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="200"/>

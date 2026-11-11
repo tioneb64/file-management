@@ -8,9 +8,9 @@
  * Utilisation (voir jenkins/Jenkinsfile.transfert) :
  *
  *   @Library('journal-si') _
- *   journalSI.debutJob(application: 'copie_fichiers', environnement: 'production', dossier: 'D:\\Copie\\logs')
+ *   journalSI.debutJob(application: 'file_management', environnement: 'production', dossier: 'D:\\Copie\\logs')
  *   ...
- *   post { always { script { journalSI.finJob(application: 'copie_fichiers', environnement: 'production',
+ *   post { always { script { journalSI.finJob(application: 'file_management', environnement: 'production',
  *                                             dossier: 'D:\\Copie\\logs') } } }
  *
  * Parametres communs : application, environnement, dossier (obligatoires) ; champs (Map de champs
@@ -33,7 +33,7 @@ def evenement(Map p) {
             throw new IllegalArgumentException('parametre dossier absent ou invalide')
         }
         def python = p.python ?: (env.COPIE_PYTHON ?: 'python')
-        def script = p.script ?: ((env.COPIE_DEPOT ?: 'D:\\Scripts\\copie_fichiers') + '\\journal_si.py')
+        def script = p.script ?: ((env.COPIE_DEPOT ?: 'D:\\Scripts\\file_management') + '\\journal_si.py')
         def champs = p.champs ?: [:]
         def fichier = pwd(tmp: true) + '\\journal_si_' + System.nanoTime() + '.json'
         // les champs passent par un fichier JSON : aucun probleme de guillemets ni d'accents sur la ligne de commande

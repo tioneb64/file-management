@@ -1,16 +1,16 @@
 /**
- * Appelle le moteur copie_fichiers et traduit son code retour en resultat de build Jenkins.
+ * Appelle le moteur file_management et traduit son code retour en resultat de build Jenkins.
  *
- *   copieFichiers(config: 'D:\\Parametrage\\production.jsonl')                       // lancement
- *   copieFichiers(config: '...', commande: '--sauvegarder-base D:\\Copie\\sauvegardes')
- *   copieFichiers(config: '...', commande: '--verifier')
+ *   fileManagement(config: 'D:\\Parametrage\\production.jsonl')                       // lancement
+ *   fileManagement(config: '...', commande: '--sauvegarder-base D:\\Copie\\sauvegardes')
+ *   fileManagement(config: '...', commande: '--verifier')
  *
  * Parametres :
  *   config   (obligatoire) fichier de parametrage de l'environnement
  *   commande options du moteur ; vide = lancement des regles dues
  *   python   interpreteur (defaut : variable COPIE_PYTHON, sinon `python`)
- *   depot    dossier du depot copie_fichiers (defaut : variable COPIE_DEPOT)
- *   lanceur  `-m copie` aujourd'hui ; `copie_fichiers.py` quand le lanceur v2 remplacera le v1
+ *   depot    dossier du depot file_management (defaut : variable COPIE_DEPOT)
+ *   lanceur  `-m copie` aujourd'hui ; `file_management.py` quand le lanceur v2 remplacera le v1
  *
  * Codes retour du moteur : 0 -> SUCCESS ; 4 -> UNSTABLE (au moins un avertissement) ;
  * tout autre code -> FAILURE (1 : erreur pendant le lancement, 2 : parametrage ou base inutilisable).
@@ -18,12 +18,12 @@
  */
 def call(Map p) {
     if (!p.config) {
-        error('copieFichiers : le parametre config est obligatoire')
+        error('fileManagement : le parametre config est obligatoire')
     }
     def python = p.python ?: (env.COPIE_PYTHON ?: 'python')
     def depot = p.depot ?: env.COPIE_DEPOT
     if (!depot) {
-        error('copieFichiers : dossier du depot inconnu (parametre depot ou variable COPIE_DEPOT)')
+        error('fileManagement : dossier du depot inconnu (parametre depot ou variable COPIE_DEPOT)')
     }
     def lanceur = p.lanceur ?: '-m copie'
     def commande = p.commande ?: ''
@@ -35,11 +35,11 @@ def call(Map p) {
     }
     env.COPIE_CODE_RETOUR = rc.toString()      // repris par journalSI.finJob dans le journal du job
     if (rc == 0) {
-        echo 'copie_fichiers : succes'
+        echo 'file_management : succes'
     } else if (rc == 4) {
-        unstable('copie_fichiers : au moins un avertissement (code retour 4), voir le journal du build')
+        unstable('file_management : au moins un avertissement (code retour 4), voir le journal du build')
     } else {
-        error('copie_fichiers : code retour ' + rc)
+        error('file_management : code retour ' + rc)
     }
     return rc
 }

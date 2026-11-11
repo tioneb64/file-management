@@ -1,4 +1,4 @@
-# Intégration Jenkins
+﻿# Intégration Jenkins
 
 Jenkins ne fait que **déclencher** le moteur et **recevoir son code retour** : toute la logique (planification, verrous, reprise, dépendances) est dans le moteur. Les fichiers livrés avec le dépôt sont dans [`jenkins/`](../jenkins/).
 
@@ -7,7 +7,7 @@ Jenkins ne fait que **déclencher** le moteur et **recevoir son code retour** : 
 | `jenkins/Jenkinsfile.transfert` | Job de transfert, un par environnement, toutes les 5 minutes, **builds simultanés autorisés** |
 | `jenkins/Jenkinsfile.sauvegarde` | Sauvegarde quotidienne de la base (`--sauvegarder-base`) |
 | `jenkins/Jenkinsfile.verification` | Vérification nocturne du paramétrage et des accès (`--verifier`) |
-| `jenkins/vars/copieFichiers.groovy` | Étape `copieFichiers(...)` : lance le moteur, traduit le code retour en résultat du build |
+| `jenkins/vars/fileManagement.groovy` | Étape `fileManagement(...)` : lance le moteur, traduit le code retour en résultat du build |
 | `jenkins/vars/journalSI.groovy` | Bibliothèque partagée `journal-si` : événements `debut_job` / `fin_job` dans le journal |
 | `journal_si.py` (racine) | Écrit réellement ces événements : **le format est défini à un seul endroit** (voir §5) |
 
@@ -15,9 +15,9 @@ Jenkins ne fait que **déclencher** le moteur et **recevoir son code retour** : 
 
 ## 1. Mise en place
 
-1. **Agent.** Un agent Windows (Windows Server 2016) étiqueté `copie-fichiers`, qui peut atteindre les sources, les cibles, les archives, le dossier de paramétrage et dispose en local de la base et des journaux.
+1. **Agent.** Un agent Windows (Windows Server 2016) étiqueté `file-management`, qui peut atteindre les sources, les cibles, les archives, le dossier de paramétrage et dispose en local de la base et des journaux.
 2. **Compte de service.** L'agent s'exécute sous le compte de service du moteur (droits au §6 de [00-vue-ensemble](00-vue-ensemble.md) et au §4 de [02-moteur](02-moteur.md)) : lecture des sources, écriture des cibles et archives, écriture de la base, des journaux et du dossier de travail, **lecture seule** du paramétrage.
-3. **Dépôt et Python.** Le dépôt est copié sur l'agent (`D:\Scripts\copie_fichiers` dans les exemples) avec Python 3.14 (`C:\Python314\python.exe`). Dans chaque Jenkinsfile, adapter la section `environment` : `COPIE_PYTHON`, `COPIE_DEPOT`, `COPIE_CONFIG`, `COPIE_LOGS` (**identique au `dossier_logs` du paramétrage**, par défaut `logs` à côté de la base), `COPIE_ENV`.
+3. **Dépôt et Python.** Le dépôt est copié sur l'agent (`D:\Scripts\file_management` dans les exemples) avec Python 3.14 (`C:\Python314\python.exe`). Dans chaque Jenkinsfile, adapter la section `environment` : `COPIE_PYTHON`, `COPIE_DEPOT`, `COPIE_CONFIG`, `COPIE_LOGS` (**identique au `dossier_logs` du paramétrage**, par défaut `logs` à côté de la base), `COPIE_ENV`.
 4. **Bibliothèque partagée.** *Administrer Jenkins → System → Global Pipeline Libraries* : nom `journal-si`, version par défaut `main`, source = le dépôt contenant le dossier `jenkins/` (les fichiers `vars/*.groovy` doivent être à la racine de la bibliothèque : soit un dépôt dédié, soit une bibliothèque dont le *Library Path* est `jenkins`, option disponible selon la version du module). Cocher *Load implicitly* est facultatif ; les Jenkinsfile contiennent `@Library('journal-si') _`.
 5. **Initialiser la base** (une fois par environnement) : `python -m copie --config D:\Parametrage\production.jsonl --initialiser-base`.
 6. **Créer les trois jobs** de type *Pipeline* (*Pipeline script from SCM*, chemin `jenkins/Jenkinsfile.transfert`, etc.). Déclencheur : le `cron` du fichier (`H/5 * * * *`, `H 2 * * *`, `H 4 * * *`).
@@ -56,7 +56,7 @@ Lien entre un build et ses règles : tous les événements d'un lancement porten
 
 ## 6. Console du build
 
-- Le moteur écrit en UTF-8 ; l'étape `copieFichiers` fait `chcp 65001`. Si les accents sont mal affichés dans la console Jenkins, démarrer l'agent avec `-Dfile.encoding=UTF-8`.
+- Le moteur écrit en UTF-8 ; l'étape `fileManagement` fait `chcp 65001`. Si les accents sont mal affichés dans la console Jenkins, démarrer l'agent avec `-Dfile.encoding=UTF-8`.
 - La console affiche une ligne lisible par événement (règle, fichier, anomalie) : suffisant pour un diagnostic rapide ; le détail est dans les journaux.
 
 ## 7. Sauvegarde et vérification
@@ -70,7 +70,7 @@ Lien entre un build et ses règles : tous les événements d'un lancement porten
 |---|---|
 | Version de Jenkins et modules *Pipeline*, *Pipeline: Shared Groovy Libraries*, *Timestamper* | Les fichiers utilisent `pipeline`, `@Library`, `timestamps()`, `bat`, `writeFile`, `unstable`, `dir`, `pwd(tmp: true)` |
 | Bibliothèque « de confiance » | Une bibliothèque globale s'exécute hors du bac à sable ; `groovy.json.JsonOutput` y est autorisé. Dans une bibliothèque de dossier ou de dépôt, il faudra peut-être approuver la signature |
-| Étiquette de l'agent | `copie-fichiers` dans les exemples |
+| Étiquette de l'agent | `file-management` dans les exemples |
 | `H/5 * * * *` | La lettre `H` répartit la charge ; pour un déclenchement exact toutes les 5 minutes : `*/5 * * * *` |
 | Chemins | `COPIE_PYTHON`, `COPIE_DEPOT`, `COPIE_LOGS` |
-| Remplacement du lanceur | Quand `copie_fichiers.py` v2 remplacera la v1, passer `lanceur: 'copie_fichiers.py'` à `copieFichiers` |
+| Remplacement du lanceur | Quand `file_management.py` v2 remplacera la v1, passer `lanceur: 'file_management.py'` à `fileManagement` |

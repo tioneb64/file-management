@@ -1,20 +1,20 @@
-// Exemple de configuration Grafana Alloy pour lire les journaux de copie_fichiers.
+// Exemple de configuration Grafana Alloy pour lire les journaux de file_management.
 // NON TESTE : a valider avec l'equipe de la plateforme de surveillance (version d'Alloy,
 // adresse de Loki, chemins reels). Le format lu est celui du module journal_si.py
 // (docs/02-moteur.md, section 11) ; un exemple de fichier est dans exemples/journal/.
 
 // Un fichier par regle et par jour : <dossier_logs>\<regle>_<AAAA-MM-JJ>.jsonl
-local.file_match "copie_fichiers" {
+local.file_match "file_management" {
   path_targets = [{"__path__" = "D:/Copie/logs/*.jsonl"}]
   sync_period  = "10s"
 }
 
-loki.source.file "copie_fichiers" {
-  targets    = local.file_match.copie_fichiers.targets
-  forward_to = [loki.process.copie_fichiers.receiver]
+loki.source.file "file_management" {
+  targets    = local.file_match.file_management.targets
+  forward_to = [loki.process.file_management.receiver]
 }
 
-loki.process "copie_fichiers" {
+loki.process "file_management" {
   // Chaque ligne est un objet JSON : on en extrait l'horodatage et quatre libelles.
   stage.json {
     expressions = {

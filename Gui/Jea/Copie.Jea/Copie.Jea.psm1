@@ -1,4 +1,4 @@
-﻿# Module du point d'accès JEA de copie_fichiers : la seule fonction visible dans la session JEA.
+﻿# Module du point d'accès JEA de file_management : la seule fonction visible dans la session JEA.
 #
 # Contrat (docs/04-frontend.md §6) : Invoke-CopieMoteurJea -Argument <string[]> -Fichier <chemin> lance le
 # moteur (python -m copie) avec le compte de la session (compte virtuel ou compte de service géré) et
@@ -156,7 +156,7 @@ function ConvertTo-CopieJeaLigne {
 function Invoke-CopieMoteurJea {
     <#
     .SYNOPSIS
-        Lance le moteur copie_fichiers pour le front-end (seule fonction exposée par le point d'accès JEA).
+        Lance le moteur file_management pour le front-end (seule fonction exposée par le point d'accès JEA).
 
     .DESCRIPTION
         Refuse toute commande ou option hors de la grammaire du contrat (docs/07 §4). Pour les commandes
@@ -282,12 +282,19 @@ function Invoke-CopieDossiersJea {
         }
         catch { throw ('en-tête du fichier illisible : ' + $_.Exception.Message) }
         $lire = { param($nom) $p = $en.PSObject.Properties[$nom]; if ($null -ne $p -and "$($p.Value)".Trim()) { "$($p.Value)".Trim() } else { '' } }
-        $base = & $lire 'base'
+        # Racine de l'environnement : un chemin partiel (BDD\preprod.db, LOGS, TMP) se place dessous, un chemin complet reste tel quel.
+        $racineEnv = & $lire 'racine'
+        $complet = {
+            param([string] $chemin)
+            if (-not $chemin -or -not $racineEnv -or $chemin -match '^([A-Za-z]:[\\/]|\\\\[^\\]|//[^/])') { return $chemin }
+            [System.IO.Path]::Combine($racineEnv.TrimEnd('\', '/'), $chemin.TrimStart('\', '/'))
+        }
+        $base = & $complet (& $lire 'base')
         if (-not $base) { throw 'l''en-tête ne contient pas de chemin de base' }
         $racine = [System.IO.Path]::GetDirectoryName($base)
-        $logs = & $lire 'dossier_logs'
+        $logs = & $complet (& $lire 'dossier_logs')
         if (-not $logs) { $logs = [System.IO.Path]::Combine($racine, 'logs') }
-        $travail = & $lire 'dossier_travail'
+        $travail = & $complet (& $lire 'dossier_travail')
         if (-not $travail) { $travail = [System.IO.Path]::Combine($racine, 'travail') }
         $sortie = New-Object System.Collections.Generic.List[object]
         foreach ($d in @(@('base', $racine), @('journaux', $logs), @('travail', $travail))) {

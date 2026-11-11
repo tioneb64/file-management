@@ -37,7 +37,8 @@ function Test-CopieSaisieEnvironnement {
         Renvoie la liste des problèmes en français (vide si la saisie est acceptable). Ces contrôles ne servent qu'à
         guider l'utilisateur : tout ce qui est écrit est de nouveau vérifié par le moteur.
     .PARAMETER Saisie
-        Table : Nom, Base, DossierLogs, DossierTravail, ParalleleMax, RetentionExecutions, RetentionJournaux, MargeEspaceMo.
+        Table : Nom, Racine, RacineSource, RacineCible, Base, DossierLogs, DossierTravail, ParalleleMax, RetentionExecutions,
+        RetentionJournaux, MargeEspaceMo. Base, journaux et travail peuvent être partiels : ils se placent sous Racine.
     .PARAMETER Existants
         Les environnements déjà présents (Get-CopieEnvironnement), pour refuser un doublon de nom ou de base.
     .PARAMETER Ignorer
@@ -58,28 +59,38 @@ function Test-CopieSaisieEnvironnement {
     elseif (@($Existants | Where-Object { $_.Nom -eq $nom -and $_.Nom -ne $Ignorer }).Count -gt 0) {
         $p.Add(('Un environnement « {0} » existe déjà.' -f $nom))
     }
-    $base = "$($Saisie.Base)".Trim()
+    $racine = "$($Saisie.Racine)".Trim()
+    if ($racine -and -not (Test-CopieCheminAbsolu -Chemin $racine)) {
+        $p.Add('La racine de l''environnement doit être un chemin complet (par exemple D:\Transferts\preprod).')
+        $racine = ''
+    }
+    foreach ($def in @(@('RacineSource', 'La racine des sources'), @('RacineCible', 'La racine des cibles'))) {
+        $v = Resolve-CopieChemin -Chemin "$($Saisie[$def[0]])" -Racine $racine
+        if ($v -and -not (Test-CopieCheminAbsolu -Chemin $v)) { $p.Add(('{0} doit être un chemin complet, ou la racine de l''environnement doit être renseignée pour la compléter (ou la laisser vide).' -f $def[1])) }
+    }
+    $base = Resolve-CopieChemin -Chemin "$($Saisie.Base)" -Racine $racine
     if (-not $base) { $p.Add('Le chemin de la base est obligatoire.') }
     elseif ($base -match '^(\\\\|//)') { $p.Add('La base ne peut pas être sur un partage réseau : elle doit être sur un disque local du serveur d''exécution.') }
-    elseif (-not (Test-CopieCheminAbsolu -Chemin $base)) { $p.Add('Le chemin de la base doit être complet (par exemple D:\Copie\production.db).') }
+    elseif (-not (Test-CopieCheminAbsolu -Chemin $base)) { $p.Add('Le chemin de la base doit être complet (par exemple D:\Copie\production.db), ou la racine de l''environnement doit être renseignée pour le compléter (par exemple BDD\production.db).') }
     else {
         $autres = @($Existants | Where-Object {
                 $_.Nom -ne $Ignorer -and $null -ne $_.Parametrage.Entete -and
-                "$(Get-CopieValeur $_.Parametrage.Entete 'base' '')".Trim().ToLowerInvariant().Replace('/', '\') -eq $base.ToLowerInvariant().Replace('/', '\')
+                (Get-CopieCheminsEnvironnement -Entete $_.Parametrage.Entete).Base.ToLowerInvariant().Replace('/', '\') -eq $base.ToLowerInvariant().Replace('/', '\')
             })
         if ($autres.Count -gt 0) { $p.Add(('Cette base est déjà celle de l''environnement « {0} » : une base ne sert qu''à un environnement.' -f $autres[0].Nom)) }
     }
-    $travail = "$($Saisie.DossierTravail)".Trim().ToLowerInvariant().Replace('/', '\')
+    $travail = (Resolve-CopieChemin -Chemin "$($Saisie.DossierTravail)" -Racine $racine).ToLowerInvariant().Replace('/', '\')
     if ($travail) {
         $autre = @($Existants | Where-Object {
                 $_.Nom -ne $Ignorer -and $null -ne $_.Parametrage.Entete -and
-                "$(Get-CopieValeur $_.Parametrage.Entete 'dossier_travail' '')".Trim().ToLowerInvariant().Replace('/', '\') -eq $travail
+                "$(Get-CopieValeur $_.Parametrage.Entete 'dossier_travail' '')".Trim() -and
+                (Get-CopieCheminsEnvironnement -Entete $_.Parametrage.Entete).DossierTravail.ToLowerInvariant().Replace('/', '\') -eq $travail
             })
         if ($autre.Count -gt 0) { $p.Add(('Ce dossier de travail est déjà celui de l''environnement « {0} » : chaque environnement a le sien.' -f $autre[0].Nom)) }
     }
     foreach ($def in @(@('DossierLogs', 'Le dossier des journaux'), @('DossierTravail', 'Le dossier de travail'))) {
-        $v = "$($Saisie[$def[0]])".Trim()
-        if ($v -and -not (Test-CopieCheminAbsolu -Chemin $v)) { $p.Add(('{0} doit être un chemin complet (ou rester vide).' -f $def[1])) }
+        $v = Resolve-CopieChemin -Chemin "$($Saisie[$def[0]])" -Racine $racine
+        if ($v -and -not (Test-CopieCheminAbsolu -Chemin $v)) { $p.Add(('{0} doit être un chemin complet, ou la racine de l''environnement doit être renseignée pour le compléter (ou rester vide).' -f $def[1])) }
     }
     foreach ($def in @(@('ParalleleMax', 1, 'Le nombre de règles en parallèle'), @('RetentionExecutions', 1, 'La conservation de l''historique (jours)'),
             @('RetentionJournaux', 1, 'La conservation des journaux (jours)'), @('MargeEspaceMo', 0, 'La marge d''espace disque (Mo)'))) {
@@ -101,7 +112,12 @@ function ConvertTo-CopieEnteteEnvironnement {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param([Parameter(Mandatory)] [hashtable] $Saisie)
-    $e = [ordered]@{ version = 1; environnement = "$($Saisie.Nom)".Trim(); base = "$($Saisie.Base)".Trim() }
+    $e = [ordered]@{ version = 1; environnement = "$($Saisie.Nom)".Trim() }
+    foreach ($def in @(@('Racine', 'racine'), @('RacineSource', 'racine_source'), @('RacineCible', 'racine_cible'))) {
+        $v = "$($Saisie[$def[0]])".Trim()
+        if ($v) { $e[$def[1]] = $v }
+    }
+    $e['base'] = "$($Saisie.Base)".Trim()
     foreach ($def in @(@('DossierLogs', 'dossier_logs'), @('DossierTravail', 'dossier_travail'))) {
         $v = "$($Saisie[$def[0]])".Trim()
         if ($v) { $e[$def[1]] = $v }
@@ -126,7 +142,8 @@ function ConvertFrom-CopieEnteteEnvironnement {
     param([Parameter(Mandatory)] $Entete)
     $texte = { param($objet, $nom) $v = Get-CopieValeur $objet $nom $null; if ($null -eq $v) { '' } else { "$v" } }
     @{
-        Nom = (& $texte $Entete 'environnement'); Base = (& $texte $Entete 'base'); DossierLogs = (& $texte $Entete 'dossier_logs')
+        Nom = (& $texte $Entete 'environnement'); Racine = (& $texte $Entete 'racine'); RacineSource = (& $texte $Entete 'racine_source')
+        RacineCible = (& $texte $Entete 'racine_cible'); Base = (& $texte $Entete 'base'); DossierLogs = (& $texte $Entete 'dossier_logs')
         DossierTravail = (& $texte $Entete 'dossier_travail'); ParalleleMax = (& $texte $Entete 'parallele_max')
         RetentionExecutions = (& $texte $Entete 'retention_executions_jours'); RetentionJournaux = (& $texte $Entete 'retention_journaux_jours')
         MargeEspaceMo = (& $texte $Entete 'marge_espace_mo')
@@ -322,7 +339,8 @@ function New-CopieEnvironnement {
 
     .PARAMETER Regle
         Règles reprises dans le nouveau fichier (copie d'un environnement) ; aucune pour une création vierge.
-        Elles sont écrites telles quelles : leurs répertoires restent à modifier par l'utilisateur.
+        Elles sont écrites telles quelles : leurs chemins complets restent à modifier par l'utilisateur ; leurs chemins
+        partiels (sous la racine des sources ou des cibles) suivent les racines du nouvel environnement.
 
     .PARAMETER DesactiverRegles
         Écrit les règles reprises avec actif = false (recommandé : deux environnements qui livreraient les mêmes
@@ -397,7 +415,7 @@ function New-CopieEnvironnement {
         $ok = (-not $InitialiserBase) -or $baseTexte -notlike 'NON créée*'
         $message = ('Environnement « {0} » créé ({1}). Base : {2}.' -f $nom, (Split-Path -Leaf $fichier), $baseTexte)
         if ($regles.Count -gt 0) {
-            $message += "`n{0} règle(s) copiée(s){1}. Modifiez leurs répertoires (source, cible, archive) avant de les utiliser." -f $regles.Count, $(if ($DesactiverRegles) { ', désactivées' } else { '' })
+            $message += "`n{0} règle(s) copiée(s){1}. Les chemins partiels suivent les racines du nouvel environnement ; modifiez les chemins complets (source, cible, archive) avant de les utiliser." -f $regles.Count, $(if ($DesactiverRegles) { ', désactivées' } else { '' })
         }
         New-CopieResultatEnvironnement -Ok $true -Etape $(if ($ok) { 'ok' } else { 'base' }) -Message $message -Avertissements $avert -Fichier $fichier -Base $baseTexte
     }
@@ -606,7 +624,7 @@ function Remove-CopieEnvironnement {
         $maintenant = Get-Date
         $rangement = Join-Path (Join-Path $dossier $Config.Parametrage.DossierSupprimes) ('{0}_{1}' -f $nom, $maintenant.ToString('yyyyMMdd_HHmmss'))
         $null = New-Item -ItemType Directory -Path (Join-Path $rangement 'versions') -Force
-        $baseChemin = "$(Get-CopieValeur $Environnement.Parametrage.Entete 'base' '')"
+        $baseChemin = (Get-CopieCheminsEnvironnement -Entete $Environnement.Parametrage.Entete).Base
         $fiche = [ordered]@{
             environnement = $nom; compte = $Compte; date = $maintenant.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); commentaire = $Commentaire
             base = $baseChemin; regles = @($Environnement.Parametrage.Regles).Count; empreinte = $Environnement.Parametrage.Empreinte

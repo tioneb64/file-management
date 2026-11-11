@@ -19,7 +19,7 @@
         #           d'accès choisit alors lui-même Python et le dossier : Python et Racine inutiles).
         Mode             = 'Local'
         Python           = 'C:\Python314\python.exe'                  # A ADAPTER (sur la machine qui exécute le moteur)
-        Racine           = 'D:\Scripts\copie_fichiers'                # A ADAPTER : dossier qui contient le paquet 'copie'
+        Racine           = 'D:\Scripts\file_management'                # A ADAPTER : dossier qui contient le paquet 'copie'
         Serveur          = ''                                         # mode Distant
         ConfigurationJea = ''                                         # mode Distant : nom du point d'accès JEA, '' = compte de l'utilisateur
         DelaiMaxSec      = 120                                        # durée maximale d'un appel du moteur

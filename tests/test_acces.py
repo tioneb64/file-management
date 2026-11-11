@@ -294,7 +294,7 @@ class TestLigneDeCommande(CasAcces):
         self.assertEqual((code, r["acces"], r["refus"]), (0, "non_controle", []))
 
     def test_pas_de_controle_d_acces_si_le_parametrage_est_invalide(self):
-        self.regle(mode="suppression")
+        self.regle(mode="teleportation")
         code, sortie, _ = self.lancer("--verifier", "--format", "json")
         r = json.loads(sortie)
         self.assertEqual((code, r["acces"], [d["code"] for d in r["refus"]]), (2, "non_controle", ["R06"]))

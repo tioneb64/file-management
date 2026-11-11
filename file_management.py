@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-copie_fichiers.py - Copie incrementale et verifiee de fichiers (production -> test).
+file_management.py - Copie incrementale et verifiee de fichiers (production -> test).
 
 Lit un fichier de parametrage (une regle par ligne), selectionne les fichiers
 par date de modification, copie uniquement ceux qui n'ont pas deja ete copies,
@@ -38,7 +38,7 @@ TAILLE_BLOC = 4 * 1024 * 1024          # lecture par blocs de 4 Mo
 SUFFIXE_TMP = ".copie_en_cours"         # fichier temporaire cote cible
 SEPARATEUR = "|"                        # interdit dans les noms Windows -> sans ambiguite
 
-log = logging.getLogger("copie_fichiers")
+log = logging.getLogger("file_management")
 
 
 # --------------------------------------------------------------------------- #
