@@ -7,7 +7,7 @@ import json
 import os
 import re
 
-from copie.diagnostic import Rapport
+from file_management.diagnostic import Rapport
 
 VERSION_FORMAT = 1
 

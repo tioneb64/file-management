@@ -8,7 +8,7 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..\Copie.Gui\Copie.Gui.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot '..\FileManagement.Gui\FileManagement.Gui.psd1') -Force
     $Script:Utf8 = New-Object System.Text.UTF8Encoding($false)
     $Script:Ecrire = {
         param($chemin, $texte)
@@ -19,13 +19,13 @@ BeforeAll {
 
 Describe 'Saisie d''un environnement (sans moteur)' {
     It 'accepte les noms du moteur, refuse les autres' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             foreach ($n in 'production', 'recette-2', 'a_b', ('x' * 32)) { Test-CopieNomEnvironnement -Nom $n | Should -BeTrue -Because $n }
             foreach ($n in '', 'Production', 'a b', 'é', ('x' * 33), 'a.b', 'a/b') { Test-CopieNomEnvironnement -Nom $n | Should -BeFalse -Because "[$n]" }
         }
     }
     It 'refuse une base sur un partage réseau, relative, vide ou déjà utilisée ; un nom déjà pris' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $existant = [pscustomobject]@{ Nom = 'production'; Parametrage = [pscustomobject]@{ Entete = ('{"version":1,"environnement":"production","base":"D:\\Copie\\production.db"}' | ConvertFrom-Json) } }
             $ok = @{ Nom = 'recette'; Base = 'D:\Copie\recette.db' }
             @(Test-CopieSaisieEnvironnement -Saisie $ok -Existants @($existant)).Count | Should -Be 0
@@ -39,7 +39,7 @@ Describe 'Saisie d''un environnement (sans moteur)' {
         }
     }
     It 'construit l''en-tête sans les champs vides, avec des entiers, et le relit' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $e = ConvertTo-CopieEnteteEnvironnement -Saisie @{ Nom = 'recette'; Base = 'D:\r.db'; DossierLogs = ''; ParalleleMax = '4'; MargeEspaceMo = '0' }
             ($e | ConvertTo-Json -Compress) | Should -Be '{"version":1,"environnement":"recette","base":"D:\\r.db","parallele_max":4,"marge_espace_mo":0}'
             $s = ConvertFrom-CopieEnteteEnvironnement -Entete $e
@@ -51,7 +51,7 @@ Describe 'Saisie d''un environnement (sans moteur)' {
 
 Describe 'Dossier de paramétrage au lancement' {
     It 'propose de créer un dossier absent à un administrateur, qui peut refuser' {
-        InModuleScope Copie.Gui -Parameters @{ d = (Join-Path $TestDrive 'nouveau\param') } {
+        InModuleScope FileManagement.Gui -Parameters @{ d = (Join-Path $TestDrive 'nouveau\param') } {
             param($d)
             $Script:Questions = @()
             Resolve-CopieDossierParametrage -Chemin $d -Profil 'Admin' -Confirmer { param($q) $Script:Questions += $q; $false } | Should -BeNullOrEmpty
@@ -63,7 +63,7 @@ Describe 'Dossier de paramétrage au lancement' {
         }
     }
     It 'ne crée jamais le dossier pour un compte non administrateur ni sans réponse' {
-        InModuleScope Copie.Gui -Parameters @{ d = (Join-Path $TestDrive 'interdit') } {
+        InModuleScope FileManagement.Gui -Parameters @{ d = (Join-Path $TestDrive 'interdit') } {
             param($d)
             { Resolve-CopieDossierParametrage -Chemin $d -Profil 'Lecture' -GroupeAdmin @('GG_Admins') -Confirmer { $true } } | Should -Throw '*GG_Admins*'
             Resolve-CopieDossierParametrage -Chemin $d -Profil 'Admin' | Should -BeNullOrEmpty
@@ -75,7 +75,7 @@ Describe 'Dossier de paramétrage au lancement' {
         Set-Content -LiteralPath $f -Value 'x'
         $existant = Join-Path $TestDrive 'existe'
         $null = New-Item -ItemType Directory -Path $existant
-        InModuleScope Copie.Gui -Parameters @{ f = $f; e = $existant } {
+        InModuleScope FileManagement.Gui -Parameters @{ f = $f; e = $existant } {
             param($f, $e)
             $null = $f, $e
             { Resolve-CopieDossierParametrage -Chemin '  ' -Profil 'Admin' } | Should -Throw '*pas renseigné*'
@@ -134,12 +134,12 @@ Describe 'Fenêtre : dossier absent, vide' -Skip:(-not ($Script:Sta -and $Script
     }
     It 'la barre de gestion des environnements suit l''onglet choisi et disparaît pour un non administrateur' {
         $f = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') -Config $Script:Cfg -SansAffichage -GroupeUtilisateur @('S-1-5-11')
-        InModuleScope Copie.Gui { Wait-CopieTache }
+        InModuleScope FileManagement.Gui { Wait-CopieTache }
         try {
             $f.FindName('EtatVide').Visibility | Should -Be 'Collapsed'
             $tabs = $f.FindName('Tabs')
             $tabs.SelectedIndex = 0
-            InModuleScope Copie.Gui { Update-CopieBarreEnvironnements }
+            InModuleScope FileManagement.Gui { Update-CopieBarreEnvironnements }
             $f.FindName('BtnEnvSupprimer').IsEnabled | Should -BeTrue
         }
         finally { $f.Close() }
@@ -148,7 +148,7 @@ Describe 'Fenêtre : dossier absent, vide' -Skip:(-not ($Script:Sta -and $Script
 
 Describe 'Dossiers d''un environnement : contrôle, une seule question, création (sans moteur)' {
     BeforeAll {
-        $Script:Cfg2 = InModuleScope Copie.Gui -Parameters @{ j = (Join-Path $TestDrive 'cfg-d.psd1') } {
+        $Script:Cfg2 = InModuleScope FileManagement.Gui -Parameters @{ j = (Join-Path $TestDrive 'cfg-d.psd1') } {
             param($j)
             [System.IO.File]::WriteAllText($j, "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Local'; Python = 'p'; Racine = 'r' } }")
             Get-CopieConfig -Chemin $j
@@ -167,7 +167,7 @@ Describe 'Dossiers d''un environnement : contrôle, une seule question, créatio
     }
     It 'contrôle : trois dossiers absents sont à créer, rien n''est créé' {
         $f = & $Script:Fich 'e1' (Join-Path $TestDrive 'x1\BDD\e1.db') (Join-Path $TestDrive 'x1\LOG') (Join-Path $TestDrive 'x1\TMP')
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
             param($c, $f)
             $r = Invoke-CopieDossiersEnvironnement -Config $c -Fichier $f -Action 'controler'
             $r.Ok | Should -BeTrue -Because $r.Message
@@ -179,7 +179,7 @@ Describe 'Dossiers d''un environnement : contrôle, une seule question, créatio
     }
     It 'création : les trois dossiers sont créés ; un second contrôle ne trouve plus rien à faire' {
         $f = & $Script:Fich 'e2' (Join-Path $TestDrive 'x2\BDD\e2.db') (Join-Path $TestDrive 'x2\LOG') (Join-Path $TestDrive 'x2\TMP')
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
             param($c, $f)
             $r = Invoke-CopieDossiersEnvironnement -Config $c -Fichier $f -Action 'creer'
             @($r.Dossiers | Where-Object Cree).Count | Should -Be 3
@@ -193,7 +193,7 @@ Describe 'Dossiers d''un environnement : contrôle, une seule question, créatio
     }
     It 'champs vides : journaux et travail à côté de la base, comme le moteur' {
         $f = & $Script:Fich 'e3' (Join-Path $TestDrive 'x3\e3.db') '' ''
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg2; f = $f; t = $TestDrive } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg2; f = $f; t = $TestDrive } {
             param($c, $f, $t)
             $r = Invoke-CopieDossiersEnvironnement -Config $c -Fichier $f -Action 'controler'
             $chemins = @($r.Dossiers | ForEach-Object Chemin)
@@ -204,7 +204,7 @@ Describe 'Dossiers d''un environnement : contrôle, une seule question, créatio
     }
     It 'un lecteur introuvable n''est pas créable' {
         $f = & $Script:Fich 'e4' 'Q:\zz\BDD\e4.db' (Join-Path $TestDrive 'x4\LOG') ''
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
             param($c, $f)
             $etat = Get-CopieTexteDossiersManquants -Dossier @((Invoke-CopieDossiersEnvironnement -Config $c -Fichier $f -Action 'controler').Dossiers)
             if (Test-Path -LiteralPath 'Q:\') { Set-ItResult -Skipped -Because 'le lecteur Q: existe sur ce poste'; return }
@@ -214,7 +214,7 @@ Describe 'Dossiers d''un environnement : contrôle, une seule question, créatio
     }
     It 'une seule question pour les trois dossiers ; refus : rien n''est créé' {
         $f = & $Script:Fich 'e5' (Join-Path $TestDrive 'x5\BDD\e5.db') (Join-Path $TestDrive 'x5\LOG') (Join-Path $TestDrive 'x5\TMP')
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
             param($c, $f)
             $ctx = @{ Config = $c; Utilisateur = 'DOM\ben'; Fenetre = $null; LogBox = $null; PanneJournal = $false }
             $Script:Questions = New-Object System.Collections.Generic.List[string]
@@ -229,7 +229,7 @@ Describe 'Dossiers d''un environnement : contrôle, une seule question, créatio
     }
     It 'accord : les dossiers sont créés, une seule question ; tout existe : aucune question' {
         $f = & $Script:Fich 'e6' (Join-Path $TestDrive 'x6\BDD\e6.db') (Join-Path $TestDrive 'x6\LOG') (Join-Path $TestDrive 'x6\TMP')
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg2; f = $f } {
             param($c, $f)
             $ctx = @{ Config = $c; Utilisateur = 'DOM\ben'; Fenetre = $null; LogBox = $null; PanneJournal = $false }
             $Script:Questions = New-Object System.Collections.Generic.List[string]
@@ -248,7 +248,7 @@ Describe 'Détection de Python et du moteur au démarrage (mode Local)' {
         $Script:RacineVraie = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
     }
     It 'configuration correcte : aucune question' {
-        InModuleScope Copie.Gui -Parameters @{ r = $Script:RacineVraie } {
+        InModuleScope FileManagement.Gui -Parameters @{ r = $Script:RacineVraie } {
             param($r)
             $py = (Get-Command powershell.exe).Source
             $c = [pscustomobject]@{ Moteur = [pscustomobject]@{ Mode = 'Local'; Python = $py; Racine = $r } }
@@ -259,7 +259,7 @@ Describe 'Détection de Python et du moteur au démarrage (mode Local)' {
         }
     }
     It 'chemins d''exemple inexistants : propose ce qui est trouvé, une seule question, vaut pour la session' {
-        InModuleScope Copie.Gui -Parameters @{ r = $Script:RacineVraie } {
+        InModuleScope FileManagement.Gui -Parameters @{ r = $Script:RacineVraie } {
             param($r)
             $c = [pscustomobject]@{ Moteur = [pscustomobject]@{ Mode = 'Local'; Python = 'C:\Python314\python.exe'; Racine = 'D:\Scripts\zz_inexistant' } }
             $Script:Questions = New-Object System.Collections.Generic.List[string]
@@ -272,7 +272,7 @@ Describe 'Détection de Python et du moteur au démarrage (mode Local)' {
         }
     }
     It 'refus : la configuration reste inchangée et le problème est dit' {
-        InModuleScope Copie.Gui -Parameters @{ r = $Script:RacineVraie } {
+        InModuleScope FileManagement.Gui -Parameters @{ r = $Script:RacineVraie } {
             param($r)
             $c = [pscustomobject]@{ Moteur = [pscustomobject]@{ Mode = 'Local'; Python = 'C:\Python314\python.exe'; Racine = 'D:\Scripts\zz_inexistant' } }
             $res = Resolve-CopieMoteurLocal -Config $c -Confirmer { $false } -RacineDepot $r
@@ -283,7 +283,7 @@ Describe 'Détection de Python et du moteur au démarrage (mode Local)' {
         }
     }
     It 'racine introuvable et rien à proposer : message clair, aucune question' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $c = [pscustomobject]@{ Moteur = [pscustomobject]@{ Mode = 'Local'; Python = (Get-Command powershell.exe).Source; Racine = 'D:\Scripts\zz_inexistant' } }
             $Script:N = 0
             $res = Resolve-CopieMoteurLocal -Config $c -Confirmer { $Script:N++; $true } -RacineDepot 'D:\zz_pas_un_depot'
@@ -293,7 +293,7 @@ Describe 'Détection de Python et du moteur au démarrage (mode Local)' {
         }
     }
     It 'mode Distant : rien n''est vérifié' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $c = [pscustomobject]@{ Moteur = [pscustomobject]@{ Mode = 'Distant'; Python = 'C:\nope\python.exe'; Racine = 'D:\nope' } }
             (Resolve-CopieMoteurLocal -Config $c -Confirmer { $false }).Ok | Should -BeTrue
         }
@@ -303,7 +303,7 @@ Describe 'Détection de Python et du moteur au démarrage (mode Local)' {
 Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
     BeforeAll {
         $Script:Racine = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
-        $Script:Cfg = InModuleScope Copie.Gui -Parameters @{ r = $Script:Racine; p = $env:COPIE_TEST_PYTHON; j = (Join-Path $TestDrive 'cfg.psd1') } {
+        $Script:Cfg = InModuleScope FileManagement.Gui -Parameters @{ r = $Script:Racine; p = $env:COPIE_TEST_PYTHON; j = (Join-Path $TestDrive 'cfg.psd1') } {
             param($r, $p, $j)
             [System.IO.File]::WriteAllText($j, "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Local'; Python = '$p'; Racine = '$r'; DelaiMaxSec = 60 } }")
             Get-CopieConfig -Chemin $j
@@ -313,7 +313,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         $Script:Donnees = Join-Path $TestDrive 'donnees'
     }
     It 'crée un environnement : fichier vérifié par le moteur, base créée, aucun brouillon laissé' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'recette.db') } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'recette.db') } {
             param($c, $d, $b)
             $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'recette'; Base = $b } -Compte 'DOM\ben' -InitialiserBase $true
             $r.Ok | Should -BeTrue -Because $r.Message
@@ -330,7 +330,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         }
     }
     It 'dossiers non prêts (question refusée) : l''environnement est créé, la base NON, et le résultat le dit' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'refus\BDD\refus.db') } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'refus\BDD\refus.db') } {
             param($c, $d, $b)
             $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'refus'; Base = $b } -Compte 'u' -InitialiserBase $true -PreparerDossiers { param($f) $null = $f; $false }
             $r.Etape | Should -Be 'base'
@@ -340,7 +340,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         }
     }
     It 'dossiers prêts : le bloc reçoit le fichier, puis la base est créée dans le dossier créé par la question' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'oui\BDD\oui.db') } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'oui\BDD\oui.db') } {
             param($c, $d, $b)
             $Script:Recu = ''
             $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'oui'; Base = $b } -Compte 'u' -InitialiserBase $true `
@@ -352,7 +352,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         }
     }
     It 'refuse la création à un non administrateur, un nom ou une base déjà pris, une saisie invalide' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'recette.db') } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'recette.db') } {
             param($c, $d, $b)
             $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
             (New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Lecture' -Saisie @{ Nom = 'x'; Base = 'D:\x.db' } -Compte 'u').Etape | Should -Be 'droits'
@@ -363,7 +363,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         }
     }
     It 'sans base : l''environnement est créé, la base se crée ensuite ; une base existante n''est pas une erreur' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'sans.db') } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'sans.db') } {
             param($c, $d, $b)
             $r = New-CopieEnvironnement -Config $c -Dossier $d -Profil 'Admin' -Saisie @{ Nom = 'sans'; Base = $b } -Compte 'u' -InitialiserBase $false
             $r.Ok | Should -BeTrue
@@ -376,7 +376,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         }
     }
     It 'renomme : fichier, en-tête, nom dans la base (le moteur rouvre la base), versions et règles conservées' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier } {
             param($c, $d)
             $fichier = Join-Path $d 'recette.jsonl'
             $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -410,7 +410,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
         }
     }
     It 'supprime : fichier et versions rangés, base intacte, refus sans droit ni commentaire' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'recette.db') } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; b = (Join-Path $Script:Donnees 'recette.db') } {
             param($c, $d, $b)
             $env = @(Get-CopieEnvironnement -Dossier $d -Config $c) | Where-Object Nom -eq 'production'
             (Remove-CopieEnvironnement -Config $c -Environnement $env -Profil 'Lecture' -Compte 'u' -Commentaire 'x').Etape | Should -Be 'droits'
@@ -432,7 +432,7 @@ Describe 'Gestion des environnements (moteur réel)' -Skip:(-not $Script:PythonD
 Describe 'Copie d''un environnement (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
     BeforeAll {
         $Script:Racine = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
-        $Script:Cfg = InModuleScope Copie.Gui -Parameters @{ r = $Script:Racine; p = $env:COPIE_TEST_PYTHON; j = (Join-Path $TestDrive 'cfg3.psd1') } {
+        $Script:Cfg = InModuleScope FileManagement.Gui -Parameters @{ r = $Script:Racine; p = $env:COPIE_TEST_PYTHON; j = (Join-Path $TestDrive 'cfg3.psd1') } {
             param($r, $p, $j)
             [System.IO.File]::WriteAllText($j, "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Local'; Python = '$p'; Racine = '$r'; DelaiMaxSec = 60 } }")
             Get-CopieConfig -Chemin $j
@@ -446,7 +446,7 @@ Describe 'Copie d''un environnement (moteur réel)' -Skip:(-not $Script:PythonDi
         [System.IO.File]::WriteAllText((Join-Path $Script:Dossier 'production.jsonl'), ($en + "`n" + $r1 + "`n" + $r2 + "`n"), $Script:Utf8)
     }
     It 'copie toutes les règles, désactivées, avec une base à soi ; l''original ne bouge pas' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; z = $Script:Donnees } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; z = $Script:Donnees } {
             param($c, $d, $z)
             $avant = Get-CopieEmpreinteFichier -Chemin (Join-Path $d 'production.jsonl')
             $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
@@ -466,7 +466,7 @@ Describe 'Copie d''un environnement (moteur réel)' -Skip:(-not $Script:PythonDi
         }
     }
     It 'refuse la même base ou le même dossier de travail que l''original' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; z = $Script:Donnees } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; z = $Script:Donnees } {
             param($c, $d, $z)
             $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
             $source = Read-CopieFichierParametrage -Chemin (Join-Path $d 'production.jsonl')
@@ -479,7 +479,7 @@ Describe 'Copie d''un environnement (moteur réel)' -Skip:(-not $Script:PythonDi
         }
     }
     It 'copie les règles activées si on le demande' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; z = $Script:Donnees } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; d = $Script:Dossier; z = $Script:Donnees } {
             param($c, $d, $z)
             $existants = @(Get-CopieEnvironnement -Dossier $d -Config $c)
             $source = Read-CopieFichierParametrage -Chemin (Join-Path $d 'production.jsonl')
@@ -494,7 +494,7 @@ Describe 'Copie d''un environnement (moteur réel)' -Skip:(-not $Script:PythonDi
 Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
     BeforeAll {
         $Script:Racine = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
-        $Script:Cfg = InModuleScope Copie.Gui -Parameters @{ r = $Script:Racine; p = $env:COPIE_TEST_PYTHON; j = (Join-Path $TestDrive 'cfg2.psd1') } {
+        $Script:Cfg = InModuleScope FileManagement.Gui -Parameters @{ r = $Script:Racine; p = $env:COPIE_TEST_PYTHON; j = (Join-Path $TestDrive 'cfg2.psd1') } {
             param($r, $p, $j)
             [System.IO.File]::WriteAllText($j, "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Local'; Python = '$p'; Racine = '$r'; DelaiMaxSec = 60 } }")
             Get-CopieConfig -Chemin $j
@@ -510,11 +510,11 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
             planification = [ordered]@{ type = 'quotidien'; heure = '07:00' }; selection = [ordered]@{ age_minimum_sec = 0 } }
         [System.IO.File]::WriteAllText($f, ((& $js $entete) + "`n" + (& $js $regle) + "`n"), $Script:Utf8)
         $Script:Fichier = $f
-        $init = InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $f } { param($c, $f) Initialize-CopieBaseEnvironnement -Config $c -Fichier $f -Compte 'u' }
+        $init = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $f } { param($c, $f) Initialize-CopieBaseEnvironnement -Config $c -Fichier $f -Compte 'u' }
         $init.Statut | Should -Be 'creee'
     }
     It 'dit ce qui serait déplacé, de quel répertoire vers lequel, et signale le dossier cible à créer' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
             param($c, $f, $z)
             $r = Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--lancer-regle', 'export', '--simulation')
             $resume = ConvertTo-CopieResumeSimulation -Json $r.Json
@@ -533,7 +533,7 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
         }
     }
     It 'crée les dossiers manquants à la demande (jamais la source) puis tout est OK' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
             param($c, $f, $z)
             $creation = Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--creer-dossiers-regle', 'export', '--utilisateur', 'DOM\ben')
             $creation.Reussi | Should -BeTrue
@@ -546,7 +546,7 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
         }
     }
     It 'signale une source absente comme un problème, sans proposer de la créer' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
             param($c, $f, $z)
             Rename-Item -LiteralPath (Join-Path $z 'src') -NewName 'src-parti'
             try {
@@ -565,7 +565,7 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
 
 Describe 'Résumé de simulation (sans moteur)' {
     It 'formule copie, archivage et simulation vide' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $j = '{"source":"R","cible":"D","mode":"copie","statut":"SUCCES","compteurs":{"livres":3,"octets":2097152,"ignores":1},"apercu":[],"controles":[]}' | ConvertFrom-Json
             ((ConvertTo-CopieResumeSimulation -Json $j).Phrase -replace ',', '.') | Should -Be 'Copiera 3 fichier(s) (2.0 Mo) du répertoire R vers le répertoire D. Les originaux restent en place.'
             $j = '{"source":"R","cible":"D","mode":"archivage","statut":"SUCCES","compteurs":{"livres":1,"octets":10},"apercu":[{"fichier":"R\\a","cible":"D\\a","taille":10,"archive":"R\\archive\\a"}],"controles":[]}' | ConvertFrom-Json
@@ -575,7 +575,7 @@ Describe 'Résumé de simulation (sans moteur)' {
         }
     }
     It 'donne un verdict par répertoire : droits refusés, espace insuffisant, volume incorrect' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $j = @'
 {"source":"R","cible":"D","mode":"deplacement","statut":"ERREUR","motif":"espace insuffisant","compteurs":{"livres":0,"octets":0},"apercu":[],
  "controles":[
@@ -593,7 +593,7 @@ Describe 'Résumé de simulation (sans moteur)' {
         }
     }
     It 'formate les tailles' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             Format-CopieTaille -Octets 0 | Should -Be '0 o'
             (Format-CopieTaille -Octets 1536) -replace ',', '.' | Should -Be '1.5 Ko'
             (Format-CopieTaille -Octets 5GB) -replace ',', '.' | Should -Be '5.00 Go'

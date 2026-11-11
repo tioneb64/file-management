@@ -4,8 +4,8 @@ Appelee par le front-end avant d'enregistrer une modification (`--verifier --pre
 V01 (refus) un id existant ne peut pas etre modifie ; V02 une regle supprimee ; V03 une selection
 elargie ; V04 une cible modifiee.
 """
-from copie.chemins import normaliser
-from copie.selection import compiler_masques
+from file_management.chemins import normaliser
+from file_management.selection import compiler_masques
 
 
 def _signature(regle):

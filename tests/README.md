@@ -23,7 +23,7 @@
 | `tests/test_journal.py` | J3 : module `journal_si.py` (format, fichiers, pannes, charge entre processus). |
 | `outils/charge_journal.py` | Test de charge du journal sur le serveur : 8 processus × 10 000 lignes dans un même fichier. |
 | `outils/mesure_base.py` | Mesure sur le serveur : recherche dans un million d'empreintes, taille de la base, coût d'une transaction durable. |
-| `copie/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `selection.py`, `chemins.py`, `transfert.py`, `execution.py` (transfert d'une règle), `planification.py`, `lancement.py`, `orchestrateur.py`, `dependances.py`, `programmes.py`, `acces.py`, `comparaison.py`, `migration.py`, `processus.py`, `__main__.py` (`python -m copie --verifier / --initialiser-base / --sauvegarder-base / --lancer-regle`). |
+| `file_management/` | Package de la v2 : `parametrage.py` (lecture), `controles.py` (contrôles croisés), `diagnostic.py` (codes), `base.py` (SQLite), `selection.py`, `chemins.py`, `transfert.py`, `execution.py` (transfert d'une règle), `planification.py`, `lancement.py`, `orchestrateur.py`, `dependances.py`, `programmes.py`, `acces.py`, `comparaison.py`, `migration.py`, `processus.py`, `__main__.py` (`python -m file_management --verifier / --initialiser-base / --sauvegarder-base / --lancer-regle`). |
 | `exemples/` | Fichiers d'essai : paramétrage `production.jsonl` (valide) et `invalide/production.jsonl` (6 refus), sortie du journal `journal/`, configuration `alloy/` (non testée). |
 
 ```powershell

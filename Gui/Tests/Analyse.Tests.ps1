@@ -8,7 +8,7 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..\Copie.Gui\Copie.Gui.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot '..\FileManagement.Gui\FileManagement.Gui.psd1') -Force
     $Script:RacineMoteur = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
     $Script:Regles = {
         param($json)
@@ -18,7 +18,7 @@ BeforeAll {
 
 Describe 'Graphe des dépendances' {
     It 'place chaque règle à droite de ses dépendances et ignore celles sans lien' {
-        $g = InModuleScope Copie.Gui {
+        $g = InModuleScope FileManagement.Gui {
             $r = @('{"id":"c","apres":["a","b"]}', '{"id":"a"}', '{"id":"b"}', '{"id":"seule"}', '{"id":"d","apres":["c"]}') | ForEach-Object { $_ | ConvertFrom-Json }
             Get-CopieDispositionGraphe -Regle $r
         }
@@ -33,14 +33,14 @@ Describe 'Graphe des dépendances' {
         $g.Hauteur | Should -BeGreaterThan 0
     }
     It 'ne place jamais deux nœuds au même endroit' {
-        $g = InModuleScope Copie.Gui {
+        $g = InModuleScope FileManagement.Gui {
             $r = @('{"id":"a"}', '{"id":"b"}', '{"id":"c","apres":["a"]}', '{"id":"d","apres":["b"]}', '{"id":"e","apres":["a","b"]}') | ForEach-Object { $_ | ConvertFrom-Json }
             Get-CopieDispositionGraphe -Regle $r
         }
         @($g.Noeuds | ForEach-Object { '{0}/{1}' -f $_.X, $_.Y } | Sort-Object -Unique).Count | Should -Be @($g.Noeuds).Count
     }
     It 'tient compte de la casse des identifiants et signale les dépendances inconnues' {
-        $g = InModuleScope Copie.Gui {
+        $g = InModuleScope FileManagement.Gui {
             $r = @('{"id":"Amont"}', '{"id":"aval","apres":["AMONT","fantome"]}') | ForEach-Object { $_ | ConvertFrom-Json }
             Get-CopieDispositionGraphe -Regle $r
         }
@@ -49,14 +49,14 @@ Describe 'Graphe des dépendances' {
         $g.Manquantes[0].Dependance | Should -Be 'fantome'
     }
     It 'ne boucle pas sur une dépendance circulaire ou vers soi-même' {
-        $g = InModuleScope Copie.Gui {
+        $g = InModuleScope FileManagement.Gui {
             $r = @('{"id":"a","apres":["b"]}', '{"id":"b","apres":["a"]}', '{"id":"c","apres":["c"]}') | ForEach-Object { $_ | ConvertFrom-Json }
             Get-CopieDispositionGraphe -Regle $r
         }
         @($g.Noeuds).Count | Should -Be 2
     }
     It 'accepte une liste vide' {
-        $g = InModuleScope Copie.Gui { Get-CopieDispositionGraphe -Regle @() }
+        $g = InModuleScope FileManagement.Gui { Get-CopieDispositionGraphe -Regle @() }
         @($g.Noeuds).Count | Should -Be 0
         $g.Largeur | Should -Be 0
     }
@@ -64,7 +64,7 @@ Describe 'Graphe des dépendances' {
 
 Describe 'Comparaison de deux versions' {
     It 'rapproche les règles par identifiant et compare champ par champ' {
-        $d = InModuleScope Copie.Gui {
+        $d = InModuleScope FileManagement.Gui {
             $e = '{"version":1,"environnement":"p","base":"D:\\a.db"}' | ConvertFrom-Json
             $e2 = '{"version":1,"environnement":"p","base":"D:\\b.db"}' | ConvertFrom-Json
             $avant = [pscustomobject]@{ Entete = $e; Regles = @(('{"id":"a","duree_max_sec":10,"selection":{"masque":"*"},"apres":["x"],"actif":true}' | ConvertFrom-Json), ('{"id":"sup","description":"à supprimer"}' | ConvertFrom-Json)) }
@@ -81,7 +81,7 @@ Describe 'Comparaison de deux versions' {
         ($m | Where-Object Champ -eq 'actif').Avant | Should -Be 'true'
     }
     It 'ne voit pas un simple déplacement de règle comme une modification' {
-        $d = InModuleScope Copie.Gui {
+        $d = InModuleScope FileManagement.Gui {
             $e = '{"version":1,"environnement":"p"}' | ConvertFrom-Json
             $a = '{"id":"a","x":1}' | ConvertFrom-Json; $b = '{"id":"b","x":2}' | ConvertFrom-Json
             Add-Member -InputObject $a -NotePropertyName Ligne -NotePropertyValue 2
@@ -93,7 +93,7 @@ Describe 'Comparaison de deux versions' {
 
 Describe 'Promotion' {
     It 'remplace un texte dans les chemins et les commandes, sans tenir compte de la casse, sans toucher à l''original' {
-        $r = InModuleScope Copie.Gui {
+        $r = InModuleScope FileManagement.Gui {
             $o = '{"id":"r","source":"\\\\PROD\\export\\a","cible":"D:\\Prod\\c","archive":null,"description":"prod ne change pas","programmes":{"avant_lot":{"commande":["\\\\prod\\outils\\x.exe","--dossier","\\\\prod\\export"],"timeout_sec":60},"apres_lot":null}}' | ConvertFrom-Json
             $a = Get-CopieRegleAdaptee -Regle $o -Chercher '\\prod\' -Remplacer '\\recette\'
             @{ Adaptee = $a; Original = $o }
@@ -108,26 +108,26 @@ Describe 'Promotion' {
         $r.Original.source | Should -Be '\\PROD\export\a'
     }
     It 'prend le texte cherché littéralement et le remplacement tel quel (pas de $1, pas de regex)' {
-        $r = InModuleScope Copie.Gui {
+        $r = InModuleScope FileManagement.Gui {
             $o = '{"source":"D:\\a.b\\x"}' | ConvertFrom-Json
             Get-CopieRegleAdaptee -Regle $o -Chercher 'a.b' -Remplacer '$1+(z)'
         }
         $r.Regle.source | Should -Be 'D:\$1+(z)\x'
-        $r2 = InModuleScope Copie.Gui { Get-CopieRegleAdaptee -Regle ('{"source":"D:\\axb"}' | ConvertFrom-Json) -Chercher 'a.b' -Remplacer 'z' }
+        $r2 = InModuleScope FileManagement.Gui { Get-CopieRegleAdaptee -Regle ('{"source":"D:\\axb"}' | ConvertFrom-Json) -Chercher 'a.b' -Remplacer 'z' }
         $r2.Regle.source | Should -Be 'D:\axb'
         @($r2.Changements).Count | Should -Be 0
     }
     It 'garde un tableau commande à un élément et ne remplace rien si le texte cherché est vide' {
-        $r = InModuleScope Copie.Gui {
+        $r = InModuleScope FileManagement.Gui {
             $o = '{"source":"D:\\a","programmes":{"avant_lot":{"commande":["C:\\x.exe"],"timeout_sec":5}}}' | ConvertFrom-Json
             Get-CopieRegleAdaptee -Regle $o -Chercher 'C:' -Remplacer 'E:'
         }
         (ConvertTo-Json $r.Regle -Compress -Depth 10) | Should -Match '"commande":\["E:\\\\x\.exe"\]'
-        $v = InModuleScope Copie.Gui { Get-CopieRegleAdaptee -Regle ('{"source":"D:\\a"}' | ConvertFrom-Json) }
+        $v = InModuleScope FileManagement.Gui { Get-CopieRegleAdaptee -Regle ('{"source":"D:\\a"}' | ConvertFrom-Json) }
         @($v.Changements).Count | Should -Be 0
     }
     It 'repère les dépendances absentes de la cible' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $r = '{"id":"x","apres":["Amont","manque"]}' | ConvertFrom-Json
             $cible = @('{"id":"amont"}', '{"id":"autre"}') | ForEach-Object { $_ | ConvertFrom-Json }
             (Get-CopieDependanceManquante -Regle $r -Existantes $cible) -join ',' | Should -Be 'manque'
@@ -150,7 +150,7 @@ Describe 'Historique des versions' {
         $fiche = [ordered]@{ environnement = 'prod'; compte = 'DOM\ben'; date = '2026-01-02T08:00:00Z'; commentaire = 'Mise à jour é'; avertissements = @('P02 trop fréquent') }
         [System.IO.File]::WriteAllText((Join-Path $versions 'prod_20260102_090000_DOM_ben.meta.json'), ($fiche | ConvertTo-Json), $utf8)
         $cfg = [pscustomobject]@{ Parametrage = [pscustomobject]@{ DossierVersions = 'versions' } }
-        $h = @(InModuleScope Copie.Gui -Parameters @{ f = $fichier; c = $cfg } { param($f, $c) Get-CopieHistorique -Fichier $f -Config $c })
+        $h = @(InModuleScope FileManagement.Gui -Parameters @{ f = $fichier; c = $cfg } { param($f, $c) Get-CopieHistorique -Fichier $f -Config $c })
         $h.Count | Should -Be 2
         $h[0].Cle | Should -Be 'prod_20260102_090000_DOM_ben.jsonl'
         $h[0].Commentaire | Should -Be 'Mise à jour é'
@@ -164,13 +164,13 @@ Describe 'Historique des versions' {
     }
     It 'renvoie une liste vide quand il n''y a pas de dossier de versions' {
         $cfg = [pscustomobject]@{ Parametrage = [pscustomobject]@{ DossierVersions = 'versions' } }
-        @(InModuleScope Copie.Gui -Parameters @{ f = (Join-Path $TestDrive 'rien\prod.jsonl'); c = $cfg } { param($f, $c) Get-CopieHistorique -Fichier $f -Config $c }).Count | Should -Be 0
+        @(InModuleScope FileManagement.Gui -Parameters @{ f = (Join-Path $TestDrive 'rien\prod.jsonl'); c = $cfg } { param($f, $c) Get-CopieHistorique -Fichier $f -Config $c }).Count | Should -Be 0
     }
 }
 
 Describe 'Historique de bout en bout (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
     It 'trace deux enregistrements successifs et montre ce que chacun a changé' {
-        $res = InModuleScope Copie.Gui -Parameters @{ r = $Script:RacineMoteur; d = $TestDrive } {
+        $res = InModuleScope FileManagement.Gui -Parameters @{ r = $Script:RacineMoteur; d = $TestDrive } {
             param($r, $d)
             $cfg = [pscustomobject]@{
                 Moteur = [pscustomobject]@{ Mode = 'Local'; Python = $env:COPIE_TEST_PYTHON; Racine = $r; ConfigurationJea = ''; Serveur = ''; DelaiMaxSec = 60 }
@@ -208,7 +208,7 @@ Describe 'Historique de bout en bout (moteur réel)' -Skip:(-not $Script:PythonD
         ($res.D[0] | Where-Object Changement -eq 'Modifiée').Champ | Should -Be 'duree_max_sec'
     }
     It 'restaure l''état d''avant une modification par l''enregistrement sécurisé, sans rien effacer de l''historique' {
-        $res = InModuleScope Copie.Gui -Parameters @{ r = $Script:RacineMoteur; d = $TestDrive } {
+        $res = InModuleScope FileManagement.Gui -Parameters @{ r = $Script:RacineMoteur; d = $TestDrive } {
             param($r, $d)
             $cfg = [pscustomobject]@{
                 Moteur = [pscustomobject]@{ Mode = 'Local'; Python = $env:COPIE_TEST_PYTHON; Racine = $r; ConfigurationJea = ''; Serveur = ''; DelaiMaxSec = 60 }
@@ -259,7 +259,7 @@ Describe 'Fenêtres Historique et Promotion' -Skip:(-not $Script:Sta) {
         $avant = Join-Path $dossier 'avant.jsonl'; $apres = Join-Path $dossier 'apres.jsonl'
         [System.IO.File]::WriteAllText($avant, '{"version":1,"environnement":"e"}' + "`n" + '{"id":"a","duree_max_sec":1}' + "`n", $utf8)
         [System.IO.File]::WriteAllText($apres, '{"version":1,"environnement":"e"}' + "`n" + '{"id":"a","duree_max_sec":2}' + "`n", $utf8)
-        $res = InModuleScope Copie.Gui -Parameters @{ a = $avant; b = $apres } {
+        $res = InModuleScope FileManagement.Gui -Parameters @{ a = $avant; b = $apres } {
             param($a, $b)
             $f = Import-CopieXaml -Nom 'Dialog.Historique'
             $v = [pscustomobject]@{ Fichier = $a; Apres = $b; DateTexte = 'x'; Compte = 'c'; Commentaire = 'k'; Avertissements = @('P02 x'); AFiche = $true }
@@ -275,7 +275,7 @@ Describe 'Fenêtres Historique et Promotion' -Skip:(-not $Script:Sta) {
         $res.Remarque | Should -Match 'P02'
     }
     It 'la promotion montre les chemins adaptés, la règle déjà présente et les dépendances absentes' {
-        $res = InModuleScope Copie.Gui {
+        $res = InModuleScope FileManagement.Gui {
             $regle = '{"id":"r","source":"\\\\prod\\a","cible":"D:\\c","apres":["amont"]}' | ConvertFrom-Json
             $cibleEnv = [pscustomobject]@{ Nom = 'recette'; Parametrage = [pscustomobject]@{ Regles = @(('{"id":"R"}' | ConvertFrom-Json)) } }
             $f = Import-CopieXaml -Nom 'Dialog.Promotion'

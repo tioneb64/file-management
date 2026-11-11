@@ -1,4 +1,4 @@
-"""J4 : commande provisoire `python -m copie --lancer-regle ID` de bout en bout."""
+"""J4 : commande provisoire `python -m file_management --lancer-regle ID` de bout en bout."""
 import contextlib
 import glob
 import io
@@ -6,8 +6,8 @@ import json
 import os
 import unittest
 
-from copie import __main__ as cli
-from copie import base
+from file_management import __main__ as cli
+from file_management import base
 from tests.outils import CasTemporaire
 
 
@@ -110,7 +110,7 @@ class TestLancerRegle(CasTemporaire):
         self.assertFalse(os.path.exists(self.dst))
 
     def test_simulation_json_plafonne_le_detail(self):
-        from copie import execution
+        from file_management import execution
         self.initialiser()
         for i in range(5):
             self.ecrire("src/f%d.csv" % i, b"x")
@@ -165,7 +165,7 @@ class TestLancerRegle(CasTemporaire):
         self.assertFalse(os.path.exists(self.src))
 
     def test_simulation_espace_insuffisant(self):
-        from copie import acces
+        from file_management import acces
         self.initialiser()
         self.ecrire("src/a.csv", b"contenu")
         os.makedirs(self.dst)

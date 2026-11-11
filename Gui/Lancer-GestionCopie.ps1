@@ -31,7 +31,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
 }
 
 try {
-    Import-Module (Join-Path $PSScriptRoot 'Copie.Gui\Copie.Gui.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot 'FileManagement.Gui\FileManagement.Gui.psd1') -Force
     Start-CopieGui -DossierParametrage $DossierParametrage -Config $Config
 }
 catch {

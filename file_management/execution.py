@@ -10,10 +10,10 @@ import os
 import socket
 import time
 
-from copie import base as modele_base
-from copie import chemins, processus, programmes, selection, transfert
-from copie.parametrage import MODES_MESURE, MODES_TRANSFERT
-from copie.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
+from file_management import base as modele_base
+from file_management import chemins, processus, programmes, selection, transfert
+from file_management.parametrage import MODES_MESURE, MODES_TRANSFERT
+from file_management.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
 RANG = {"INFO": 0, "WARNING": 1, "ERREUR": 2}

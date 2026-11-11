@@ -6,7 +6,7 @@ Le front-end (PowerShell, voir [04-frontend](04-frontend.md)) **n'ouvre jamais l
 
 ```powershell
 $py = 'C:\Python314\python.exe'
-$sortie = & $py -m copie --config D:\Parametrage\production.jsonl --format json --etat
+$sortie = & $py -m file_management --config D:\Parametrage\production.jsonl --format json --etat
 $resultat = $sortie | ConvertFrom-Json          # un seul objet JSON
 $LASTEXITCODE                                   # voir §3
 ```
@@ -14,7 +14,7 @@ $LASTEXITCODE                                   # voir §3
 - **`--format json`** est un paramètre de toutes les commandes. La sortie standard contient **exactement un objet JSON**, en **UTF-8 sans BOM**, accents écrits tels quels (pas de `\u00e9`). La sortie d'erreur reste vide. Aucune ligne de console des processus fils ne s'y mêle.
 - En PowerShell 5.1, forcer le décodage : `[Console]::OutputEncoding = [Text.Encoding]::UTF8` avant l'appel, sinon les accents sont mal lus.
 - **Exception** : une erreur d'arguments (option inconnue, `--utilisateur` manquant) est refusée par l'analyse de la ligne de commande : code 2, message d'aide sur la **sortie d'erreur**, sortie standard vide. Le front-end construit ses commandes : une telle erreur est un défaut du front-end.
-- Distant : `Invoke-Command -ComputerName SERVEUR -ScriptBlock { & $using:py -m copie ... }` ; recommandé : point de terminaison JEA qui n'expose que ces commandes ([04-frontend §6](04-frontend.md)).
+- Distant : `Invoke-Command -ComputerName SERVEUR -ScriptBlock { & $using:py -m file_management ... }` ; recommandé : point de terminaison JEA qui n'expose que ces commandes ([04-frontend §6](04-frontend.md)).
 - Le fichier de paramétrage est toujours donné par `--config`. Il est lu, jamais écrit.
 
 ## 2. Champs communs

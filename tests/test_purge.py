@@ -7,9 +7,9 @@ import os
 import stat
 import unittest
 
-from copie import __main__ as cli
-from copie import base, lancement, purge
-from copie.controles import verifier_fichier
+from file_management import __main__ as cli
+from file_management import base, lancement, purge
+from file_management.controles import verifier_fichier
 from tests.outils import CasTemporaire
 
 AUJOURDHUI = datetime.date(2026, 6, 15)

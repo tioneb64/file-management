@@ -11,10 +11,10 @@ import unittest
 from unittest import mock
 
 import journal_si
-from copie import __main__ as cli
-from copie import base as modele_base
-from copie import lancement, orchestrateur, processus
-from copie.execution import nom_hote
+from file_management import __main__ as cli
+from file_management import base as modele_base
+from file_management import lancement, orchestrateur, processus
+from file_management.execution import nom_hote
 from tests.test_orchestrateur import ATTENTE_LONGUE, SEPT_HEURES, CasProcessus
 
 CLES_COMMUNES = {"version_contrat", "ok", "code_retour", "message"}
@@ -151,7 +151,7 @@ class TestDebloquer(CasDeblocage):
         self.debloquer(p)
         long_.wait(timeout=10)
         etat = self.regle_base("r1")
-        from copie import planification
+        from file_management import planification
         decision = planification.evaluer(p.regles[0], etat, time.time())
         self.assertFalse(decision.due)
         self.b.poser_reprise("r1", "benoit", "relance apres deblocage")
@@ -369,7 +369,7 @@ class TestContratJson(CasProcessus):
     def test_processus_reel_utf8_sans_bom_et_stderr_vide(self):
         """Comme le front-end PowerShell : un vrai processus, la sortie decodee en UTF-8 strict."""
         env = dict(os.environ, PYTHONPATH=orchestrateur.RACINE)
-        base_commande = [sys.executable, "-m", "copie", "--config", self.conf, "--format", "json"]
+        base_commande = [sys.executable, "-m", "file_management", "--config", self.conf, "--format", "json"]
         resultat = subprocess.run(base_commande + ["--initialiser-base"], cwd=orchestrateur.RACINE, env=env,
                                   capture_output=True)
         self.assertEqual((resultat.returncode, resultat.stderr), (0, b""))

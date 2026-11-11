@@ -33,7 +33,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $racineMoteur = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-if (-not (Test-Path -LiteralPath (Join-Path $racineMoteur 'copie\__main__.py'))) { throw "Moteur introuvable dans $racineMoteur" }
+if (-not (Test-Path -LiteralPath (Join-Path $racineMoteur 'file_management\__main__.py'))) { throw "Moteur introuvable dans $racineMoteur" }
 $Destination = [System.IO.Path]::GetFullPath($Destination)
 $param = Join-Path $Destination 'parametrage'
 if (Test-Path -LiteralPath $param) {
@@ -98,11 +98,11 @@ $configuration = @"
 Push-Location $racineMoteur
 try {
     foreach ($env in 'production', 'recette') {
-        & $Python -m copie --config (Join-Path $param "$env.jsonl") --initialiser-base
+        & $Python -m file_management --config (Join-Path $param "$env.jsonl") --initialiser-base
         if ($LASTEXITCODE -ne 0) { throw "Initialisation de la base $env refusée (code $LASTEXITCODE)" }
     }
     foreach ($id in 'export_clients', 'export_produits') {
-        & $Python -m copie --config (Join-Path $param 'production.jsonl') --lancer-regle $id | Out-Null
+        & $Python -m file_management --config (Join-Path $param 'production.jsonl') --lancer-regle $id | Out-Null
     }
 }
 finally { Pop-Location }

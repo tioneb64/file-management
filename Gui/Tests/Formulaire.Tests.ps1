@@ -9,12 +9,12 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..\Copie.Gui\Copie.Gui.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot '..\FileManagement.Gui\FileManagement.Gui.psd1') -Force
 }
 
 Describe 'Jours' {
     It 'lit et écrit tous, les plages et les listes' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             (ConvertFrom-CopieJours 'tous') -join ',' | Should -Be 'lun,mar,mer,jeu,ven,sam,dim'
             (ConvertFrom-CopieJours 'lun-ven') -join ',' | Should -Be 'lun,mar,mer,jeu,ven'
             (ConvertFrom-CopieJours 'sam,lun') -join ',' | Should -Be 'lun,sam'
@@ -28,7 +28,7 @@ Describe 'Jours' {
         }
     }
     It 'relit ce qu''il écrit' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             foreach ($t in 'lun-ven', 'lun,mer,ven', 'sam,dim', 'tous', 'mar') {
                 ConvertTo-CopieJours -Jour (ConvertFrom-CopieJours $t) | Should -Be $t
             }
@@ -38,7 +38,7 @@ Describe 'Jours' {
 
 Describe 'Durées' {
     It 'choisit la plus grande unité exacte' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             (ConvertTo-CopieDureeAffichage 1800) | ForEach-Object { "$($_.Valeur) $($_.Unite)" } | Should -Be '30 minutes'
             (ConvertTo-CopieDureeAffichage 86400) | ForEach-Object { "$($_.Valeur) $($_.Unite)" } | Should -Be '1 jours'
             (ConvertTo-CopieDureeAffichage 90) | ForEach-Object { "$($_.Valeur) $($_.Unite)" } | Should -Be '90 secondes'
@@ -47,7 +47,7 @@ Describe 'Durées' {
         }
     }
     It 'convertit la saisie en secondes et refuse le reste' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             (ConvertFrom-CopieDureeAffichage -Valeur '2' -Unite 'heures').Secondes | Should -Be 7200
             (ConvertFrom-CopieDureeAffichage -Valeur ' 45 ' -Unite 'secondes').Secondes | Should -Be 45
             (ConvertFrom-CopieDureeAffichage -Valeur 'abc' -Unite 'minutes').Ok | Should -BeFalse
@@ -65,7 +65,7 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
         }
         $Script:Construire = {
             param($regle, $mode = 'ajout', $ids = @())
-            InModuleScope Copie.Gui -Parameters @{ c = $Script:Config; regle = $regle; mode = $mode; ids = $ids } {
+            InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Config; regle = $regle; mode = $mode; ids = $ids } {
                 param($c, $regle, $mode, $ids)
                 $m = Get-CopieModeleRegle -Config $c
                 $depart = Merge-CopieRegle -Modele $m.regle -Existante $regle
@@ -78,22 +78,22 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
 
     It 'un formulaire non touché redonne exactement la règle de départ' {
         $o = & $Script:Construire $Script:Existante 'modification'
-        $lecture = InModuleScope Copie.Gui -Parameters @{ f = $o.Fenetre } { param($f) Read-CopieFormulaire -Etat $f.Tag }
+        $lecture = InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } { param($f) Read-CopieFormulaire -Etat $f.Tag }
         $lecture.Erreurs.Count | Should -Be 0
-        $apres = InModuleScope Copie.Gui -Parameters @{ r = $lecture.Regle } { param($r) ConvertTo-CopieLigneJson $r }
-        $avant = InModuleScope Copie.Gui -Parameters @{ r = $o.Depart } { param($r) ConvertTo-CopieLigneJson $r }
+        $apres = InModuleScope FileManagement.Gui -Parameters @{ r = $lecture.Regle } { param($r) ConvertTo-CopieLigneJson $r }
+        $avant = InModuleScope FileManagement.Gui -Parameters @{ r = $o.Depart } { param($r) ConvertTo-CopieLigneJson $r }
         $apres | Should -Be $avant
     }
     It 'garde les tableaux à un élément (apres, commande) après lecture du formulaire' {
         $o = & $Script:Construire $Script:Existante 'modification'
-        $json = InModuleScope Copie.Gui -Parameters @{ f = $o.Fenetre } { param($f) ConvertTo-CopieLigneJson (Read-CopieFormulaire -Etat $f.Tag).Regle }
+        $json = InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } { param($f) ConvertTo-CopieLigneJson (Read-CopieFormulaire -Etat $f.Tag).Regle }
         $json | Should -Match '"apres":\["amont"\]'
         $json | Should -Match '"commande":\["C:\\\\x\.exe"\]'
         $json | Should -Match '"planification":\{"type":"intervalle","frequence_sec":3600,"debut":"06:00","fin":"20:00","jours":"lun-ven","rattrapage_sec":7200\}'
     }
     It 'signale les saisies incorrectes avec le nom du champ' {
         $o = & $Script:Construire $null 'ajout'
-        $erreurs = InModuleScope Copie.Gui -Parameters @{ f = $o.Fenetre } {
+        $erreurs = InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
             param($f)
             $t = $f.Tag
             foreach ($e in $t.Champs) {
@@ -114,7 +114,7 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
     }
     It 'refuse à l''ajout un identifiant déjà pris (sans tenir compte de la casse)' {
         $o = & $Script:Construire $null 'ajout' @('r1')
-        $erreurs = InModuleScope Copie.Gui -Parameters @{ f = $o.Fenetre } {
+        $erreurs = InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
             param($f)
             foreach ($e in $f.Tag.Champs) { switch ($e.Spec.Chemin) { 'id' { $e.Controle.Text = 'R1' }; 'source' { $e.Controle.Text = 'S' }; 'cible' { $e.Controle.Text = 'C' } } }
             $f.Tag.Planif.Heure.Controle.Text = '07:00'
@@ -124,7 +124,7 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
     }
     It 'montre seulement les champs du type de planification choisi' {
         $o = & $Script:Construire $null 'ajout'
-        InModuleScope Copie.Gui -Parameters @{ f = $o.Fenetre } {
+        InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
             param($f)
             $pl = $f.Tag.Planif
             $pl.Type.SelectedItem = 'quotidien'
@@ -140,7 +140,7 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
     It 'une règle saisie dans le formulaire est acceptée par le moteur et enregistrée' {
         $o = & $Script:Construire $null 'ajout'
         $dossier = Join-Path $TestDrive 'ok'; $null = New-Item -ItemType Directory $dossier
-        $res = InModuleScope Copie.Gui -Parameters @{ f = $o.Fenetre; c = $Script:Config; d = $dossier } {
+        $res = InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre; c = $Script:Config; d = $dossier } {
             param($f, $c, $d)
             $t = $f.Tag
             foreach ($e in $t.Champs) {

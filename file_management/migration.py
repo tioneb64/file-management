@@ -12,9 +12,9 @@ import os
 import re
 import time
 
-from copie import base as modele_base
-from copie import chemins, selection
-from copie.controles import verifier_fichier
+from file_management import base as modele_base
+from file_management import chemins, selection
+from file_management.controles import verifier_fichier
 
 VRAIS = ("oui", "o", "yes", "y", "true", "1")
 FAUX = ("non", "n", "no", "false", "0", "")

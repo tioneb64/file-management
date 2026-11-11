@@ -1,4 +1,4 @@
-"""Point d'entree provisoire de la v2 : python -m copie --config FICHIER [commande] [--format json]
+"""Point d'entree provisoire de la v2 : python -m file_management --config FICHIER [commande] [--format json]
 
 Sans commande : lancement (les regles dues, en parallele, apres evaluation de leurs dependances).
 Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER], --initialiser-base,
@@ -14,9 +14,9 @@ import json
 import os
 import sys
 
-from copie import __version__, acces, base, lancement, modele, purge
-from copie.controles import verifier_fichier
-from copie.diagnostic import VERSION_CONTRAT
+from file_management import __version__, acces, base, lancement, modele, purge
+from file_management.controles import verifier_fichier
+from file_management.diagnostic import VERSION_CONTRAT
 
 CODE_OK = 0
 CODE_ERREUR = 1
@@ -73,8 +73,8 @@ def _verifier(args, parametrage, rapport):
     acces = "non_controle"
     if parametrage is not None:
         if args.precedent:
-            from copie.comparaison import comparer
-            from copie.parametrage import charger
+            from file_management.comparaison import comparer
+            from file_management.parametrage import charger
             ancien, ancien_rapport = charger(args.precedent)
             if ancien is None or not ancien_rapport.ok:
                 return _repondre(args, CODE_CONFIG, "fichier precedent illisible ou invalide : %s" % args.precedent)
@@ -90,7 +90,7 @@ def _verifier(args, parametrage, rapport):
                 if historique is not None:
                     historique.fermer()
         if not args.syntaxe_seule and rapport.ok:
-            from copie.acces import verifier_acces
+            from file_management.acces import verifier_acces
             verifier_acces(parametrage, rapport)
             acces = "controle"
     if args.format == "json":
@@ -144,7 +144,7 @@ def _modele_regle(args):
 
 
 def _migrer_ancien(args):
-    from copie import migration
+    from file_management import migration
     if not args.environnement or not args.base:
         return _repondre(args, CODE_CONFIG, "--migrer-ancien exige --environnement et --base")
     sortie = args.sortie or (args.environnement + ".jsonl")
@@ -171,7 +171,7 @@ def _migrer_ancien(args):
 
 
 def _importer_historique(args, parametrage):
-    from copie import migration
+    from file_management import migration
     b, erreur = _ouvrir_base(args, parametrage)
     if b is None:
         return erreur
@@ -194,8 +194,8 @@ def _executer_fils(args, parametrage):
     """Commande INTERNE lancee par l'orchestrateur : execute une regle dans ce processus. Le drapeau
     « en cours » et l'execution ont deja ete pris par l'orchestrateur, qui nous place dans son Job
     Object puis nous donne le feu vert sur l'entree standard."""
-    from copie import orchestrateur
-    from copie.execution import lancer_regle
+    from file_management import orchestrateur
+    from file_management.execution import lancer_regle
     if sys.stdin.readline().strip() != "go":
         return CODE_ERREUR
     entete = parametrage.entete
@@ -232,7 +232,7 @@ def _executer_fils(args, parametrage):
 # Lancements
 # --------------------------------------------------------------------------- #
 def _lancer_regle(args, parametrage):
-    from copie.execution import RegleDejaEnCours, lancer_regle
+    from file_management.execution import RegleDejaEnCours, lancer_regle
     entete = parametrage.entete
     regle = next((r for r in parametrage.regles if r.id and r.id.lower() == args.lancer_regle.lower()), None)
     if regle is None:
@@ -438,7 +438,7 @@ def _exploitation(args, parametrage):
 
 # --------------------------------------------------------------------------- #
 def _arguments(argv=None):
-    p = argparse.ArgumentParser(prog="copie", description="file_management v2 %s" % __version__)
+    p = argparse.ArgumentParser(prog="file_management", description="file_management v2 %s" % __version__)
     p.add_argument("--config", help="fichier de parametrage (.jsonl) ; absent seulement avec --migrer-ancien")
     commande = p.add_mutually_exclusive_group()
     commande.add_argument("--verifier", action="store_true", help="valide le parametrage (et les acces)")

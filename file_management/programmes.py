@@ -10,8 +10,8 @@ import subprocess
 import time
 from datetime import datetime
 
-from copie import processus
-from copie.chemins import remplacer_variables
+from file_management import processus
+from file_management.chemins import remplacer_variables
 
 POINTS = ("avant_lot", "avant_fichier", "apres_fichier", "apres_lot", "sur_erreur", "reprise")
 CODES_ACCEPTES = {"avant_lot": (0, 1), "avant_fichier": (0, 1), "apres_fichier": (0, 1),

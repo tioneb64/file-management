@@ -18,8 +18,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 import journal_si
-from copie import __main__ as cli
-from copie import lancement, orchestrateur, processus
+from file_management import __main__ as cli
+from file_management import lancement, orchestrateur, processus
 from tests.outils import CasTemporaire
 from tests.test_orchestrateur import ATTENTE_LONGUE, SEPT_HEURES, CasProcessus
 
@@ -226,7 +226,7 @@ class TestFichiersJenkins(unittest.TestCase):
         self.assertIn("unstable(", texte)
         self.assertIn("error(", texte)
         self.assertEqual(cli.CODE_AVERTISSEMENT, 4)                # 4 = UNSTABLE, comme documente
-        self.assertIn("-m copie", texte)
+        self.assertIn("-m file_management", texte)
 
     def test_job_de_transfert_autorise_les_builds_simultanes(self):
         texte = lire(os.path.join(JENKINS, "Jenkinsfile.transfert"))
@@ -277,13 +277,13 @@ def io_aide_journal():
 
 # =========================================================================== #
 class CasLancementProcessus(CasProcessus):
-    """Lancements du moteur comme Jenkins les fait : un processus `python -m copie` par build."""
+    """Lancements du moteur comme Jenkins les fait : un processus `python -m file_management` par build."""
 
     def lancer(self, build, *options, ligne_commande=None):
         env = dict(os.environ, PYTHONPATH=RACINE, **{"JOB_NAME": "COPIE_PROD", "BUILD_NUMBER": str(build),
                                                       "BUILD_URL": "https://jenkins.exemple/job/COPIE_PROD/%d/" % build,
                                                       "NODE_NAME": "SRV-JENKINS01"})
-        return subprocess.Popen([sys.executable, "-m", "copie", "--config", self.conf] + list(options),
+        return subprocess.Popen([sys.executable, "-m", "file_management", "--config", self.conf] + list(options),
                                 cwd=RACINE, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     def preparer(self, nombre, **modif):

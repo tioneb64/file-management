@@ -1,8 +1,8 @@
 """Controles qui comparent plusieurs regles entre elles (docs/01-parametrage.md, section 7.1)."""
 import os
 
-from copie.diagnostic import Rapport
-from copie.parametrage import CONDITIONS, charger
+from file_management.diagnostic import Rapport
+from file_management.parametrage import CONDITIONS, charger
 
 SECONDES_PAR_JOUR = 86400
 

@@ -9,8 +9,8 @@ import datetime
 import os
 import shutil
 
-from copie import base as modele_base
-from copie import chemins
+from file_management import base as modele_base
+from file_management import chemins
 
 MO = 1024 * 1024
 

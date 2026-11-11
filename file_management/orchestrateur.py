@@ -11,8 +11,8 @@ import subprocess
 import sys
 import time
 
-from copie import dependances, planification, processus
-from copie.execution import NIVEAU_STATUT, RegleDejaEnCours, lancer_regle, nom_hote
+from file_management import dependances, planification, processus
+from file_management.execution import NIVEAU_STATUT, RegleDejaEnCours, lancer_regle, nom_hote
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DELAI_ARRET_FILS_SEC = 30
@@ -176,7 +176,7 @@ class Orchestrateur(object):
     # Demarrage d'un fils
     # ------------------------------------------------------------------ #
     def _commande_fils(self, regle, execution_id):
-        return [sys.executable, "-m", "copie", "--config", os.path.abspath(self.parametrage.chemin),
+        return [sys.executable, "-m", "file_management", "--config", os.path.abspath(self.parametrage.chemin),
                 "--executer-regle", regle.id, "--execution-id", str(execution_id)]
 
     def _demarrer(self, regle, decision, no, declencheur=None, creneau=None):

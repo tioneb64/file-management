@@ -2,7 +2,7 @@
 # ne le modifier à la main qu'en connaissance de cause (il décide ce que le compte de service lance).
 @{
     Python             = 'C:\Python314\python.exe'          # interpréteur du moteur
-    Racine             = 'D:\file_management'                # dossier qui contient le paquet copie\
+    Racine             = 'D:\file_management'                # dossier qui contient le paquet file_management\
     DossierParametrage = 'D:\Parametrage'                   # seuls les fichiers de ce dossier sont acceptés
     GroupeAdmin        = 'DOMAINE\GG_Copie_Admins'          # seul ce groupe peut lancer une commande d'écriture
     DelaiMaxSec        = 600                                # au-delà, le moteur est arrêté

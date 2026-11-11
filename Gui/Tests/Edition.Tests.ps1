@@ -7,7 +7,7 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..\Copie.Gui\Copie.Gui.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot '..\FileManagement.Gui\FileManagement.Gui.psd1') -Force
     $Script:RacineMoteur = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
     $Script:Config = [pscustomobject]@{
         Moteur      = [pscustomobject]@{ Mode = 'Local'; Python = $env:COPIE_TEST_PYTHON; Racine = $Script:RacineMoteur; ConfigurationJea = ''; Serveur = ''; DelaiMaxSec = 60 }
@@ -17,7 +17,7 @@ BeforeAll {
 
 Describe 'Edition (sans moteur)' {
     It 'écrit une ligne JSON compacte qui garde les tableaux à un élément, les null, les accents et les caractères spéciaux' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $o = '{"id":"r","apres":["a"],"condition":[],"x":null,"description":"é <b> & l''a","p":{"q":{"r":{"s":1}}}}' | ConvertFrom-Json
             $ligne = ConvertTo-CopieLigneJson -Objet $o
             $ligne | Should -Not -Match "`n"
@@ -29,7 +29,7 @@ Describe 'Edition (sans moteur)' {
         }
     }
     It 'n''écrit jamais le numéro de ligne, propre à l''affichage' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $o = '{"id":"r"}' | ConvertFrom-Json
             Add-Member -InputObject $o -NotePropertyName Ligne -NotePropertyValue 4
             ConvertTo-CopieLigneJson -Objet $o | Should -Be '{"id":"r"}'
@@ -37,20 +37,20 @@ Describe 'Edition (sans moteur)' {
         }
     }
     It 'range les dépendances avant les règles qui en dépendent, sans bouger le reste' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $r = @('{"id":"c","apres":["b"]}', '{"id":"a"}', '{"id":"b","apres":["A"]}', '{"id":"d"}') | ForEach-Object { $_ | ConvertFrom-Json }
             ((Get-CopieRegleOrdonnee -Regle $r) | ForEach-Object id) -join '' | Should -Be 'abcd'
         }
     }
     It 'ne boucle pas sur une dépendance circulaire, inconnue ou vers elle-même' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $r = @('{"id":"a","apres":["b"]}', '{"id":"b","apres":["a"]}', '{"id":"c","apres":["inconnue","c"]}') | ForEach-Object { $_ | ConvertFrom-Json }
             @(Get-CopieRegleOrdonnee -Regle $r).Count | Should -Be 3
             @(Get-CopieRegleOrdonnee -Regle @()).Count | Should -Be 0
         }
     }
     It 'nomme les versions avec l''environnement, la date et le compte' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             Get-CopieNomVersion -Environnement 'production' -Compte 'DOMAINE\benoit' -Date ([datetime]'2026-11-03T10:15:00') | Should -Be 'production_20261103_101500_DOMAINE_benoit.jsonl'
             Get-CopieNomVersion -Environnement 'p' -Compte 'a:b*c' -Date ([datetime]'2026-01-02T03:04:05') | Should -Be 'p_20260102_030405_a_b_c.jsonl'
         }
@@ -59,11 +59,11 @@ Describe 'Edition (sans moteur)' {
 
 Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
     BeforeAll {
-        $Script:Modele = InModuleScope Copie.Gui -Parameters @{ c = $Script:Config } { param($c) Get-CopieModeleRegle -Config $c }
+        $Script:Modele = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Config } { param($c) Get-CopieModeleRegle -Config $c }
         $Script:Utf8 = New-Object System.Text.UTF8Encoding($false)
         $Script:Nouvelle = {
             param($id, $surcharges = @{})
-            $r = InModuleScope Copie.Gui -Parameters @{ m = $Script:Modele; id = $id; s = $surcharges; d = $TestDrive } {
+            $r = InModuleScope FileManagement.Gui -Parameters @{ m = $Script:Modele; id = $id; s = $surcharges; d = $TestDrive } {
                 param($m, $id, $s, $d)
                 $b = Merge-CopieRegle -Modele $m.regle -Existante $null
                 $b.id = $id; $b.source = (Join-Path $d "s_$id"); $b.cible = (Join-Path $d "c_$id"); $b.mode = 'copie'
@@ -81,16 +81,16 @@ Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
             $entete = [pscustomobject]@{ version = 1; environnement = $nom; base = (Join-Path $d 'donnees\base.db') }
             $a = & $Script:Nouvelle 'a'
             $b = & $Script:Nouvelle 'b' @{ apres = @('a') }
-            $lignes = InModuleScope Copie.Gui -Parameters @{ e = $entete; a = $a; b = $b } { param($e, $a, $b) @(ConvertTo-CopieLigneJson $e; ConvertTo-CopieLigneJson $a; ConvertTo-CopieLigneJson $b) }
+            $lignes = InModuleScope FileManagement.Gui -Parameters @{ e = $entete; a = $a; b = $b } { param($e, $a, $b) @(ConvertTo-CopieLigneJson $e; ConvertTo-CopieLigneJson $a; ConvertTo-CopieLigneJson $b) }
             [System.IO.File]::WriteAllText($f, (($lignes -join "`n") + "`n"), $Script:Utf8)
             [pscustomobject]@{ Dossier = $d; Fichier = $f; Entete = $entete; Nom = $nom }
         }
-        $Script:Lire = { param($f) InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Read-CopieFichierParametrage -Chemin $f } }
+        $Script:Lire = { param($f) InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Read-CopieFichierParametrage -Chemin $f } }
         $Script:Enregistrer = {
             param($env, $regles, $confirmer = $null, $empreinte = $null)
             $p = & $Script:Lire $env.Fichier
             if (-not $empreinte) { $empreinte = $p.Empreinte }
-            InModuleScope Copie.Gui -Parameters @{ c = $Script:Config; env = $env; r = $regles; e = $empreinte; conf = $confirmer } {
+            InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Config; env = $env; r = $regles; e = $empreinte; conf = $confirmer } {
                 param($c, $env, $r, $e, $conf)
                 Save-CopieParametrage -Config $c -Fichier $env.Fichier -EmpreinteAttendue $e -Entete $env.Entete -Regle $r -Compte 'DOMAINE\benoit' -Commentaire 'essai' -Confirmer $conf
             }
@@ -108,7 +108,7 @@ Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
         $r.programmes.avant_lot | Should -BeNullOrEmpty
     }
     It 'conserve les valeurs d''une règle existante et complète les champs absents' {
-        InModuleScope Copie.Gui -Parameters @{ m = $Script:Modele } {
+        InModuleScope FileManagement.Gui -Parameters @{ m = $Script:Modele } {
             param($m)
             $existante = '{"id":"x","source":"S","cible":"C","mode":"copie","duree_max_sec":99,"selection":{"masque":"*.csv"},"situations":{"copie_echec":{"tentatives":9,"delai_sec":1,"niveau_final":"WARNING"}},"champ_inconnu":1}' | ConvertFrom-Json
             Add-Member -InputObject $existante -NotePropertyName Ligne -NotePropertyValue 5
@@ -168,11 +168,11 @@ Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
     It 'refuse de modifier l''identifiant d''une règle existante (V01) et de rendre dépendante une règle inactive (D03)' {
         $env = & $Script:Initialiser 'v01'
         $p = & $Script:Lire $env.Fichier
-        $renommee = InModuleScope Copie.Gui -Parameters @{ r = $p.Regles[0] } { param($r) $c = Copy-CopieObjet $r; $c.id = 'a_renommee'; $c }
+        $renommee = InModuleScope FileManagement.Gui -Parameters @{ r = $p.Regles[0] } { param($r) $c = Copy-CopieObjet $r; $c.id = 'a_renommee'; $c }
         $res = & $Script:Enregistrer $env @($renommee, $p.Regles[1])
         $res.Enregistre | Should -BeFalse
         ($res.Refus | ForEach-Object code) | Should -Contain 'V01'
-        $inactive = InModuleScope Copie.Gui -Parameters @{ r = $p.Regles[0] } { param($r) $c = Copy-CopieObjet $r; $c.actif = $false; $c }
+        $inactive = InModuleScope FileManagement.Gui -Parameters @{ r = $p.Regles[0] } { param($r) $c = Copy-CopieObjet $r; $c.actif = $false; $c }
         $res2 = & $Script:Enregistrer $env @($inactive, $p.Regles[1])
         ($res2.Refus | ForEach-Object code) | Should -Contain 'D03'
     }
@@ -209,7 +209,7 @@ Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
         $cfg = [pscustomobject]@{
             Moteur = [pscustomobject]@{ Mode = 'Local'; Python = (Join-Path $TestDrive 'absent.exe'); Racine = $Script:RacineMoteur; ConfigurationJea = ''; Serveur = ''; DelaiMaxSec = 5 }
             Parametrage = $Script:Config.Parametrage }
-        $res = InModuleScope Copie.Gui -Parameters @{ c = $cfg; env = $env; p = $p } {
+        $res = InModuleScope FileManagement.Gui -Parameters @{ c = $cfg; env = $env; p = $p } {
             param($c, $env, $p)
             Save-CopieParametrage -Config $c -Fichier $env.Fichier -EmpreinteAttendue $p.Empreinte -Entete $env.Entete -Regle $p.Regles -Compte 'x' -Commentaire 'y'
         }

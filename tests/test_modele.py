@@ -6,9 +6,9 @@ import json
 import os
 import unittest
 
-from copie import __main__ as cli
-from copie import modele, parametrage
-from copie.controles import verifier_fichier
+from file_management import __main__ as cli
+from file_management import modele, parametrage
+from file_management.controles import verifier_fichier
 from tests.outils import CasTemporaire
 
 

@@ -12,10 +12,10 @@ import hashlib
 import os
 import time
 
-from copie import base as modele_base
-from copie import planification, processus
-from copie.execution import lancer_regle, nom_hote
-from copie.orchestrateur import Orchestrateur
+from file_management import base as modele_base
+from file_management import planification, processus
+from file_management.execution import lancer_regle, nom_hote
+from file_management.orchestrateur import Orchestrateur
 
 
 def empreinte_regle(regle):

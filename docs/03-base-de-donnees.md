@@ -1,4 +1,4 @@
-# Base de données
+﻿# Base de données
 
 Une base SQLite **par environnement**, sur un **disque local** du serveur d'exécution. Son chemin est donné par le champ `base` de l'en-tête du paramétrage.
 
@@ -252,7 +252,7 @@ Les timestamps sont en secondes UTC ; le front-end les convertit pour l'affichag
 
 ## 8. Initialisation et migration
 
-Réalisé au jalon J2 : `python -m copie --config FICHIER --initialiser-base [--utilisateur U]` et `--sauvegarder-base DOSSIER`. Le fichier de sauvegarde s'appelle `<environnement>_AAAAMMJJ_HHMMSS.db`, il est vérifié (`integrity_check`) avant d'être mis en place et ne dépend d'aucun fichier `-wal`. La restauration est une copie du fichier à la place de la base, moteur arrêté. Le moteur refuse d'ouvrir la base d'un autre environnement (`meta.environnement`) ou un fichier qui n'est pas une base de ce programme.
+Réalisé au jalon J2 : `python -m file_management --config FICHIER --initialiser-base [--utilisateur U]` et `--sauvegarder-base DOSSIER`. Le fichier de sauvegarde s'appelle `<environnement>_AAAAMMJJ_HHMMSS.db`, il est vérifié (`integrity_check`) avant d'être mis en place et ne dépend d'aucun fichier `-wal`. La restauration est une copie du fichier à la place de la base, moteur arrêté. Le moteur refuse d'ouvrir la base d'un autre environnement (`meta.environnement`) ou un fichier qui n'est pas une base de ce programme.
 
 - `--initialiser-base` : crée le fichier, le schéma, la ligne `meta` (environnement). Refuse si la base existe déjà.
 - **Migration** (jalon J11, deux commandes, voir [09-migration-et-recette](09-migration-et-recette.md)) : `--migrer-ancien copies.conf` convertit chaque ligne de l'ancien paramétrage en règle (`mode = copie`, `si_cible_absente = recopier` et `si_existe_cible = ecraser` pour conserver le comportement actuel, règles inactives) ; `--importer-historique copies.historique.json` importe l'historique : l'ancien historique contient source, cible, taille et `mtime_ns`, donc l'empreinte de version est recalculée (`cle_version(id de la règle, chemin relatif, taille, mtime_ns)`) et chaque fichier déjà copié devient une version `TERMINE` : il n'est pas relivré. Une entrée est rattachée à la règle dont la source, la cible, le nom relatif et le masque correspondent. Idempotent ; chaque import est tracé dans `journal_actions` (action `migration`).

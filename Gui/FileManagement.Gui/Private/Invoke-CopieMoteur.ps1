@@ -56,7 +56,7 @@
 function Invoke-CopieMoteur {
     <#
     .SYNOPSIS
-        Appelle le moteur (python -m copie ... --format json) et renvoie sa réponse décodée.
+        Appelle le moteur (python -m file_management ... --format json) et renvoie sa réponse décodée.
 
     .DESCRIPTION
         Trois façons d'atteindre le moteur, choisies par la configuration (Moteur.Mode) :
@@ -98,7 +98,7 @@ function Invoke-CopieMoteur {
 
     $moteur = $Config.Moteur
     $arguments = New-Object System.Collections.Generic.List[string]
-    $arguments.AddRange([string[]]@('-m', 'copie'))
+    $arguments.AddRange([string[]]@('-m', 'file_management'))
     if ($Fichier) { $arguments.AddRange([string[]]@('--config', $Fichier)) }
     $arguments.AddRange([string[]]$Argument)
     $arguments.AddRange([string[]]@('--format', 'json'))

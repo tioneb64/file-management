@@ -9,12 +9,12 @@ import time
 import unittest
 from unittest import mock
 
-from copie import __main__ as cli
-from copie import acces, base, chemins
-from copie.comparaison import comparer, selection_elargie
-from copie.controles import verifier_fichier
-from copie.diagnostic import Rapport
-from copie.parametrage import Selection, charger
+from file_management import __main__ as cli
+from file_management import acces, base, chemins
+from file_management.comparaison import comparer, selection_elargie
+from file_management.controles import verifier_fichier
+from file_management.diagnostic import Rapport
+from file_management.parametrage import Selection, charger
 from tests.outils import CasTemporaire
 
 
@@ -345,7 +345,7 @@ class TestComparaison(CasTemporaire):
         self.assertTrue(r.ok)
 
     def test_v02_mentionne_l_historique_si_la_base_est_fournie(self):
-        from copie.diagnostic import Rapport
+        from file_management.diagnostic import Rapport
         base.initialiser(self.chemin("donnees", "production.db"), "production", "u")
         with base.ouvrir(self.chemin("donnees", "production.db")) as b:
             numeros, _ = b.synchroniser_regles([("b", "e")])

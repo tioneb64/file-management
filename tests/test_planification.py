@@ -4,9 +4,9 @@ import copy
 import datetime
 import unittest
 
-from copie import planification
-from copie.diagnostic import Rapport
-from copie.parametrage import lire_regle
+from file_management import planification
+from file_management.diagnostic import Rapport
+from file_management.parametrage import lire_regle
 
 UTC = datetime.timezone.utc
 

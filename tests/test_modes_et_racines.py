@@ -3,9 +3,9 @@ import json
 import os
 import unittest
 
-from copie import dependances, execution
-from copie.diagnostic import Rapport
-from copie.parametrage import charger, est_absolu, lire_regle, resoudre_chemin
+from file_management import dependances, execution
+from file_management.diagnostic import Rapport
+from file_management.parametrage import charger, est_absolu, lire_regle, resoudre_chemin
 from tests.outils import CasTemporaire
 from tests.test_moteur import CasMoteur
 

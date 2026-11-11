@@ -22,8 +22,8 @@ import os
 import re
 import shutil
 
-from copie import chemins
-from copie.transfert import rendre_modifiable
+from file_management import chemins
+from file_management.transfert import rendre_modifiable
 
 RE_JOURNAL = re.compile(r"^(?P<id>.+)_(?P<date>\d{4}-\d{2}-\d{2})\.jsonl$")
 SANS_REGLE = "_orchestrateur"

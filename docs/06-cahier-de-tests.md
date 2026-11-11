@@ -82,7 +82,7 @@ Testé le 2026-11-03 sur Windows 10, Python 3.14.10 : 91 tests au total (33 de J
 Commande de vérification (provisoire, le lanceur `file_management.py` reste la v1 jusqu'à la livraison) :
 
 ```powershell
-C:\Python314\python.exe -m copie --config exemples\production.jsonl --verifier --syntaxe-seule [--format json] [--periode-declencheur-sec 300]
+C:\Python314\python.exe -m file_management --config exemples\production.jsonl --verifier --syntaxe-seule [--format json] [--periode-declencheur-sec 300]
 ```
 
 Codes retour : `0` valide, `4` valide avec avertissements, `2` refus.
@@ -110,7 +110,7 @@ Lancer §1.2 : les tests J1 sont inclus. Détail de ce que couvre chaque groupe 
 
 | ID | Objectif | Procédure | Attendu | Serveur |
 |---|---|---|---|---|
-| J1-M01 | Fichier d'exemple valide | `-m copie --config exemples\production.jsonl --verifier --syntaxe-seule` | `0 refus, 0 avertissement(s)`, code retour 0 (`$LASTEXITCODE`) | |
+| J1-M01 | Fichier d'exemple valide | `-m file_management --config exemples\production.jsonl --verifier --syntaxe-seule` | `0 refus, 0 avertissement(s)`, code retour 0 (`$LASTEXITCODE`) | |
 | J1-M02 | Fichier d'exemple invalide | Même commande sur `exemples\invalide\production.jsonl` | Code retour 2 et 6 refus : R02, E06, R06, D01 (×2), P01, chacun avec son numéro de ligne | |
 | J1-M03 | Sortie JSON lisible par PowerShell 5.1 | `... --format json \| ConvertFrom-Json` puis afficher `.refus`, `.ok`, `.regles_lues` | Objet correct ; accents correctement affichés | |
 | J1-M04 | Fichier enregistré par le **Bloc-notes** (UTF-8 avec BOM) | Ouvrir l'exemple valide dans le Bloc-notes, ajouter un accent dans une `description`, enregistrer en « UTF-8 avec BOM » | Valide | |
@@ -128,8 +128,8 @@ Testé le 2026-11-03 sur Windows 10, Python 3.14.10, SQLite 3.50.4 : 151 tests a
 Commandes (provisoires) :
 
 ```powershell
-C:\Python314\python.exe -m copie --config exemples\production.jsonl --initialiser-base
-C:\Python314\python.exe -m copie --config exemples\production.jsonl --sauvegarder-base D:\Copie\sauvegardes
+C:\Python314\python.exe -m file_management --config exemples\production.jsonl --initialiser-base
+C:\Python314\python.exe -m file_management --config exemples\production.jsonl --sauvegarder-base D:\Copie\sauvegardes
 C:\Python314\python.exe outils\mesure_base.py --dossier D:\temp [--entrees 1000000] [--json rapports\mesure_base.json]
 ```
 
@@ -163,7 +163,7 @@ Pour les essais, remplacer le champ `base` de la copie du fichier d'exemple par 
 | J2-M03 | Droits : le compte de service n'a pas le droit d'écrire dans le dossier de la base | Retirer l'écriture sur le dossier puis lancer `--initialiser-base` | Refus clair, code 2, aucun fichier partiel | |
 | J2-M04 | Partage et lecteur réseau refusés | `base` en `\\SERVEUR\partage\x.db`, puis sur un lecteur réseau mappé (`net use Z: ...`) | Refus pour les deux (« disque local »), code 2. Le lecteur mappé doit être refusé avec le compte qui lance l'outil | |
 | J2-M05 | Sauvegarde pendant l'écriture | Dans une console, `mesure_base.py --entrees 200000` ; pendant l'exécution, dans une autre, lancer `--sauvegarder-base` sur une base de test en cours d'utilisation (ou sur `mesure.db` si le dossier est conservé) | Sauvegarde créée, sans erreur, un seul fichier `.db` ; aucune erreur dans la console de mesure | |
-| J2-M06 | Restauration | Arrêter les traitements, copier la sauvegarde à la place de la base, relancer la suite de tests J2 sur ce fichier ou ouvrir avec `python -c "from copie import base; b=base.ouvrir(r'D:\\...\\production.db'); print(b.meta('environnement'), b.verifier_integrite())"` | Environnement affiché, liste d'anomalies vide `[]` | |
+| J2-M06 | Restauration | Arrêter les traitements, copier la sauvegarde à la place de la base, relancer la suite de tests J2 sur ce fichier ou ouvrir avec `python -c "from file_management import base; b=base.ouvrir(r'D:\\...\\production.db'); print(b.meta('environnement'), b.verifier_integrite())"` | Environnement affiché, liste d'anomalies vide `[]` | |
 | J2-M07 | Antivirus et fichiers `-wal` / `-shm` | Lancer la suite complète deux fois ; surveiller `PermissionError`, `database is locked`, tests lents | Aucune erreur ; sinon demander l'exclusion du dossier de la base à l'équipe sécurité | |
 | J2-M08 | **Coupure de courant** (machine virtuelle de recette, optionnel mais recommandé) | Lancer `mesure_base.py --cycles 500`, puis mettre la VM hors tension brutalement (arrêt forcé sans arrêt du système). Relancer, ouvrir la base de mesure si elle subsiste (`--dossier` fixe, ne pas supprimer) | La base s'ouvre, `verifier_integrite()` vide ; au plus quelques derniers cycles manquants | |
 | J2-M09 | Disque plein (optionnel) | Base sur un petit volume (VHD de 20 Mo) rempli : lancer `mesure_base.py` | Erreur claire (`ErreurBase`/`disk is full`), base non corrompue (`verifier_integrite()` vide) | |
@@ -215,13 +215,13 @@ Commandes (provisoires) :
 
 ```powershell
 # une règle, en simulation puis pour de vrai (la base doit exister : --initialiser-base)
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --lancer-regle export_clients --simulation
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --lancer-regle export_clients
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --lancer-regle export_clients --simulation
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --lancer-regle export_clients
 # débit de transfert
 C:\Python314\python.exe outils\mesure_transfert.py --source D:\temp --fichiers 200 --taille-ko 100 [--cible \\SERVEUR\partage\test]
 # livraisons de résultat inconnu (après un arrêt brutal) : lister, puis trancher
-C:\Python314\python.exe -c "from copie import base; b=base.ouvrir(r'D:\Copie\recette.db'); print([(c.hex(), s, d) for c, s, d in b.incertains(b.numero_regle('export_clients'))])"
-C:\Python314\python.exe -c "from copie import base; b=base.ouvrir(r'D:\Copie\recette.db'); b.resoudre_incertain(bytes.fromhex('CLE'), 'a_relivrer', 'benoit', 'absent de la cible')"
+C:\Python314\python.exe -c "from file_management import base; b=base.ouvrir(r'D:\Copie\recette.db'); print([(c.hex(), s, d) for c, s, d in b.incertains(b.numero_regle('export_clients'))])"
+C:\Python314\python.exe -c "from file_management import base; b=base.ouvrir(r'D:\Copie\recette.db'); b.resoudre_incertain(bytes.fromhex('CLE'), 'a_relivrer', 'benoit', 'absent de la cible')"
 ```
 
 Codes retour de `--lancer-regle` : 0 succès, 4 avertissement, 1 erreur, 2 paramétrage ou base inutilisable.
@@ -275,15 +275,15 @@ Commandes (provisoires, le lanceur `file_management.py` reste la v1) :
 
 ```powershell
 # lancement de l'environnement : exécute les règles dues, l'une après l'autre
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --simulation [--regle export_clients]
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --simulation [--regle export_clients]
 # état des règles
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --etat [--regle ID] [--format json]
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --etat [--regle ID] [--format json]
 # exploitation (--utilisateur obligatoire)
-C:\Python314\python.exe -m copie --config ... --reprise ID --utilisateur DOMAINE\benoit --commentaire "source rétablie"
-C:\Python314\python.exe -m copie --config ... --lancer-maintenant ID --utilisateur DOMAINE\benoit
-C:\Python314\python.exe -m copie --config ... --acquitter ID --utilisateur DOMAINE\benoit --commentaire "traité à la main"
-C:\Python314\python.exe -m copie --config ... --trancher-incertain CLE_HEXA --decision a_relivrer --utilisateur DOMAINE\benoit --commentaire "absent de la cible"
+C:\Python314\python.exe -m file_management --config ... --reprise ID --utilisateur DOMAINE\benoit --commentaire "source rétablie"
+C:\Python314\python.exe -m file_management --config ... --lancer-maintenant ID --utilisateur DOMAINE\benoit
+C:\Python314\python.exe -m file_management --config ... --acquitter ID --utilisateur DOMAINE\benoit --commentaire "traité à la main"
+C:\Python314\python.exe -m file_management --config ... --trancher-incertain CLE_HEXA --decision a_relivrer --utilisateur DOMAINE\benoit --commentaire "absent de la cible"
 ```
 
 ### 7.1 Tests automatiques
@@ -305,7 +305,7 @@ C:\Python314\python.exe -m copie --config ... --trancher-incertain CLE_HEXA --de
 
 | ID | Objectif | Procédure | Attendu | Serveur |
 |---|---|---|---|---|
-| J5-M01 | **Règle toutes les 5 minutes avec Jenkins** | Job de recette `python -m copie --config ...` toutes les 5 min, règle `intervalle` 300 s, dépôt d'un fichier toutes les 10 min | Une exécution par créneau, jamais deux ; les fichiers sont livrés au créneau qui suit leur arrivée | |
+| J5-M01 | **Règle toutes les 5 minutes avec Jenkins** | Job de recette `python -m file_management --config ...` toutes les 5 min, règle `intervalle` 300 s, dépôt d'un fichier toutes les 10 min | Une exécution par créneau, jamais deux ; les fichiers sont livrés au créneau qui suit leur arrivée | |
 | J5-M02 | Jenkins arrêté puis relancé | Arrêter le job 30 min, le relancer | La règle part **une seule fois** au retour, pas une fois par créneau manqué | |
 | J5-M03 | Règle quotidienne et rattrapage | Règle `quotidien` à H+10 min avec `rattrapage_sec = 300`, job arrêté pendant l'heure du créneau | Pas de lancement tardif au-delà du rattrapage ; sans rattrapage, lancement tardif | |
 | J5-M04 | **Fuseau et heure du serveur** | Règle `quotidien` à 5 min dans le futur, comparer avec `Get-TimeZone` et `w32tm /query /status` | Elle part à l'heure locale attendue ; noter le fuseau du serveur | |
@@ -325,8 +325,8 @@ Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 422 tests au total (375 pr
 Le comportement attendu est décrit au [§3.3 de 02-moteur](02-moteur.md). Commande : la même que pour J5 (lancement sans commande) ; chaque règle due s'exécute maintenant dans **son propre processus** `python.exe` (visible dans le gestionnaire de tâches).
 
 ```powershell
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --etat      # EN_ATTENTE / BLOQUEE y apparaissent
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --etat      # EN_ATTENTE / BLOQUEE y apparaissent
 ```
 
 ### 8.1 Tests automatiques
@@ -369,7 +369,7 @@ Comportement détaillé au [§9.1 de 02-moteur](02-moteur.md). Les programmes d'
 
 ```powershell
 # simulation avec appel des programmes (ils reçoivent COPIE_SIMULATION=1)
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --simulation --simulation-programmes --regle export_clients
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --simulation --simulation-programmes --regle export_clients
 ```
 
 ### 9.1 Tests automatiques
@@ -415,11 +415,11 @@ Le contrat complet est dans [07-contrat-moteur-frontend](07-contrat-moteur-front
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $py = 'C:\Python314\python.exe'
 # vérification complète : syntaxe + accès (à lancer SUR LE SERVEUR avec le compte de service)
-& $py -m copie --config D:\Parametrage\recette.jsonl --verifier --format json | ConvertFrom-Json
+& $py -m file_management --config D:\Parametrage\recette.jsonl --verifier --format json | ConvertFrom-Json
 # avant d'enregistrer une modification : syntaxe + comparaison avec la version actuelle
-& $py -m copie --config D:\Parametrage\nouveau.jsonl --verifier --syntaxe-seule --precedent D:\Parametrage\recette.jsonl --format json
+& $py -m file_management --config D:\Parametrage\nouveau.jsonl --verifier --syntaxe-seule --precedent D:\Parametrage\recette.jsonl --format json
 # déblocage d'une règle qui ne répond plus
-& $py -m copie --config D:\Parametrage\recette.jsonl --debloquer export_clients --utilisateur DOMAINE\benoit --commentaire "bloquee" --format json
+& $py -m file_management --config D:\Parametrage\recette.jsonl --debloquer export_clients --utilisateur DOMAINE\benoit --commentaire "bloquee" --format json
 ```
 
 ### 10.1 Tests automatiques
@@ -443,7 +443,7 @@ $py = 'C:\Python314\python.exe'
 | J8-M03 | Quota | Volume de la cible avec un quota pour le compte de service | `A07` indique l'espace du quota, pas l'espace du disque | |
 | J8-M04 | Exécutable manquant | Renommer un programme référencé par une règle | `A04` nomme le point d'appel et le chemin | |
 | J8-M05 | Aucun effet de bord | Comparer l'arborescence de la cible avant / après `--verifier` | Identique ; aucun dossier créé, aucun `.test_ecriture_*` restant | |
-| J8-M06 | **Depuis le poste du front-end** | `Invoke-Command -ComputerName SERVEUR -ScriptBlock { & C:\Python314\python.exe -m copie ... --format json }` puis `ConvertFrom-Json` | Un objet exploitable, accents corrects (avec `[Console]::OutputEncoding` en UTF-8) ; noter si les accents sont faux sans cette ligne | |
+| J8-M06 | **Depuis le poste du front-end** | `Invoke-Command -ComputerName SERVEUR -ScriptBlock { & C:\Python314\python.exe -m file_management ... --format json }` puis `ConvertFrom-Json` | Un objet exploitable, accents corrects (avec `[Console]::OutputEncoding` en UTF-8) ; noter si les accents sont faux sans cette ligne | |
 | J8-M07 | Comparaison de versions | Modifier une copie du paramétrage : changer un `id`, élargir `modifie_depuis`, changer une cible, supprimer une règle ; `--precedent` | `V01` (refus), `V03`, `V04`, `V02` conformes ; sans modification, aucun diagnostic | |
 | J8-M08 | **Déblocage d'une vraie règle bloquée** | Règle qui attend longtemps (programme `sleep`), `--debloquer` depuis un autre compte | Le processus et le programme lancé disparaissent (`tasklist`), la règle est en `ERREUR` ; `--reprise` la relance | |
 | J8-M09 | Déblocage depuis un autre serveur | `--debloquer` lancé depuis une machine qui n'est pas celle de l'exécution (base partagée impossible : tester sur la machine d'exécution) | Refus explicite si l'hôte diffère | |
@@ -499,9 +499,9 @@ Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 602 tests au total (562 pr
 Déroulement complet, étape par étape, et retour arrière : [09-migration-et-recette](09-migration-et-recette.md). Ce jalon est le seul qui **touche aux données de production** : les tests manuels se font d'abord sur une **copie** de `copies.conf` et de l'historique, avec des dossiers de recette.
 
 ```powershell
-C:\Python314\python.exe -m copie --migrer-ancien D:\Anciens\copies.conf --environnement recette --base D:\Copie\recette.db --sortie D:\Parametrage\recette.jsonl
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --initialiser-base
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --importer-historique D:\Anciens\copies.historique.copie.json --utilisateur DOMAINE\benoit
+C:\Python314\python.exe -m file_management --migrer-ancien D:\Anciens\copies.conf --environnement recette --base D:\Copie\recette.db --sortie D:\Parametrage\recette.jsonl
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --initialiser-base
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --importer-historique D:\Anciens\copies.historique.copie.json --utilisateur DOMAINE\benoit
 C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recette\cible_v2 --dates
 ```
 
@@ -515,7 +515,7 @@ C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recet
 | J11-A04 | **Import de l'historique** : versions copiées → `TERMINE` avec la bonne clé et les bonnes dates, **idempotent** et tracé, entrées sans règle (autre dossier, autre cible, autre nom, mauvais masque, sous-dossier d'une règle non récursive), règles récursives, choix de la règle par le masque, casse et variables d'environnement, historique absent / cassé / mal formé, entrées incomplètes, 20 000 entrées en quelques secondes | OK | |
 | J11-A05 | **Parcours réel ancien script → nouveau** : l'ancien script copie vraiment, on migre, on importe → le nouveau moteur **ne relivre rien** (trois fichiers ignorés) ; **sans l'import il aurait tout relivré** ; une nouveauté et une version modifiée sont livrées comme avant, le résultat est identique à celui de l'ancien script ; un fichier perdu par la cible est recopié comme avant | OK | |
 | J11-A06 | **Comparateur de dossiers** : identiques, absents d'un côté, taille ou contenu différent, casse, masque, temporaires ignorés, dates, codes retour | OK | |
-| J11-A07 | Lanceur `file_management_v2.py` équivalent à `python -m copie` | OK | |
+| J11-A07 | Lanceur `file_management_v2.py` équivalent à `python -m file_management` | OK | |
 
 ### 12.2 Tests manuels sur le serveur (sur des copies, puis en recette)
 
@@ -539,8 +539,8 @@ Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 634 tests au total (602 pr
 Spécification : [02-moteur §11.2](02-moteur.md). La purge **supprime des données** : toujours commencer par la liste (sans `--appliquer`).
 
 ```powershell
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --purger --regle r1 --appliquer
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --purger
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --purger --regle r1 --appliquer
 ```
 
 ### 13.1 Tests automatiques (fichier `tests/test_purge.py`)

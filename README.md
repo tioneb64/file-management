@@ -6,7 +6,7 @@ Il se compose de quatre éléments :
 
 | Élément | Où | Rôle |
 |---|---|---|
-| **Moteur** | `copie\` (`python -m copie`) | Python 3.14, bibliothèque standard seulement. Lit le paramétrage, tient l'état dans une base SQLite, exécute les transferts, écrit les journaux JSON |
+| **Moteur** | `file_management\` (`python -m file_management`) | Python 3.14, bibliothèque standard seulement. Lit le paramétrage, tient l'état dans une base SQLite, exécute les transferts, écrit les journaux JSON |
 | **Jenkins** | `jenkins\` | Jobs de transfert (toutes les 5 minutes), sauvegarde, vérification et purge ; bibliothèque `journal-si` |
 | **Interface de gestion** | `Gui\` | Application PowerShell 5.1 / WPF : consulter l'état, modifier le paramétrage, reprendre, acquitter, promouvoir, historique |
 | **Point d'accès JEA** | `Gui\Jea\`, `Gui\Installer-PointAccesJea.ps1` | Accès restreint au moteur depuis un poste distant (facultatif) |
@@ -34,12 +34,12 @@ Vue d'ensemble, architecture et décisions : [docs/00-vue-ensemble.md](docs/00-v
 
 ```bat
 cd /d D:\Scripts\file_management
-python -m copie --config D:\Parametrage\production.jsonl --verifier                  REM valider le paramétrage et les accès
-python -m copie --config D:\Parametrage\production.jsonl --initialiser-base          REM une seule fois
-python -m copie --config D:\Parametrage\production.jsonl --simulation               REM voir ce qui serait livré
-python -m copie --config D:\Parametrage\production.jsonl                             REM lancement (ce que fait Jenkins)
-python -m copie --config D:\Parametrage\production.jsonl --etat                      REM état de chaque règle
-python -m copie --help                                                               REM toutes les commandes
+python -m file_management --config D:\Parametrage\production.jsonl --verifier                  REM valider le paramétrage et les accès
+python -m file_management --config D:\Parametrage\production.jsonl --initialiser-base          REM une seule fois
+python -m file_management --config D:\Parametrage\production.jsonl --simulation               REM voir ce qui serait livré
+python -m file_management --config D:\Parametrage\production.jsonl                             REM lancement (ce que fait Jenkins)
+python -m file_management --config D:\Parametrage\production.jsonl --etat                      REM état de chaque règle
+python -m file_management --help                                                               REM toutes les commandes
 ```
 
 Codes retour : `0` succès, `1` au moins une erreur pendant ce lancement, `2` commande refusée (paramétrage invalide, base absente, arguments), `4` succès avec avertissement. Avec `--format json`, toute commande répond par un objet JSON (contrat versionné, [docs/07](docs/07-contrat-moteur-frontend.md)).

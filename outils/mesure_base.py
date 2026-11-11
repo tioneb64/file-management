@@ -15,7 +15,7 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from copie import base  # noqa: E402
+from file_management import base  # noqa: E402
 
 
 def main():

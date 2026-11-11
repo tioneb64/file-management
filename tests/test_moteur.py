@@ -11,10 +11,10 @@ import unittest
 from unittest import mock
 
 import journal_si
-from copie import base as modele_base
-from copie import chemins, execution, transfert
-from copie.diagnostic import Rapport
-from copie.parametrage import Entete, lire_regle
+from file_management import base as modele_base
+from file_management import chemins, execution, transfert
+from file_management.diagnostic import Rapport
+from file_management.parametrage import Entete, lire_regle
 from tests.outils import CasTemporaire
 
 

@@ -1,13 +1,13 @@
 ﻿# Module du point d'accès JEA de file_management : la seule fonction visible dans la session JEA.
 #
 # Contrat (docs/04-frontend.md §6) : Invoke-CopieMoteurJea -Argument <string[]> -Fichier <chemin> lance le
-# moteur (python -m copie) avec le compte de la session (compte virtuel ou compte de service géré) et
+# moteur (python -m file_management) avec le compte de la session (compte virtuel ou compte de service géré) et
 # renvoie Code, Sortie (le JSON du moteur) et Erreur. Tout ce qui n'est pas dans la grammaire ci-dessous
 # est refusé AVANT le lancement : le point d'accès n'est pas un moyen d'exécuter autre chose que le moteur.
 
 Set-StrictMode -Version 2.0
 
-$Script:CheminConfig = Join-Path $PSScriptRoot 'Copie.Jea.config.psd1'
+$Script:CheminConfig = Join-Path $PSScriptRoot 'FileManagement.Jea.config.psd1'
 
 # Types de valeurs : expression régulière que la valeur doit respecter en entier.
 $Script:Types = @{
@@ -111,7 +111,7 @@ function ConvertTo-CopieJeaLigne {
     if (-not $Script:Grammaire.ContainsKey($commande)) { return (& $refus ("commande non permise : {0}" -f $commande)) }
     $regle = $Script:Grammaire[$commande]
     $lignes = New-Object System.Collections.Generic.List[string]
-    $lignes.Add('-m'); $lignes.Add('copie')
+    $lignes.Add('-m'); $lignes.Add('file_management')
     if ($regle.Fichier) {
         if (-not $Fichier) { return (& $refus 'le fichier de paramétrage est obligatoire pour cette commande') }
         if ($Fichier -notmatch $Script:Types.chemin -or -not (Test-CopieJeaChemin -Chemin $Fichier -Dossier $Config.DossierParametrage)) {

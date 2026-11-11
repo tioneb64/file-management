@@ -9,12 +9,13 @@ import time
 import unittest
 from unittest import mock
 
-import file_management as v1
-from copie import __main__ as cli
-from copie import base, migration
-from copie.controles import verifier_fichier
-from copie.parametrage import charger
-from tests.outils import CasTemporaire
+from file_management import __main__ as cli
+from file_management import base, migration
+from file_management.controles import verifier_fichier
+from file_management.parametrage import charger
+from tests.outils import CasTemporaire, charger_v1
+
+v1 = charger_v1()
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(RACINE, "outils"))

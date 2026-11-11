@@ -8,11 +8,11 @@ import subprocess
 import sys
 import unittest
 
-from copie import __main__ as cli
-from copie import base as modele_base
-from copie import lancement, planification, processus
-from copie.controles import verifier_fichier
-from copie.execution import nom_hote
+from file_management import __main__ as cli
+from file_management import base as modele_base
+from file_management import lancement, planification, processus
+from file_management.controles import verifier_fichier
+from file_management.execution import nom_hote
 from tests.test_moteur import CasMoteur
 
 QUOTIDIEN_7H = {"type": "quotidien", "heure": "07:00"}
@@ -302,7 +302,7 @@ class TestReprise(CasLancement):
         self.lancer_env()
         self.heure(7, 0)
         from unittest import mock
-        from copie import transfert
+        from file_management import transfert
         from tests.test_moteur import Plantage
         with mock.patch.object(transfert, "copier_verifier", side_effect=Plantage):
             with self.assertRaises(Plantage):
@@ -371,7 +371,7 @@ class TestAcquittement(CasLancement):
         self.lancer_env()
         self.heure(7, 0)
         from unittest import mock
-        from copie import transfert
+        from file_management import transfert
         from tests.test_moteur import Plantage
         with mock.patch.object(transfert, "copier_verifier", side_effect=Plantage):
             with self.assertRaises(Plantage):
@@ -469,7 +469,7 @@ class TestEtat(CasLancement):
         self.lancer_env()
         self.heure(7, 0)
         from unittest import mock
-        from copie import transfert
+        from file_management import transfert
         from tests.test_moteur import Plantage
         with mock.patch.object(transfert, "copier_verifier", side_effect=Plantage):
             with self.assertRaises(Plantage):

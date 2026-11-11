@@ -41,10 +41,10 @@ Le rapport est écrit dans `rapports\tests_<machine>_<date>.txt`. **Attendu : to
 
 ```bat
 cd /d D:\Scripts\file_management
-C:\Python314\python.exe -m copie --help
+C:\Python314\python.exe -m file_management --help
 ```
 
-Le moteur se lance toujours par `python -m copie` depuis ce dossier (ou par `file_management_v2.py`, qui est équivalent). `file_management.py` reste l'**ancien** script v1 tant que la bascule n'est pas faite ([09-migration-et-recette](09-migration-et-recette.md)).
+Le moteur se lance toujours par `python -m file_management` depuis ce dossier (ou par `file_management_v2.py`, qui est équivalent). `file_management.py` reste l'**ancien** script v1 tant que la bascule n'est pas faite ([09-migration-et-recette](09-migration-et-recette.md)).
 
 ## 3. Dossier de paramétrage protégé
 
@@ -77,13 +77,13 @@ Chaque environnement (production, recette…) a **un fichier** `D:\Parametrage\<
 2. **Vérifier la syntaxe** :
 
 ```bat
-C:\Python314\python.exe -m copie --config D:\Parametrage\production.jsonl --verifier --syntaxe-seule
+C:\Python314\python.exe -m file_management --config D:\Parametrage\production.jsonl --verifier --syntaxe-seule
 ```
 
 3. **Vérifier les accès** (droits sur les sources, cibles, archives, programmes, base), **avec le compte de service** : c'est lui qui exécutera les transferts, un contrôle fait avec un autre compte ne prouve rien pour Jenkins.
 
 ```bat
-C:\Python314\python.exe -m copie --config D:\Parametrage\production.jsonl --verifier
+C:\Python314\python.exe -m file_management --config D:\Parametrage\production.jsonl --verifier
 ```
 
 Code 0 : tout est bon ; 4 : avertissements à lire ; 2 : refus à corriger.
@@ -91,7 +91,7 @@ Code 0 : tout est bon ; 4 : avertissements à lire ; 2 : refus à corriger.
 4. **Créer la base** (une fois, avec le compte de service, ou un compte qui lui laisse l'écriture sur le dossier) :
 
 ```bat
-C:\Python314\python.exe -m copie --config D:\Parametrage\production.jsonl --initialiser-base
+C:\Python314\python.exe -m file_management --config D:\Parametrage\production.jsonl --initialiser-base
 ```
 
 La base n'est **jamais** créée automatiquement : sans elle, le moteur ne traite rien (si la base disparaît, rien n'est copié plutôt que de tout relivrer).
@@ -99,7 +99,7 @@ La base n'est **jamais** créée automatiquement : sans elle, le moteur ne trait
 5. **Essai sans risque** :
 
 ```bat
-C:\Python314\python.exe -m copie --config D:\Parametrage\production.jsonl --simulation
+C:\Python314\python.exe -m file_management --config D:\Parametrage\production.jsonl --simulation
 ```
 
 Affiche ce qui serait livré sans rien copier ni modifier.
@@ -176,7 +176,7 @@ puis sans `-WhatIf`. Options : `-GroupeLecture` (membres qui ne peuvent que cons
 4. Dans `Gestion-Copie.config.psd1` : `Moteur.Mode = 'Distant'`, `Moteur.Serveur = 'SERVEUR'`, `Moteur.ConfigurationJea = 'FileManagement'`.
 5. Les sessions sont transcrites dans `%ProgramData%\FileManagement\Jea` (qui a lancé quoi).
 
-Pour **modifier** le point d'accès (groupe, chemins), relancer le script : il remplace le module, la configuration et l'enregistrement. Pour le retirer : `Unregister-PSSessionConfiguration -Name FileManagement` puis supprimer `C:\Program Files\WindowsPowerShell\Modules\Copie.Jea`.
+Pour **modifier** le point d'accès (groupe, chemins), relancer le script : il remplace le module, la configuration et l'enregistrement. Pour le retirer : `Unregister-PSSessionConfiguration -Name FileManagement` puis supprimer `C:\Program Files\WindowsPowerShell\Modules\FileManagement.Jea`.
 
 > **Jamais essayé dans une vraie session JEA** : le module est testé en l'appelant directement. Tests à jouer : J10E-M01 à M08 du cahier. Surveiller en particulier le point 3 et le fonctionnement du compte de service géré.
 

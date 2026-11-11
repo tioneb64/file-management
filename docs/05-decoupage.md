@@ -55,7 +55,7 @@ Dès que le format de journal (J3) et les sorties du moteur (J8) sont figés, tr
 
 ### J0 — Socle
 
-- Package `copie/` (modules : paramétrage, base, planification, sélection, transfert, situations, programmes, orchestrateur, journal) et lanceur `file_management.py`.
+- Package `file_management/` (modules : paramétrage, base, planification, sélection, transfert, situations, programmes, orchestrateur, journal) et lanceur `file_management.py`.
 - Tests avec `unittest` (bibliothèque standard, aucune installation sur le serveur), dossiers temporaires, outils d'injection de pannes (fichier verrouillé, dossier absent, disque plein simulé, source modifiée pendant la copie).
 - Installation de Python 3.14 sur le serveur de recette (Windows Server 2016) et vérification que `sqlite3`, `ctypes`, `multiprocessing` et la création d'un Job Object fonctionnent. **C'est le premier test du projet** : si la 3.14 ne s'installe pas ou ne fonctionne pas correctement sur Windows Server 2016, on le sait avant d'avoir écrit du code.
 - Script d'exécution des tests ; le code ne doit utiliser aucun module retiré (contrôle par `python -W error`).
@@ -112,7 +112,7 @@ Dès que le format de journal (J3) et les sorties du moteur (J8) sont figés, tr
 ### J12 — Purge des journaux et des archives
 
 1. Rétentions par règle (`retention_journaux_jours`, `retention_archive_jours`) et d'en-tête ; contrôle R13.
-2. `copie/purge.py` : plan (liste) puis application, garde-fous, tracé ; commande `--purger [--appliquer]`.
+2. `file_management/purge.py` : plan (liste) puis application, garde-fous, tracé ; commande `--purger [--appliquer]`.
 3. Purge de la base à chaque lancement (une fois par jour) ; `jenkins/Jenkinsfile.purge`.
 4. Le paramétrage depuis le front-end suivra J10 (les champs sont de simples champs de règle).
 

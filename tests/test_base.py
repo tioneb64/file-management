@@ -12,8 +12,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from copie import __main__ as cli
-from copie import base
+from file_management import __main__ as cli
+from file_management import base
 from tests.outils import CasTemporaire
 from tests.travailleurs import lancer_en_parallele
 
@@ -518,7 +518,7 @@ class TestConcurrence(CasBase):
 class TestArretBrutal(CasBase):
     def test_transaction_non_validee_disparait(self):
         self.b.fermer()
-        code = ("import os\nfrom copie import base\n"
+        code = ("import os\nfrom file_management import base\n"
                 "b = base.ouvrir(%r)\n"
                 "b.c.execute('BEGIN IMMEDIATE')\n"
                 "b.c.execute(\"INSERT INTO fichiers(cle, regle_no, etat, vu_jour) VALUES (x'00', 1, 1, 1)\")\n"
@@ -530,7 +530,7 @@ class TestArretBrutal(CasBase):
 
     def test_intention_validee_survit_et_devient_incertaine(self):
         self.b.fermer()
-        code = ("import os\nfrom copie import base\n"
+        code = ("import os\nfrom file_management import base\n"
                 "b = base.ouvrir(%r)\n"
                 "no = b.numero_regle('r1')\n"
                 "ex = b.demarrer_execution(no, 'planifie', os.getpid())\n"
@@ -551,7 +551,7 @@ class TestArretBrutal(CasBase):
 
     def test_coupure_apres_confirmation_ne_perd_rien(self):
         self.b.fermer()
-        code = ("import os\nfrom copie import base\n"
+        code = ("import os\nfrom file_management import base\n"
                 "b = base.ouvrir(%r)\n"
                 "no = b.numero_regle('r1')\n"
                 "cle = base.cle_version('r1', 'a.csv', 10, 1)\n"

@@ -5,8 +5,8 @@ import sys
 import unittest
 from unittest import mock
 
-from copie import chemins, selection, transfert
-from copie.parametrage import Selection
+from file_management import chemins, selection, transfert
+from file_management.parametrage import Selection
 from tests.outils import CasTemporaire
 
 MAINTENANT = datetime.datetime(2026, 11, 3, 6, 30, 12)

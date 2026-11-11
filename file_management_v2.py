@@ -1,4 +1,4 @@
-"""Lanceur de file_management v2 : equivalent de `python -m copie`.
+"""Lanceur de file_management v2 : equivalent de `python -m file_management`.
 
     python file_management_v2.py --config D:\\Parametrage\\production.jsonl [commande] [--format json]
 
@@ -8,7 +8,7 @@ file_management.py : les jobs Jenkins n'ont alors rien a changer.
 """
 import sys
 
-from copie.__main__ import main
+from file_management.__main__ import main
 
 if __name__ == "__main__":
     sys.exit(main())

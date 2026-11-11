@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-from copie import base
+from file_management import base
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

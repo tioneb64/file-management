@@ -96,9 +96,9 @@ Une règle `apres_dependances` n'a pas d'horaire : elle est lancée dès que ses
 
 ### 3.3 Précisions apportées par l'implémentation (J6)
 
-Code : `copie/orchestrateur.py` (fils, parallélisme, durée maximale), `copie/dependances.py` (évaluation pure), `copie/processus.py` (Job Object, arrêt d'arbre).
+Code : `file_management/orchestrateur.py` (fils, parallélisme, durée maximale), `file_management/dependances.py` (évaluation pure), `file_management/processus.py` (Job Object, arrêt d'arbre).
 
-- **Un processus par règle.** L'orchestrateur prend le drapeau et crée l'exécution **lui-même** (atomique), lance `python -m copie --config … --executer-regle ID --execution-id N` (commande interne), place le fils dans un **Job Object** puis lui envoie « go » sur son entrée standard : le fils ne commence rien avant d'être dans son job, donc aucun descendant n'échappe à l'arrêt. L'orchestrateur renseigne en base l'identifiant **et** la date de création du fils (détection d'un processus vivant, voir §2). La sortie du fils (lignes lisibles de la console) est celle de l'orchestrateur : elle apparaît dans la console Jenkins.
+- **Un processus par règle.** L'orchestrateur prend le drapeau et crée l'exécution **lui-même** (atomique), lance `python -m file_management --config … --executer-regle ID --execution-id N` (commande interne), place le fils dans un **Job Object** puis lui envoie « go » sur son entrée standard : le fils ne commence rien avant d'être dans son job, donc aucun descendant n'échappe à l'arrêt. L'orchestrateur renseigne en base l'identifiant **et** la date de création du fils (détection d'un processus vivant, voir §2). La sortie du fils (lignes lisibles de la console) est celle de l'orchestrateur : elle apparaît dans la console Jenkins.
 - **Résultat du fils** : écrit en base (`terminer_execution`) et dans `dossier_travail\resultat_<id>.json` (écriture atomique, supprimé après lecture). **L'orchestrateur journalise la fin de chaque règle** (`regle_terminee`) : à partir du JSON ; sinon de la ligne `executions` si le fils a écrit en base sans écrire le JSON ; sinon la règle passe en `ERREUR` (situation `arret_anormal`, exécution `ARRETEE`, drapeau libéré) et l'événement `arret_anormal` donne le code de sortie du fils.
 - **Parallélisme** : `parallele_max` de l'en-tête (défaut : aucune limite). Les règles prêtes partent dans l'ordre du fichier. À chaque fin de fils, les règles en attente sont réévaluées : une chaîne 8 → 9 → 10 se déroule dans un seul lancement.
 - **Durée maximale** (`duree_max_sec` depuis le démarrage du fils) : `erreur` → arrêt de l'**arbre** de processus (Job Object, sinon `taskkill /T /F`), exécution en `ERREUR`, situation `duree_depassee`, arrêt après erreur selon `apres_erreur` ; `relancer` → arrêt puis nouvelle exécution immédiate, au plus `relances_max` fois de suite (compteur `relances`, remis à zéro par toute fin normale), puis `ERREUR` ; `alerter` → on laisse tourner, un seul `WARNING` `duree_depassee`, l'exécution se termine en `WARNING` si elle réussit. Une exécution vivante d'un **autre lancement** (parallèle) qui dépasse sa durée est traitée de la même façon au démarrage du lancement suivant (arrêt par `taskkill /T`, car son Job Object n'appartient pas au nouvel orchestrateur).
@@ -123,9 +123,9 @@ Les calculs se font en **heure locale** du serveur d'exécution ; les résultats
 
 ### 4.1 Précisions apportées par l'implémentation (J5)
 
-Code : `copie/planification.py` (calcul pur, horloge injectée), `copie/lancement.py` (lancement séquentiel, état), `copie/processus.py`.
+Code : `file_management/planification.py` (calcul pur, horloge injectée), `file_management/lancement.py` (lancement séquentiel, état), `file_management/processus.py`.
 
-- **Sans commande**, `python -m copie --config FICHIER [--regle ID] [--simulation]` est un **lancement** : il synchronise les règles avec la base, libère les exécutions orphelines, évalue chaque règle dans l'ordre du fichier et exécute les règles dues **l'une après l'autre dans ce processus**. Le parallélisme (un processus par règle) et la durée maximale arrivent au jalon J6. Code retour : 0, 4 si au moins un `WARNING`, 1 si au moins une `ERREUR`, 2 si la base est inutilisable.
+- **Sans commande**, `python -m file_management --config FICHIER [--regle ID] [--simulation]` est un **lancement** : il synchronise les règles avec la base, libère les exécutions orphelines, évalue chaque règle dans l'ordre du fichier et exécute les règles dues **l'une après l'autre dans ce processus**. Le parallélisme (un processus par règle) et la durée maximale arrivent au jalon J6. Code retour : 0, 4 si au moins un `WARNING`, 1 si au moins une `ERREUR`, 2 si la base est inutilisable.
 - **Dépendances** : tant que le jalon J6 n'est pas fait, une règle qui a un champ `apres` n'est **pas lancée** quand elle est due : événement `regle_non_lancee` (WARNING) et code retour 4. Les règles sans dépendance fonctionnent normalement.
 - **Créneau pris** : l'exécution enregistre le créneau qu'elle prend au moment où elle prend le drapeau (même transaction). Une reprise ou un lancement manuel prend aussi le dernier créneau échu, pour que la règle ne reparte pas aussitôt.
 - **Règle nouvelle** (jamais lancée, `dernier_creneau` vide) : son dernier créneau échu est considéré comme pris au premier lancement qui la voit ; elle démarre au créneau suivant. `--lancer-maintenant` la démarre tout de suite (la règle est enregistrée en base par la commande).
@@ -219,7 +219,7 @@ Au début de chaque exécution (étape 2), les enregistrements restés à l'éta
 
 ### 6.4 Précisions apportées par l'implémentation (J4)
 
-Code : `copie/selection.py`, `copie/chemins.py`, `copie/transfert.py`, `copie/execution.py`. Commande provisoire : `python -m copie --config FICHIER --lancer-regle ID [--simulation]` (une règle, sans planification ; le lancement complet vient aux jalons J5 et J6). Codes retour : 0 succès, 4 avertissement, 1 erreur, 2 paramétrage ou base inutilisable.
+Code : `file_management/selection.py`, `file_management/chemins.py`, `file_management/transfert.py`, `file_management/execution.py`. Commande provisoire : `python -m file_management --config FICHIER --lancer-regle ID [--simulation]` (une règle, sans planification ; le lancement complet vient aux jalons J5 et J6). Codes retour : 0 succès, 4 avertissement, 1 erreur, 2 paramétrage ou base inutilisable.
 
 - **Ordre des étapes** : (a) livraisons interrompues (§6.3), (b) contrôles préalables, (c) actions en attente, (d) sélection, (e) limite et espace, (f) livraison. Les contrôles passent avant les actions en attente car un archivage différé a besoin de savoir si l'archive est accessible. Les points d'appel des programmes externes (J7) s'insèrent aux mêmes endroits qu'au §5.
 - **`aucun_fichier`** s'applique quand, **après** le filtre anti-doublon, il n'y a rien à livrer (et non quand la source est vide) : en mode `copie`, les fichiers restent dans la source, et un fichier déjà livré n'est pas « un fichier à livrer ». La boucle relit le dossier à chaque tentative, ce qui permet d'attendre l'arrivée d'un fichier. Niveau de secours `INFO` : une règle qui n'a souvent rien à faire ne passe pas en erreur.
@@ -309,7 +309,7 @@ Réalisés par le compte de service qui exécute le moteur, donc avec **ses** dr
 
 ### 9.1 Précisions apportées par l'implémentation (J7)
 
-Code : `copie/programmes.py` (lancement, listes), appels dans `copie/execution.py`.
+Code : `file_management/programmes.py` (lancement, listes), appels dans `file_management/execution.py`.
 
 - **Lancement** : `subprocess` sans shell ; chaque élément de `commande` reçoit ses variables, un élément reste un argument même s'il contient des espaces, des guillemets ou `&`. Entrée standard fermée. Sortie standard et sortie d'erreur **réunies**, décodées en UTF-8 puis, à défaut, dans la page de code OEM de la console ; tronquées à **8 Ko**. Les programmes Python reçoivent `PYTHONUTF8=1` et `PYTHONIOENCODING=utf-8` (leur sortie est en UTF-8). Répertoire courant : `dossier_travail`.
 - **Arbre de processus** : sous Windows le programme démarre **suspendu**, est placé dans son propre Job Object, puis repris : un petit-fils lancé dès la première instruction n'échappe pas à l'arrêt. À l'expiration de `timeout_sec`, tout l'arbre est arrêté (mesuré : aucun survivant sur 3 essais consécutifs).
@@ -366,7 +366,7 @@ Les programmes n'appellent que ces trois fonctions. Le fonctionnement interne (a
 
 - `<dossier_logs>\<regle>_<AAAA-MM-JJ>.jsonl` : un fichier par règle et par jour. `<dossier_logs>\_orchestrateur_<AAAA-MM-JJ>.jsonl` pour le lancement.
 - UTF-8, une ligne = un événement, écrite en **un seul appel d'écriture** en mode ajout. Plusieurs processus peuvent écrire dans le même fichier ; un test de charge (8 processus × 10 000 lignes, aucune ligne corrompue) fait partie des critères de sortie.
-- La purge des anciens fichiers est un module séparé (`copie/purge.py`, commande `--purger`), paramétré par règle (`retention_journaux_jours`, `retention_archive_jours`).
+- La purge des anciens fichiers est un module séparé (`file_management/purge.py`, commande `--purger`), paramétré par règle (`retention_journaux_jours`, `retention_archive_jours`).
 
 **Purge (J12)** — opération destructive, donc prudente :
 

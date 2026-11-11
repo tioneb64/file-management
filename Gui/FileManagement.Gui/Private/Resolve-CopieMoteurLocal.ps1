@@ -31,7 +31,7 @@ function Resolve-CopieMoteurLocal {
     .DESCRIPTION
         Le fichier de configuration modèle porte des chemins d'exemple (C:\Python314\python.exe, D:\Scripts\file_management)
         qui n'existent pas sur un poste de développement. Python est cherché dans le PATH puis par le lanceur py ; la
-        racine du moteur est le dossier qui contient « copie\__main__.py » au-dessus de ce module (dépôt). Une seule
+        racine du moteur est le dossier qui contient « file_management\__main__.py » au-dessus de ce module (dépôt). Une seule
         question est posée pour tout ce qui est corrigé. Rien n'est écrit dans le fichier de configuration : la
         correction vaut pour la session. Hors mode Local, ne fait rien.
 
@@ -58,7 +58,7 @@ function Resolve-CopieMoteurLocal {
     if ($moteur.Mode -ne 'Local') { return [pscustomobject]@{ Ok = $true; Modifie = $false; Message = '' } }
 
     $pythonOk = ($moteur.Python -and (Test-Path -LiteralPath $moteur.Python -PathType Leaf))
-    $racineOk = ($moteur.Racine -and (Test-Path -LiteralPath (Join-Path $moteur.Racine 'copie\__main__.py') -PathType Leaf))
+    $racineOk = ($moteur.Racine -and (Test-Path -LiteralPath (Join-Path $moteur.Racine 'file_management\__main__.py') -PathType Leaf))
     if ($pythonOk -and $racineOk) { return [pscustomobject]@{ Ok = $true; Modifie = $false; Message = '' } }
 
     if (-not $RacineDepot) { $RacineDepot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
@@ -73,8 +73,8 @@ function Resolve-CopieMoteurLocal {
         else { $probleme.Add(('Python introuvable (Moteur.Python = {0}) et aucun python.exe dans le PATH.' -f $moteur.Python)) }
     }
     if (-not $racineOk) {
-        if ($RacineDepot -and (Test-Path -LiteralPath (Join-Path $RacineDepot 'copie\__main__.py') -PathType Leaf)) { $racine = $RacineDepot; $propose.Add('Moteur : ' + $RacineDepot) }
-        else { $probleme.Add(('Dossier du moteur introuvable (Moteur.Racine = {0}) : il doit contenir copie\__main__.py.' -f $moteur.Racine)) }
+        if ($RacineDepot -and (Test-Path -LiteralPath (Join-Path $RacineDepot 'file_management\__main__.py') -PathType Leaf)) { $racine = $RacineDepot; $propose.Add('Moteur : ' + $RacineDepot) }
+        else { $probleme.Add(('Dossier du moteur introuvable (Moteur.Racine = {0}) : il doit contenir file_management\__main__.py.' -f $moteur.Racine)) }
     }
 
     $modifie = $false
@@ -88,6 +88,6 @@ function Resolve-CopieMoteurLocal {
         else { $probleme.Add('Chemins du moteur non corrigés : corrigez Moteur.Python et Moteur.Racine dans Gestion-Copie.config.psd1.') }
     }
     $okPython = ($moteur.Python -and (Test-Path -LiteralPath $moteur.Python -PathType Leaf))
-    $okRacine = ($moteur.Racine -and (Test-Path -LiteralPath (Join-Path $moteur.Racine 'copie\__main__.py') -PathType Leaf))
+    $okRacine = ($moteur.Racine -and (Test-Path -LiteralPath (Join-Path $moteur.Racine 'file_management\__main__.py') -PathType Leaf))
     [pscustomobject]@{ Ok = [bool]($okPython -and $okRacine); Modifie = $modifie; Message = ($probleme -join "`n") }
 }

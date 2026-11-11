@@ -1,5 +1,5 @@
 ﻿<#
-    Chargeur du module Copie.Gui.
+    Chargeur du module FileManagement.Gui.
 
     Dot-source les fichiers de Private\ puis de Views\ puis de Public\ (ordre alphabétique) ; une
     erreur de chargement nomme le fichier fautif. Exporte, pour chaque fichier de Public\, la
@@ -16,10 +16,10 @@ foreach ($dossier in $dossiers) {
     if (-not (Test-Path -LiteralPath $chemin)) { continue }
     foreach ($fichier in @(Get-ChildItem -LiteralPath $chemin -Filter '*.ps1' -File -Recurse | Sort-Object FullName)) {
         try { . $fichier.FullName }
-        catch { throw ('Copie.Gui : chargement de {0} impossible : {1}' -f $fichier.FullName, $_.Exception.Message) }
+        catch { throw ('FileManagement.Gui : chargement de {0} impossible : {1}' -f $fichier.FullName, $_.Exception.Message) }
         if ($dossier -eq 'Public') {
             if (-not (Get-Command -Name $fichier.BaseName -CommandType Function -ErrorAction SilentlyContinue)) {
-                throw ('Copie.Gui : {0} ne définit pas la fonction {1} (nom de fichier = nom de fonction).' -f $fichier.FullName, $fichier.BaseName)
+                throw ('FileManagement.Gui : {0} ne définit pas la fonction {1} (nom de fichier = nom de fonction).' -f $fichier.FullName, $fichier.BaseName)
             }
             $publics.Add($fichier.BaseName)
         }

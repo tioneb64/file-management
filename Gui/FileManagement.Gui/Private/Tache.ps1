@@ -45,7 +45,7 @@ function Start-CopieTache {
     $null = $ps.AddScript({
             param($module, $config, $fichier, $argument)
             Import-Module $module -Force
-            & (Get-Module 'Copie.Gui') { param($c, $f, $a) Invoke-CopieMoteur -Config $c -Fichier $f -Argument $a } $config $fichier $argument
+            & (Get-Module 'FileManagement.Gui') { param($c, $f, $a) Invoke-CopieMoteur -Config $c -Fichier $f -Argument $a } $config $fichier $argument
         }).AddArgument($chemin).AddArgument($Config).AddArgument($Fichier).AddArgument($Argument)
     $tache = @{ Ps = $ps; Poignee = $ps.BeginInvoke(); SurFin = $SurFin; Donnees = $Donnees; Reponse = $null; Debut = Get-Date }
     $Script:Taches.Add($tache)

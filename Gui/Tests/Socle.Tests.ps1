@@ -3,7 +3,7 @@
 # Aucun test ne contacte un serveur, un AD ou une base : tout se passe dans $TestDrive.
 
 BeforeAll {
-    $Script:Module = Join-Path $PSScriptRoot '..\Copie.Gui\Copie.Gui.psd1'
+    $Script:Module = Join-Path $PSScriptRoot '..\FileManagement.Gui\FileManagement.Gui.psd1'
     Import-Module $Script:Module -Force
     $Script:Utf8SansBom = New-Object System.Text.UTF8Encoding($false)
     $Script:Ecrire = {
@@ -27,7 +27,7 @@ Describe 'Get-CopieConfig' {
     It 'lit une configuration valide et applique les valeurs de secours' {
         $f = Join-Path $TestDrive 'ok.psd1'
         Set-Content -LiteralPath $f -Value $Script:ConfigValide
-        $c = InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f }
+        $c = InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f }
         $c.Acces.GroupesAdmin | Should -Be 'DOMAINE\GG_Copie_Admins'
         $c.Moteur.DelaiMaxSec | Should -Be 120
         $c.Parametrage.Filtre | Should -Be '*.jsonl'
@@ -36,13 +36,13 @@ Describe 'Get-CopieConfig' {
     It 'refuse une configuration sans groupe administrateur' {
         $f = Join-Path $TestDrive 'sans-groupe.psd1'
         Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @() }; Moteur = @{ Python = 'p'; Racine = 'r' } }"
-        { InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } | Should -Throw '*GroupesAdmin*'
+        { InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } | Should -Throw '*GroupesAdmin*'
     }
     It 'refuse une clé ou une section inconnue (faute de frappe)' {
         $f = Join-Path $TestDrive 'inconnue.psd1'
         Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @('G'); Groupe = 'x' }; Moteur = @{ Python = 'p'; Racine = 'r' }; Autre = @{} }"
         $erreur = $null
-        try { InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } catch { $erreur = $_.Exception.Message }
+        try { InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } catch { $erreur = $_.Exception.Message }
         $erreur | Should -Match 'clé inconnue : Acces.Groupe'
         $erreur | Should -Match 'section inconnue : Autre'
     }
@@ -50,27 +50,27 @@ Describe 'Get-CopieConfig' {
         $f = Join-Path $TestDrive 'distant.psd1'
         Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Distant' } }"
         $erreur = $null
-        try { InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } catch { $erreur = $_.Exception.Message }
+        try { InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } catch { $erreur = $_.Exception.Message }
         $erreur | Should -Match 'Moteur.Serveur'
         $erreur | Should -Match 'Moteur.Python'
     }
     It 'accepte un point d''accès JEA sans Python ni Racine' {
         $f = Join-Path $TestDrive 'jea.psd1'
         Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Distant'; Serveur = 'S'; ConfigurationJea = 'FileManagement' } }"
-        $c = InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f }
+        $c = InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f }
         $c.Moteur.ConfigurationJea | Should -Be 'FileManagement'
     }
     It 'refuse la JEA en mode Local, un mode inconnu et un fichier absent' {
         $f = Join-Path $TestDrive 'jealocal.psd1'
         Set-Content -LiteralPath $f -Value "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Local'; ConfigurationJea = 'X' } }"
-        { InModuleScope Copie.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } | Should -Throw '*réservé au mode Distant*'
+        { InModuleScope FileManagement.Gui -Parameters @{ f = $f } { param($f) Get-CopieConfig -Chemin $f } } | Should -Throw '*réservé au mode Distant*'
         $g = Join-Path $TestDrive 'mode.psd1'
         Set-Content -LiteralPath $g -Value "@{ Acces = @{ GroupesAdmin = @('G') }; Moteur = @{ Mode = 'Cloud'; Python = 'p'; Racine = 'r' } }"
-        { InModuleScope Copie.Gui -Parameters @{ f = $g } { param($f) Get-CopieConfig -Chemin $f } } | Should -Throw '*Cloud*'
-        { InModuleScope Copie.Gui { Get-CopieConfig -Chemin 'Z:\n\existe\pas.psd1' } } | Should -Throw '*introuvable*'
+        { InModuleScope FileManagement.Gui -Parameters @{ f = $g } { param($f) Get-CopieConfig -Chemin $f } } | Should -Throw '*Cloud*'
+        { InModuleScope FileManagement.Gui { Get-CopieConfig -Chemin 'Z:\n\existe\pas.psd1' } } | Should -Throw '*introuvable*'
     }
     It 'accepte la configuration fournie avec l''outil' {
-        $c = InModuleScope Copie.Gui -Parameters @{ f = (Join-Path $PSScriptRoot '..\Gestion-Copie.config.psd1') } { param($f) Get-CopieConfig -Chemin $f }
+        $c = InModuleScope FileManagement.Gui -Parameters @{ f = (Join-Path $PSScriptRoot '..\Gestion-Copie.config.psd1') } { param($f) Get-CopieConfig -Chemin $f }
         $c.Moteur.Mode | Should -Be 'Local'
     }
 }
@@ -80,29 +80,29 @@ Describe 'Get-CopieProfilAcces' {
         $Script:Cfg = [pscustomobject]@{ Acces = [pscustomobject]@{ GroupesAdmin = @('DOMAINE\GG_Copie_Admins', 'Operateurs', 'S-1-5-21-1-2-3-500') } }
     }
     It 'donne Admin pour le nom complet, sans tenir compte de la casse' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('domaine\gg_copie_admins') } | Should -Be 'Admin'
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('domaine\gg_copie_admins') } | Should -Be 'Admin'
     }
     It 'donne Admin pour un groupe sans domaine, quel que soit le domaine' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('AUTRE\Operateurs') } | Should -Be 'Admin'
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('AUTRE\Operateurs') } | Should -Be 'Admin'
     }
     It 'donne Admin pour un SID' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('S-1-5-21-1-2-3-500') } | Should -Be 'Admin'
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('S-1-5-21-1-2-3-500') } | Should -Be 'Admin'
     }
     It 'donne Lecture sinon, y compris sans aucun groupe, et ne confond pas un nom proche' {
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('DOMAINE\GG_Copie_Admins2', 'X\Operateurs2') } | Should -Be 'Lecture'
-        InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @() } | Should -Be 'Lecture'
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @('DOMAINE\GG_Copie_Admins2', 'X\Operateurs2') } | Should -Be 'Lecture'
+        InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg } { param($c) Get-CopieProfilAcces -Config $c -Groupe @() } | Should -Be 'Lecture'
     }
     It 'lit le jeton Windows de l''utilisateur courant par défaut' {
         $moi = [Security.Principal.WindowsIdentity]::GetCurrent().Groups | Select-Object -First 1
         $cfg = [pscustomobject]@{ Acces = [pscustomobject]@{ GroupesAdmin = @($moi.Value) } }
-        InModuleScope Copie.Gui -Parameters @{ c = $cfg } { param($c) Get-CopieProfilAcces -Config $c } | Should -Be 'Admin'
+        InModuleScope FileManagement.Gui -Parameters @{ c = $cfg } { param($c) Get-CopieProfilAcces -Config $c } | Should -Be 'Admin'
     }
 }
 
 Describe 'Get-CopieEnvironnement' {
     BeforeAll {
         $Script:Cfg = [pscustomobject]@{ Parametrage = [pscustomobject]@{ Filtre = '*.jsonl'; VersionsSupportees = @(1) } }
-        $Script:Lister = { param($d, $c) InModuleScope Copie.Gui -Parameters @{ d = $d; c = $c } { param($d, $c) Get-CopieEnvironnement -Dossier $d -Config $c } }
+        $Script:Lister = { param($d, $c) InModuleScope FileManagement.Gui -Parameters @{ d = $d; c = $c } { param($d, $c) Get-CopieEnvironnement -Dossier $d -Config $c } }
     }
     BeforeEach {
         $Script:D = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
@@ -169,14 +169,14 @@ Describe 'Get-CopieEnvironnement' {
 
 Describe 'Mise en forme' {
     It 'convertit les secondes UTC du moteur en date locale, « — » si absente' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             Format-CopieDate -Secondes $null | Should -Be ([string][char]0x2014)
             $attendu = [DateTimeOffset]::FromUnixTimeSeconds(1793609412).LocalDateTime.ToString('dd/MM/yyyy HH:mm:ss')
             Format-CopieDate -Secondes 1793609412 | Should -Be $attendu
         }
     }
     It 'écrit les durées en unités lisibles' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             Format-CopieDuree 45 | Should -Be '45 s'
             Format-CopieDuree 300 | Should -Be '5 min'
             Format-CopieDuree 3600 | Should -Be '1 h'
@@ -186,7 +186,7 @@ Describe 'Mise en forme' {
         }
     }
     It 'décrit les trois types de planification' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $i = '{"type":"intervalle","frequence_sec":300,"debut":"05:00","fin":"19:00","jours":"lun-ven"}' | ConvertFrom-Json
             Format-CopiePlanification $i | Should -Be 'toutes les 5 min de 05:00 à 19:00, lun-ven'
             $q = '{"type":"quotidien","heure":"07:15"}' | ConvertFrom-Json
@@ -196,7 +196,7 @@ Describe 'Mise en forme' {
         }
     }
     It 'donne une couleur à chaque statut du contrat, et une couleur neutre aux autres' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             foreach ($s in 'SUCCES', 'WARNING', 'ERREUR', 'ACQUITTEE', 'ARRETEE', 'EN_COURS', 'EN_ATTENTE', 'BLOQUEE') {
                 Get-CopieCouleurStatut $s | Should -Match '^#[0-9A-F]{6}$'
                 Get-CopieCouleurStatut $s | Should -Not -Be (Get-CopieCouleurStatut 'INCONNU')
@@ -205,7 +205,7 @@ Describe 'Mise en forme' {
         }
     }
     It 'lit une propriété absente sans échouer' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $o = '{"a":1}' | ConvertFrom-Json
             Get-CopieValeur $o 'a' | Should -Be 1
             Get-CopieValeur $o 'b' 'x' | Should -Be 'x'
@@ -213,7 +213,7 @@ Describe 'Mise en forme' {
         }
     }
     It 'construit la ligne de grille avec et sans état du moteur' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $regle = '{"id":"r1","mode":"copie","source":"S","cible":"C","actif":false,"planification":{"type":"quotidien","heure":"07:00"}}' | ConvertFrom-Json
             $sans = ConvertTo-CopieLigneRegle -Regle $regle -Etat $null
             $sans.Statut | Should -Be 'INACTIVE'
@@ -228,7 +228,7 @@ Describe 'Mise en forme' {
         }
     }
     It 'regroupe le détail d''une règle et tolère les champs absents' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $regle = '{"id":"r1","source":"S","cible":"C","mode":"copie","programmes":{"apres_lot":{"commande":["python","x.py"],"timeout_sec":60}}}' | ConvertFrom-Json
             $g = ConvertTo-CopieGroupeRegle -Regle $regle
             $g.Titre | Should -Contain 'Sélection'
@@ -241,7 +241,7 @@ Describe 'Mise en forme' {
         }
     }
     It 'décrit l''état d''une règle, ou son indisponibilité' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             (ConvertTo-CopieGroupeEtat -Etat $null)[0].Lignes[0].Valeur | Should -Match 'indisponible'
             $etat = '{"statut":"WARNING","en_cours":false,"derniere_erreur":{"le":1793609412,"situation":"s","message":"m"},"archivage_degrade":true,"actions_en_attente":12,"livraisons_incertaines":0}' | ConvertFrom-Json
             $g = ConvertTo-CopieGroupeEtat -Etat $etat

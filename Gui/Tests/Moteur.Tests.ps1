@@ -8,7 +8,7 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..\Copie.Gui\Copie.Gui.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot '..\FileManagement.Gui\FileManagement.Gui.psd1') -Force
     $Script:RacineMoteur = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
 }
 
@@ -25,7 +25,7 @@ Describe 'Invoke-CopieMoteur' -Skip:(-not $Script:PythonDisponible) {
         [System.IO.File]::WriteAllText($Script:Fichier, ($entete + "`n" + $regle + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     }
     It 'décode la réponse JSON de --verifier (syntaxe seule) et ses accents' {
-        $r = InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--verifier', '--syntaxe-seule') }
+        $r = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--verifier', '--syntaxe-seule') }
         $r.Reussi | Should -BeTrue
         $r.Json.version_contrat | Should -Be 1
         $r.Json.regles_lues | Should -Be 1
@@ -33,16 +33,16 @@ Describe 'Invoke-CopieMoteur' -Skip:(-not $Script:PythonDisponible) {
         $r.Commande | Should -Match '--format json'
     }
     It 'renvoie le code 2 et le message du moteur quand la base n''existe pas (--etat)' {
-        $r = InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--etat') }
+        $r = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--etat') }
         $r.Code | Should -Be 2
         $r.Reussi | Should -BeFalse
         $r.Json.ok | Should -BeFalse
         $r.Json.message | Should -Not -BeNullOrEmpty
     }
     It 'lit l''état après initialisation de la base' {
-        $r0 = InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--initialiser-base') }
+        $r0 = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--initialiser-base') }
         $r0.Code | Should -Be 0
-        $r = InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--etat') }
+        $r = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--etat') }
         $r.Reussi | Should -BeTrue
         $r.Json.regles[0].id | Should -Be 'r1'
         $r.Json.regles[0].statut | Should -Be 'JAMAIS_LANCEE'
@@ -53,18 +53,18 @@ Describe 'Invoke-CopieMoteur' -Skip:(-not $Script:PythonDisponible) {
         $null = New-Item -ItemType Directory -Path $dossier
         $f = Join-Path $dossier 'essai.jsonl'
         Copy-Item -LiteralPath $Script:Fichier -Destination $f
-        $r = InModuleScope Copie.Gui -Parameters @{ c = $Script:Cfg; f = $f } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--verifier', '--syntaxe-seule') }
+        $r = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $f } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--verifier', '--syntaxe-seule') }
         $r.Reussi | Should -BeTrue
     }
     It 'signale un interpréteur introuvable sans lever d''exception' {
         $cfg = [pscustomobject]@{ Moteur = [pscustomobject]@{ Mode = 'Local'; Python = (Join-Path $TestDrive 'absent.exe'); Racine = $Script:RacineMoteur; ConfigurationJea = ''; Serveur = ''; DelaiMaxSec = 10 } }
-        $r = InModuleScope Copie.Gui -Parameters @{ c = $cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--etat') }
+        $r = InModuleScope FileManagement.Gui -Parameters @{ c = $cfg; f = $Script:Fichier } { param($c, $f) Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--etat') }
         $r.Reussi | Should -BeFalse
         $r.Code | Should -Be -1
         $r.Erreur | Should -Match 'lancement impossible'
     }
     It 'arrête le moteur au-delà du délai maximal' {
-        $bloc = InModuleScope Copie.Gui { Get-CopieBlocProcessus }
+        $bloc = InModuleScope FileManagement.Gui { Get-CopieBlocProcessus }
         $r = & $bloc $env:COPIE_TEST_PYTHON @('-c', 'import time; time.sleep(30)') $Script:RacineMoteur 1
         $r.Code | Should -Be -1
         $r.Erreur | Should -Match 'délai'
@@ -73,7 +73,7 @@ Describe 'Invoke-CopieMoteur' -Skip:(-not $Script:PythonDisponible) {
 
 Describe 'Interface' -Skip:(-not $Script:Sta) {
     It 'charge toutes les vues XAML et y retrouve les contrôles utilisés par le code' {
-        InModuleScope Copie.Gui {
+        InModuleScope FileManagement.Gui {
             $w = Import-CopieXaml -Nom 'MainWindow'
             foreach ($n in 'Tabs', 'LogBox', 'StatusText', 'BtnRefresh', 'BtnLogClear', 'ModeBadge', 'ModeText', 'UserText', 'SubTitleText', 'LogPathText') {
                 $w.FindName($n) | Should -Not -BeNullOrEmpty -Because $n
@@ -87,7 +87,7 @@ Describe 'Interface' -Skip:(-not $Script:Sta) {
         }
     }
     It 'refuse de charger une vue inconnue' {
-        { InModuleScope Copie.Gui { Import-CopieXaml -Nom 'Inexistante' } } | Should -Throw '*introuvable*'
+        { InModuleScope FileManagement.Gui { Import-CopieXaml -Nom 'Inexistante' } } | Should -Throw '*introuvable*'
     }
 }
 
@@ -97,7 +97,7 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         & (Join-Path $PSScriptRoot '..\Outils\Initialiser-Essai.ps1') -Destination $Script:Essai -Python $env:COPIE_TEST_PYTHON | Out-Null
         $Script:Fenetre = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') `
             -Config (Join-Path $Script:Essai 'Gestion-Copie.essai.config.psd1') -SansAffichage -GroupeUtilisateur @('S-1-5-11')
-        InModuleScope Copie.Gui { Wait-CopieTache }       # l'état des règles arrive en arrière-plan
+        InModuleScope FileManagement.Gui { Wait-CopieTache }       # l'état des règles arrive en arrière-plan
     }
     AfterAll { if ($Script:Fenetre) { $Script:Fenetre.Close() } }
     It 'crée un onglet par fichier et affiche le profil administrateur' {
@@ -135,7 +135,7 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $tabs = $Script:Fenetre.FindName('Tabs')
         $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
         $prod.Grille.SelectedIndex = -1
-        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Update-CopieBoutons -Vue $v }
+        InModuleScope FileManagement.Gui -Parameters @{ v = $prod } { param($v) Update-CopieBoutons -Vue $v }
         $prod.Reprise.Visibility | Should -Be 'Visible'
         $prod.Reprise.IsEnabled | Should -BeFalse
         $prod.Purger.IsEnabled | Should -BeTrue
@@ -147,9 +147,9 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $tabs = $Script:Fenetre.FindName('Tabs')
         $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
         $prod.Grille.SelectedIndex = 0
-        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $true -Libelle 'essai' }
+        InModuleScope FileManagement.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $true -Libelle 'essai' }
         foreach ($b in $prod.Reprise, $prod.Purger, $prod.Modifier, $prod.Verifier, $prod.Actualiser) { $b.IsEnabled | Should -BeFalse }
-        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $false }
+        InModuleScope FileManagement.Gui -Parameters @{ v = $prod } { param($v) Set-CopieOccupe -Vue $v -Occupe $false }
         foreach ($b in $prod.Reprise, $prod.Purger, $prod.Modifier, $prod.Verifier, $prod.Actualiser) { $b.IsEnabled | Should -BeTrue }
     }
     It 'dessine le graphe des dépendances : un nœud par règle liée, une flèche par dépendance' {
@@ -166,7 +166,7 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
         $prod.Grille.SelectedIndex = -1
         $noeud = @($prod.Graphe.Children | Where-Object { $_ -is [System.Windows.Controls.Border] -and $_.Tag -like '*|import_catalogue' })[0]
-        InModuleScope Copie.Gui -Parameters @{ e = $noeud.Tag } { param($e) Select-CopieRegleGraphe -Etiquette $e }
+        InModuleScope FileManagement.Gui -Parameters @{ e = $noeud.Tag } { param($e) Select-CopieRegleGraphe -Etiquette $e }
         $prod.Grille.SelectedItem.Id | Should -Be 'import_catalogue'
     }
     It 'montre Promouvoir et Historique à l''administrateur' {
@@ -182,14 +182,14 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
         $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
         $prod.Grille.SelectedIndex = 1
         $choisie = $prod.Grille.SelectedItem.Id
-        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Update-CopieEtatVue -Vue $v }
+        InModuleScope FileManagement.Gui -Parameters @{ v = $prod } { param($v) Update-CopieEtatVue -Vue $v }
         # juste après le clic : fenêtre non bloquée, règles listées sans état, boutons grisés
         $prod.Occupe | Should -BeTrue
         $prod.Lignes.Count | Should -Be 3
         @($prod.Lignes | Where-Object Statut -eq 'SUCCES').Count | Should -Be 0
         $prod.BandeauTexte.Text | Should -Match 'en cours de lecture'
         $prod.Actualiser.IsEnabled | Should -BeFalse
-        InModuleScope Copie.Gui { Wait-CopieTache }
+        InModuleScope FileManagement.Gui { Wait-CopieTache }
         $prod.Occupe | Should -BeFalse
         ($prod.Lignes | Where-Object Id -eq 'export_clients').Statut | Should -Be 'SUCCES'
         $prod.BandeauTexte.Text | Should -Not -Match 'en cours de lecture'
@@ -199,14 +199,14 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
     It 'ignore la réponse d''un onglet reconstruit entre-temps' {
         $tabs = $Script:Fenetre.FindName('Tabs')
         $prod = ($tabs.Items | Where-Object { $_.Tag.Env.Nom -eq 'production' }).Tag
-        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) Update-CopieEtatVue -Vue $v; $Script:Vues.Remove($v.Cle) }
-        { InModuleScope Copie.Gui { Wait-CopieTache } } | Should -Not -Throw
-        InModuleScope Copie.Gui -Parameters @{ v = $prod } { param($v) $Script:Vues[$v.Cle] = $v }
+        InModuleScope FileManagement.Gui -Parameters @{ v = $prod } { param($v) Update-CopieEtatVue -Vue $v; $Script:Vues.Remove($v.Cle) }
+        { InModuleScope FileManagement.Gui { Wait-CopieTache } } | Should -Not -Throw
+        InModuleScope FileManagement.Gui -Parameters @{ v = $prod } { param($v) $Script:Vues[$v.Cle] = $v }
     }
     It 'passe en lecture seule pour un compte non administrateur' -Skip:$true {  # TEMPORAIRE : vérification des droits désactivée (voir CHANGELOG)
         $f = Start-CopieGui -DossierParametrage (Join-Path $Script:Essai 'parametrage') `
             -Config (Join-Path $Script:Essai 'Gestion-Copie.essai.config.psd1') -SansAffichage -GroupeUtilisateur @('DOMAINE\Autres')
-        InModuleScope Copie.Gui { Wait-CopieTache }
+        InModuleScope FileManagement.Gui { Wait-CopieTache }
         try {
             $f.FindName('ModeText').Text | Should -Be 'LECTURE SEULE'
             ($f.FindName('Tabs').Items | ForEach-Object Header) | Should -Not -Contain 'production'

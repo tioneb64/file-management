@@ -8,7 +8,7 @@ BeforeDiscovery {
 }
 
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..\Jea\Copie.Jea\Copie.Jea.psd1') -Force
+    Import-Module (Join-Path $PSScriptRoot '..\Jea\FileManagement.Jea\FileManagement.Jea.psd1') -Force
     $Script:Racine = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
     $Script:Dossier = Join-Path $TestDrive 'param'
     $null = New-Item -ItemType Directory -Path $Script:Dossier
@@ -24,7 +24,7 @@ Describe 'Grammaire du point d''accès' {
     BeforeAll {
         $Script:Ligne = {
             param($argument, $fichier, $utilisateur)
-            InModuleScope Copie.Jea -Parameters @{ a = $argument; f = $fichier; u = $utilisateur; d = $Script:Dossier } {
+            InModuleScope FileManagement.Jea -Parameters @{ a = $argument; f = $fichier; u = $utilisateur; d = $Script:Dossier } {
                 param($a, $f, $u, $d)
                 $c = [pscustomobject]@{ DossierParametrage = $d; Python = 'p'; Racine = 'r'; DelaiMaxSec = 1; GroupeAdmin = 'G' }
                 ConvertTo-CopieJeaLigne -Argument $a -Fichier $f -Config $c -Utilisateur $u
@@ -35,7 +35,7 @@ Describe 'Grammaire du point d''accès' {
         $l = & $Script:Ligne @('--etat', '--regle', 'r1') $Script:Fichier ''
         $l.Erreur | Should -Be ''
         $l.Droit | Should -Be 'lecture'
-        $l.Arguments[0..1] -join ' ' | Should -Be '-m copie'
+        $l.Arguments[0..1] -join ' ' | Should -Be '-m file_management'
         $l.Arguments | Should -Contain '--regle=r1'
         $l.Arguments | Should -Contain '--format=json'
         $l.Arguments | Should -Contain ('--config=' + $Script:Fichier)
@@ -122,7 +122,7 @@ Describe 'Grammaire du point d''accès' {
 
 Describe 'Droits de l''appelant' {
     It 'refuse les commandes d''écriture à qui n''est pas dans le groupe administrateur' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
             param($c, $f)
             $Script:CheminConfig = $c
             Mock Get-CopieJeaIdentite { [pscustomobject]@{ Compte = 'DOM\lecteur'; Principal = [pscustomobject]@{} | Add-Member -MemberType ScriptMethod -Name IsInRole -Value { $false } -PassThru } }
@@ -133,7 +133,7 @@ Describe 'Droits de l''appelant' {
         }
     }
     It 'laisse un non-administrateur consulter (la commande part, le refus ne vient pas du droit)' -Skip:(-not $Script:PythonDisponible) {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
             param($c, $f)
             $Script:CheminConfig = $c
             Mock Get-CopieJeaIdentite { [pscustomobject]@{ Compte = 'DOM\lecteur'; Principal = $null } }
@@ -143,7 +143,7 @@ Describe 'Droits de l''appelant' {
         }
     }
     It 'refuse sans configuration lisible' {
-        InModuleScope Copie.Jea {
+        InModuleScope FileManagement.Jea {
             $Script:CheminConfig = 'C:\absent\config.psd1'
             $r = Invoke-CopieMoteurJea -Argument @('--etat') -Fichier 'x'
             $r.Code | Should -Be -1
@@ -159,7 +159,7 @@ Describe 'Dossiers d''un environnement par le point d''accès (chemins lus dans 
         [System.IO.File]::WriteAllText($Script:Fich2, (($en | ConvertTo-Json -Compress) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     }
     It 'contrôle en lecture : trois dossiers à créer, rien n''est créé' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fich2 } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fich2 } {
             param($c, $f)
             $Script:CheminConfig = $c
             $r = Invoke-CopieDossiersJea -Action 'controler' -Fichier $f
@@ -169,7 +169,7 @@ Describe 'Dossiers d''un environnement par le point d''accès (chemins lus dans 
         Test-Path -LiteralPath (Join-Path $TestDrive 'jb') | Should -BeFalse
     }
     It 'la création est réservée au groupe administrateur' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fich2 } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fich2 } {
             param($c, $f)
             $Script:CheminConfig = $c
             Mock Get-CopieJeaIdentite { [pscustomobject]@{ Compte = 'DOM\lecteur'; Principal = [pscustomobject]@{} | Add-Member -MemberType ScriptMethod -Name IsInRole -Value { $false } -PassThru } }
@@ -180,7 +180,7 @@ Describe 'Dossiers d''un environnement par le point d''accès (chemins lus dans 
         Test-Path -LiteralPath (Join-Path $TestDrive 'jb') | Should -BeFalse
     }
     It 'refuse un fichier hors du dossier de paramétrage' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg } {
             param($c)
             $Script:CheminConfig = $c
             $r = Invoke-CopieDossiersJea -Action 'controler' -Fichier 'C:\Windows\win.ini'
@@ -189,7 +189,7 @@ Describe 'Dossiers d''un environnement par le point d''accès (chemins lus dans 
         }
     }
     It 'un administrateur crée les trois dossiers' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fich2 } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fich2 } {
             param($c, $f)
             $Script:CheminConfig = $c
             Mock Get-CopieJeaIdentite { [pscustomobject]@{ Compte = 'DOM\admin'; Principal = [pscustomobject]@{} | Add-Member -MemberType ScriptMethod -Name IsInRole -Value { $true } -PassThru } }
@@ -203,7 +203,7 @@ Describe 'Dossiers d''un environnement par le point d''accès (chemins lus dans 
 
 Describe 'Appel du moteur réel' -Skip:(-not $Script:PythonDisponible) {
     It 'renvoie le JSON du moteur : --modele-regle sans fichier, --verifier avec fichier' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
             param($c, $f)
             $Script:CheminConfig = $c
             $r = Invoke-CopieMoteurJea -Argument @('--modele-regle')
@@ -214,7 +214,7 @@ Describe 'Appel du moteur réel' -Skip:(-not $Script:PythonDisponible) {
         }
     }
     It 'rend un code 0 ou 4 et aucune erreur pour un paramétrage valide' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
             param($c, $f)
             $Script:CheminConfig = $c
             $r = Invoke-CopieMoteurJea -Argument @('--verifier', '--syntaxe-seule') -Fichier $f
@@ -223,7 +223,7 @@ Describe 'Appel du moteur réel' -Skip:(-not $Script:PythonDisponible) {
         }
     }
     It 'refuse une commande hors contrat sans lancer le moteur' {
-        InModuleScope Copie.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
+        InModuleScope FileManagement.Jea -Parameters @{ c = $Script:Cfg; f = $Script:Fichier } {
             param($c, $f)
             $Script:CheminConfig = $c
             $r = Invoke-CopieMoteurJea -Argument @('--sauvegarder-base', 'x') -Fichier $f

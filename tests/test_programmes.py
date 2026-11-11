@@ -7,9 +7,9 @@ import textwrap
 import time
 import unittest
 
-from copie import base as modele_base
-from copie import lancement, programmes, processus, transfert
-from copie.parametrage import Programme
+from file_management import base as modele_base
+from file_management import lancement, programmes, processus, transfert
+from file_management.parametrage import Programme
 from tests.test_lancement import CasLancement
 from tests.test_moteur import CasMoteur
 
@@ -560,7 +560,7 @@ class TestSimulationDesProgrammes(CasProgramme):
         self.source("a.csv")
         r = self.regle(programmes={"avant_lot": self.programme(), "apres_fichier": self.programme(),
                                    "apres_lot": self.programme()})
-        from copie import execution
+        from file_management import execution
         with modele_base.ouvrir(self.chemin_base, "production", lecture_seule=True) as ro:
             bilan = execution.lancer_regle(r, self.entete, ro, self.journal, simulation=True,
                                            simulation_programmes=True, maintenant=lambda: self.maintenant,

@@ -3,7 +3,7 @@ import datetime
 import fnmatch
 import os
 
-from copie.parametrage import RE_MODIFIE_DEPUIS
+from file_management.parametrage import RE_MODIFIE_DEPUIS
 
 SUFFIXE_TEMPORAIRE = ".copie_en_cours"
 TOLERANCE_FUTUR_SEC = 60

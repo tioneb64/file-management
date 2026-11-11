@@ -12,7 +12,7 @@
         de l'appelant) et Invoke-CopieDossiersJea (contrôle ou création des dossiers de la base, des journaux
         et du travail d'un environnement, lus dans l'en-tête de son fichier ; création réservée au groupe administrateur).
 
-        Ce script : copie le module Copie.Jea dans les modules du système, écrit sa configuration,
+        Ce script : copie le module FileManagement.Jea dans les modules du système, écrit sa configuration,
         crée le fichier de session et l'enregistre (Register-PSSessionConfiguration). À lancer sur le
         serveur d'exécution, en administrateur. Il demande confirmation (-Confirm:$false pour l'éviter) et
         accepte -WhatIf.
@@ -34,7 +34,7 @@
         Interpréteur Python 3.14 du moteur.
 
     .PARAMETER Racine
-        Dossier du moteur (celui qui contient le dossier copie\).
+        Dossier du moteur (celui qui contient le dossier file_management\).
 
     .PARAMETER DossierParametrage
         Dossier des fichiers de paramétrage (le même que pour Initialiser-DossierParametrage.ps1).
@@ -65,10 +65,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$source = Join-Path $PSScriptRoot 'Jea\Copie.Jea'
+$source = Join-Path $PSScriptRoot 'Jea\FileManagement.Jea'
 if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "module introuvable : $source" }
 if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) { throw "interpréteur Python introuvable : $Python" }
-if (-not (Test-Path -LiteralPath (Join-Path $Racine 'copie') -PathType Container)) { throw "le dossier $Racine ne contient pas le paquet copie" }
+if (-not (Test-Path -LiteralPath (Join-Path $Racine 'file_management') -PathType Container)) { throw "le dossier $Racine ne contient pas le paquet file_management" }
 if (-not (Test-Path -LiteralPath $DossierParametrage -PathType Container)) { throw "dossier de paramétrage introuvable : $DossierParametrage" }
 if ($GroupeAdmin -notmatch '^[^\\]+\\[^\\]+$') { throw "GroupeAdmin doit s'écrire DOMAINE\Groupe" }
 if ($GroupeLecture -and $GroupeLecture -notmatch '^[^\\]+\\[^\\]+$') { throw "GroupeLecture doit s'écrire DOMAINE\Groupe" }
@@ -78,7 +78,7 @@ if (-not $WhatIfPreference -and -not $principal.IsInRole([System.Security.Princi
 }
 
 $modules = Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules'
-$cible = Join-Path $modules 'Copie.Jea'
+$cible = Join-Path $modules 'FileManagement.Jea'
 $fichierSession = Join-Path $DossierTraces ($Nom + '.pssc')
 
 if ($PSCmdlet.ShouldProcess($env:COMPUTERNAME, "installer le point d'accès JEA « $Nom » (module $cible, session $Nom)")) {
@@ -94,7 +94,7 @@ if ($PSCmdlet.ShouldProcess($env:COMPUTERNAME, "installer le point d'accès JEA 
         '    DelaiMaxSec        = ' + $DelaiMaxSec
         '}'
     ) -join "`r`n"
-    [System.IO.File]::WriteAllText((Join-Path $cible 'Copie.Jea.config.psd1'), $texte + "`r`n", (New-Object System.Text.UTF8Encoding($true)))
+    [System.IO.File]::WriteAllText((Join-Path $cible 'FileManagement.Jea.config.psd1'), $texte + "`r`n", (New-Object System.Text.UTF8Encoding($true)))
 
     $null = New-Item -ItemType Directory -Path $DossierTraces -Force
     $roles = @{ $GroupeAdmin = @{ RoleCapabilities = 'FileManagement' } }

@@ -6,10 +6,10 @@ Passage de l'ancien script (`file_management.py` v1 + `copies.conf` + historique
 
 | Outil | Rôle |
 |---|---|
-| `python -m copie --migrer-ancien COPIES.CONF --environnement E --base B [--sortie F] [--frequence-sec N] [--actives]` | Convertit `copies.conf` en fichier de paramétrage. **Ne demande pas `--config`**. Règles **inactives** par défaut ; refuse d'écraser un fichier existant ; le nom du fichier doit être `<environnement>.jsonl` |
-| `python -m copie --config F --importer-historique HISTORIQUE.JSON --utilisateur U [--commentaire C]` | Importe l'historique de l'ancien script dans la base : les fichiers déjà copiés ne seront **pas relivrés**. Idempotent, tracé |
+| `python -m file_management --migrer-ancien COPIES.CONF --environnement E --base B [--sortie F] [--frequence-sec N] [--actives]` | Convertit `copies.conf` en fichier de paramétrage. **Ne demande pas `--config`**. Règles **inactives** par défaut ; refuse d'écraser un fichier existant ; le nom du fichier doit être `<environnement>.jsonl` |
+| `python -m file_management --config F --importer-historique HISTORIQUE.JSON --utilisateur U [--commentaire C]` | Importe l'historique de l'ancien script dans la base : les fichiers déjà copiés ne seront **pas relivrés**. Idempotent, tracé |
 | `outils\comparer_dossiers.py ANCIEN NOUVEAU [--masque *.csv] [--dates]` | Compare deux dossiers cibles (présence, taille, SHA-256) : preuve que la v2 livre la même chose que la v1. Lecture seule |
-| `file_management_v2.py` | Lanceur de la v2 (équivalent de `python -m copie`) ; deviendra `file_management.py` à la fin (§6) |
+| `file_management_v2.py` | Lanceur de la v2 (équivalent de `python -m file_management`) ; deviendra `file_management.py` à la fin (§6) |
 
 ## 2. Ce que la conversion fait (et ne fait pas)
 
@@ -43,17 +43,17 @@ Le fichier produit est immédiatement vérifié (syntaxe) et le compte rendu lis
 
 ```powershell
 cd D:\Scripts\file_management
-C:\Python314\python.exe -m copie --migrer-ancien D:\Anciens\copies.conf --environnement recette --base D:\Copie\recette.db --sortie D:\Parametrage\recette.jsonl
+C:\Python314\python.exe -m file_management --migrer-ancien D:\Anciens\copies.conf --environnement recette --base D:\Copie\recette.db --sortie D:\Parametrage\recette.jsonl
 # relire le fichier : renommer les id, régler les planifications, durcir si_existe_cible
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --verifier        # avec le compte de service
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --verifier        # avec le compte de service
 ```
 
 ### Étape 2 — Base et historique
 
 ```powershell
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --initialiser-base
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --initialiser-base
 # travailler sur une COPIE de l'historique : l'ancien script tourne encore
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --importer-historique D:\Anciens\copies.historique.copie.json --utilisateur DOMAINE\benoit --commentaire "recette"
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --importer-historique D:\Anciens\copies.historique.copie.json --utilisateur DOMAINE\benoit --commentaire "recette"
 ```
 
 Lire le compte rendu : `sans_regle` doit être **0** (ou compris : fichiers d'une ligne retirée du `copies.conf`). Un historique qui ne correspond à aucune règle signale en général un chemin différent entre `copies.conf` et le paramétrage.
@@ -61,7 +61,7 @@ Lire le compte rendu : `sans_regle` doit être **0** (ou compris : fichiers d'un
 ### Étape 3 — Simulation sur les données réelles
 
 ```powershell
-C:\Python314\python.exe -m copie --config D:\Parametrage\recette.jsonl --simulation --regle copie_01_factures
+C:\Python314\python.exe -m file_management --config D:\Parametrage\recette.jsonl --simulation --regle copie_01_factures
 ```
 
 Attendu : seuls les fichiers **arrivés depuis la dernière exécution de l'ancien script** sont « à livrer » ; tout le reste est « déjà livré ». Si tout est « à livrer », l'import n'a pas fonctionné (chemins, masque, casse) : ne pas continuer.

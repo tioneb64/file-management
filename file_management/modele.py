@@ -4,8 +4,8 @@ Le front-end propose, a la creation d'une regle, les valeurs de secours du moteu
 valeurs permises. Il ne les recopie pas : il les demande au moteur, seule source de verite. Rien ici
 ne lit de fichier ni de base.
 """
-from copie import parametrage as p
-from copie.parametrage import Regle
+from file_management import parametrage as p
+from file_management.parametrage import Regle
 
 
 def _situations():

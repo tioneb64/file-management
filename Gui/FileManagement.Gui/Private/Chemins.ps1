@@ -1,5 +1,5 @@
 ﻿# Chemins racine : un chemin partiel se place sous une racine, un chemin complet reste tel quel. Même règle que le moteur
-# (copie\parametrage.py : resoudre_chemin) ; l'interface n'en tire que l'affichage (grille, détail, messages, formulaire).
+# (file_management\parametrage.py : resoudre_chemin) ; l'interface n'en tire que l'affichage (grille, détail, messages, formulaire).
 # Environnement : « racine » (base, journaux, travail). Règles : « racine_source » et « racine_cible », qui se placent
 # elles-mêmes sous la racine de l'environnement quand elles sont partielles. Pas de racine de source ou de cible :
 # la racine de l'environnement sert aux deux.

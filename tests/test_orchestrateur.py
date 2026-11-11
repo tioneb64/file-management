@@ -9,10 +9,10 @@ import textwrap
 import time
 import unittest
 
-from copie import base as modele_base
-from copie import lancement, orchestrateur, processus
-from copie.dependances import BLOQUEE, EN_ATTENTE
-from copie.execution import nom_hote
+from file_management import base as modele_base
+from file_management import lancement, orchestrateur, processus
+from file_management.dependances import BLOQUEE, EN_ATTENTE
+from file_management.execution import nom_hote
 from tests.test_lancement import CasLancement
 
 SEPT_HEURES = {"type": "quotidien", "heure": "07:00"}
@@ -253,22 +253,22 @@ class TestBloquee(CasChaine):
         self.assertIn(BLOQUEE, lancement.etat_texte(e))
 
     def test_dependance_absente_de_la_base_en_attente(self):
-        from copie import dependances
-        from copie.diagnostic import Rapport
-        from copie.parametrage import lire_regle
+        from file_management import dependances
+        from file_management.diagnostic import Rapport
+        from file_management.parametrage import lire_regle
         r = lire_regle({"id": "r", "source": "s", "cible": "c", "mode": "copie", "apres": ["inconnue"],
                         "planification": {"type": "apres_dependances"}}, 1, Rapport())
         self.assertEqual(dependances.evaluer(r, None, {}, self.b).etat, EN_ATTENTE)
 
     def test_bloquee_par_une_regle_deja_marquee_bloquee_dans_la_base(self):
-        from copie import dependances
+        from file_management import dependances
         self.preparer()
         self.lancer_a(7, 20)
         ligne_import = self.etat_de("import")
         lignes = {l["id"].lower(): l for l in self.b.toutes_les_regles()}
         autre = self.brute(id="suite", planification=APRES, apres=["import"], cible=self.chemin("d4"))
-        from copie.diagnostic import Rapport
-        from copie.parametrage import lire_regle
+        from file_management.diagnostic import Rapport
+        from file_management.parametrage import lire_regle
         r = lire_regle(dict(autre), 1, Rapport())
         self.assertEqual(dependances.evaluer(r, None, lignes, self.b).etat, BLOQUEE)
 
@@ -493,7 +493,7 @@ class TestFinsAnormales(CasProcessus):
             import sys
             sys.stdin.readline()
             sys.path.insert(0, %r)
-            from copie import base
+            from file_management import base
             b = base.ouvrir(sys.argv[2])
             no = b.numero_regle("r")
             b.terminer_execution(int(sys.argv[1]), no, "SUCCES", compteurs={"livres": 2}, message="fait")
@@ -571,12 +571,12 @@ class TestFinsAnormales(CasProcessus):
         self.brute(id="r", planification=SEPT_HEURES)
         p = self.declencher()
         env = dict(os.environ, PYTHONPATH=orchestrateur.RACINE)
-        resultat = subprocess.run([sys.executable, "-m", "copie", "--config", p.chemin, "--executer-regle", "r",
+        resultat = subprocess.run([sys.executable, "-m", "file_management", "--config", p.chemin, "--executer-regle", "r",
                                    "--execution-id", "999"], input="go\n", cwd=orchestrateur.RACINE, env=env,
                                   capture_output=True, text=True)
         self.assertEqual(resultat.returncode, 2)
         self.assertIn("inconnue ou deja terminee", resultat.stderr)
-        sans_feu_vert = subprocess.run([sys.executable, "-m", "copie", "--config", p.chemin, "--executer-regle",
+        sans_feu_vert = subprocess.run([sys.executable, "-m", "file_management", "--config", p.chemin, "--executer-regle",
                                         "r", "--execution-id", "1"], input="", cwd=orchestrateur.RACINE, env=env,
                                        capture_output=True, text=True)
         self.assertEqual(sans_feu_vert.returncode, 1)                     # parent disparu : le fils ne fait rien

@@ -21,9 +21,9 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import journal_si  # noqa: E402
-from copie import base, execution  # noqa: E402
-from copie.diagnostic import Rapport  # noqa: E402
-from copie.parametrage import Entete, lire_regle  # noqa: E402
+from file_management import base, execution  # noqa: E402
+from file_management.diagnostic import Rapport  # noqa: E402
+from file_management.parametrage import Entete, lire_regle  # noqa: E402
 
 
 def regle(ident, source, cible, mode):

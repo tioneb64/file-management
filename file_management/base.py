@@ -12,7 +12,7 @@ import time
 import unicodedata
 from datetime import datetime
 
-from copie import __version__
+from file_management import __version__
 
 VERSION_SCHEMA = 1
 BUSY_TIMEOUT_MS = 30000

@@ -13,9 +13,9 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import file_management as v1  # noqa: E402
+from tests.outils import CasTemporaire, charger_v1  # noqa: E402
 
-from tests.outils import CasTemporaire  # noqa: E402
+v1 = charger_v1()
 
 
 class TestCritere(unittest.TestCase):
