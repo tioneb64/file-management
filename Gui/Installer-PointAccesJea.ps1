@@ -3,13 +3,14 @@
         Installe sur le serveur d'exécution le point d'accès JEA de copie_fichiers.
 
     .DESCRIPTION
-        Le point d'accès n'expose qu'une fonction, Invoke-CopieMoteurJea, qui n'accepte que les commandes
-        du contrat du moteur (docs/07-contrat-moteur-frontend.md §4), lit uniquement les fichiers du dossier
+        Le point d'accès n'expose que deux fonctions : Invoke-CopieMoteurJea (qui n'accepte que les commandes
+        du contrat du moteur, docs/07-contrat-moteur-frontend.md §4, lit uniquement les fichiers du dossier
         de paramétrage, et exécute le moteur avec le compte de la session (pas celui de l'appelant) : les
         contrôles d'accès de --verifier reflètent alors ce que Jenkins pourra faire. Les commandes
         d'écriture sont réservées au groupe administrateur ; les autres membres du groupe de lecture ne
         peuvent que consulter (--etat, --verifier, --modele-regle). Le compte tracé par le moteur est celui
-        de l'appelant.
+        de l'appelant) et Invoke-CopieDossiersJea (contrôle ou création des dossiers de la base, des journaux
+        et du travail d'un environnement, lus dans l'en-tête de son fichier ; création réservée au groupe administrateur).
 
         Ce script : copie le module Copie.Jea dans les modules du système, écrit sa configuration,
         crée le fichier de session et l'enregistre (Register-PSSessionConfiguration). À lancer sur le

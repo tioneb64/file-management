@@ -1,4 +1,4 @@
-# Moteur
+﻿# Moteur
 
 Le moteur est le programme Python `copie_fichiers.py` (lanceur léger) et son package. Il évalue les règles d'un environnement et exécute celles qui sont à lancer.
 

@@ -3,5 +3,5 @@
     Author          = 'Benoit Thibaudeau (benoit.thibaudeau64@gmail.com)'
     Description     = 'Appelle le moteur copie_fichiers (grammaire du contrat docs/07) sans rien d''autre.'
     ModulesToImport = @('Copie.Jea')
-    VisibleFunctions = @('Invoke-CopieMoteurJea')
+    VisibleFunctions = @('Invoke-CopieMoteurJea', 'Invoke-CopieDossiersJea')
 }

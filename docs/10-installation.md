@@ -1,4 +1,4 @@
-# Installation
+﻿# Installation
 
 Ce guide installe copie_fichiers v2 (moteur Python, Jenkins, journaux, interface de gestion) **dans l'ordre**, avec une vérification à la fin de chaque étape. Il s'adresse à l'exploitation. Les spécifications sont dans les autres documents de ce dossier ; l'usage de l'interface est dans [11-guide-utilisateur](11-guide-utilisateur.md).
 
@@ -135,7 +135,7 @@ L'interface (dossier `Gui\`) tourne sur le serveur d'exécution **ou** sur le po
 |---|---|
 | `Acces.GroupesAdmin` | Le groupe AD des administrateurs (`DOMAINE\Groupe` ou SID). **Obligatoire** : sans groupe, l'interface refuse de démarrer |
 | `Moteur.Mode` | `Local` : le moteur est sur la même machine que l'interface. `Distant` : il est sur `Moteur.Serveur` |
-| `Moteur.Python`, `Moteur.Racine` | Python 3.14 et dossier du dépôt **sur la machine qui exécute le moteur** (inutiles avec JEA) |
+| `Moteur.Python`, `Moteur.Racine` | Python 3.14 et dossier du dépôt **sur la machine qui exécute le moteur** (inutiles avec JEA). En mode Local, si l'un des deux est introuvable (par exemple les chemins d'exemple sur un poste de développement), l'interface cherche Python (PATH, lanceur `py`) et le dépôt, et propose de les utiliser **pour la session** ; le fichier n'est pas modifié |
 | `Moteur.ConfigurationJea` | Nom du point d'accès JEA (§8) ; vide : l'appel se fait avec le compte de l'administrateur |
 | `Parametrage.PeriodeDeclencheurSec` | Période du déclencheur Jenkins (300 pour « toutes les 5 minutes ») |
 | `Journal.Dossier` | Dossier du journal de l'interface (vide : pas de fichier) |
@@ -161,7 +161,7 @@ Dans les deux cas, le chemin du fichier de paramétrage transmis au moteur est c
 
 ## 8. Point d'accès JEA (facultatif, recommandé en mode distant)
 
-JEA évite de donner aux administrateurs un accès complet au serveur : la session ne permet que la fonction `Invoke-CopieMoteurJea`, qui n'accepte que les commandes du contrat du moteur, sur les fichiers du dossier de paramétrage, avec le compte de service. Le compte tracé reste celui de l'administrateur. Détail dans [04-frontend](04-frontend.md) §6.
+JEA évite de donner aux administrateurs un accès complet au serveur : la session ne permet que deux fonctions. `Invoke-CopieMoteurJea` n'accepte que les commandes du contrat du moteur, sur les fichiers du dossier de paramétrage, avec le compte de service. `Invoke-CopieDossiersJea` contrôle ou crée les dossiers de la base, des journaux et du travail d'un environnement : les chemins sont lus dans l'en-tête du fichier (jamais fournis par l'appelant) et la création est réservée au groupe administrateur. Le compte tracé reste celui de l'administrateur. Détail dans [04-frontend](04-frontend.md) §6.
 
 1. Sur le serveur d'exécution, **en administrateur** (invite PowerShell élevée) :
 

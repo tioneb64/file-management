@@ -22,6 +22,12 @@
             $s = [regex]::Replace($s, '(\\+)$', '$1$1')
             '"' + $s + '"'
         }
+        if (-not (Test-Path -LiteralPath $Programme -PathType Leaf)) {
+            return [pscustomobject]@{ Code = -1; Sortie = ''; Erreur = ("lancement impossible : Python introuvable ({0}). Corrigez Moteur.Python dans Gestion-Copie.config.psd1." -f $Programme) }
+        }
+        if ($Dossier -and -not (Test-Path -LiteralPath $Dossier -PathType Container)) {
+            return [pscustomobject]@{ Code = -1; Sortie = ''; Erreur = ("lancement impossible : dossier du moteur introuvable ({0}). Corrigez Moteur.Racine dans Gestion-Copie.config.psd1." -f $Dossier) }
+        }
         $info = New-Object System.Diagnostics.ProcessStartInfo
         $info.FileName = $Programme
         $info.Arguments = (@($Argument | ForEach-Object { & $citer $_ }) -join ' ')

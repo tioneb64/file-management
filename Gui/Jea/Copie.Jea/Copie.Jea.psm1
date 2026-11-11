@@ -30,6 +30,11 @@ $Script:Grammaire = @{
     '--acquitter'          = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--debloquer'          = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--purger'             = @{ Droit = 'ecriture'; Valeur = ''; Fichier = $true; Options = @{ '--regle' = 'id'; '--appliquer' = 'interrupteur' } }
+    '--lancer-regle'       = @{ Droit = 'lecture'; Valeur = 'id'; Fichier = $true; Exige = '--simulation'; Options = @{ '--simulation' = 'interrupteur' } }
+    '--controler-regle'    = @{ Droit = 'lecture'; Valeur = 'id'; Fichier = $true; Options = @{} }
+    '--creer-dossiers-regle' = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
+    '--initialiser-base'   = @{ Droit = 'ecriture'; Valeur = ''; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
+    '--renommer-environnement' = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--trancher-incertain' = @{ Droit = 'ecriture'; Valeur = 'cle'; Fichier = $true; Options = @{ '--decision' = 'decision'; '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
 }
 
@@ -138,6 +143,7 @@ function ConvertTo-CopieJeaLigne {
         $lignes.Add($nom + '=' + $valeur)
         $i += 2
     }
+    if ($regle.ContainsKey('Exige') -and -not $vues.ContainsKey($regle.Exige)) { return (& $refus ('{0} exige {1} (le point d''accès ne lance pas de transfert réel)' -f $commande, $regle.Exige)) }
     if ($regle.Droit -eq 'ecriture' -and -not $aUtilisateur) {
         # Le moteur exige --utilisateur : on le fournit (c'est le compte de la session, jamais une saisie).
         if (-not $Utilisateur) { return (& $refus '--utilisateur est obligatoire') }
@@ -220,4 +226,112 @@ function Invoke-CopieMoteurJea {
     [pscustomobject]@{ Code = $processus.ExitCode; Sortie = $sortie.Result; Erreur = $erreur.Result }
 }
 
-Export-ModuleMember -Function Invoke-CopieMoteurJea
+function Invoke-CopieDossiersJea {
+    <#
+    .SYNOPSIS
+        Contrôle ou crée les dossiers techniques d'un environnement (base, journaux, travail) avec le compte du point d'accès.
+
+    .DESCRIPTION
+        Les chemins ne sont JAMAIS fournis par l'appelant : ils sont lus dans l'en-tête du fichier de paramétrage, qui doit
+        être dans le dossier de paramétrage autorisé. Le contrôle est une lecture ; la création est réservée au groupe
+        administrateur de la configuration. Même logique que Get-CopieBlocDossiers du module de l'interface (à garder identique).
+
+    .PARAMETER Action
+        controler ou creer.
+
+    .PARAMETER Fichier
+        Fichier de paramétrage de l'environnement.
+
+    .OUTPUTS
+        [pscustomobject] Code (0 : fait, -1 : refusé ou en erreur), Dossiers, Erreur.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)] [ValidateSet('controler', 'creer')] [string] $Action,
+        [Parameter(Mandatory)] [string] $Fichier
+    )
+    $non = { param($texte) [pscustomobject]@{ Code = -1; Dossiers = @(); Erreur = ("Refusé par le point d'accès JEA : " + $texte) } }
+    try { $config = Get-CopieJeaConfig } catch { return (& $non $_.Exception.Message) }
+    if ($Fichier -notmatch $Script:Types.chemin -or -not (Test-CopieJeaChemin -Chemin $Fichier -Dossier $config.DossierParametrage)) {
+        return (& $non 'fichier de paramétrage hors du dossier autorisé')
+    }
+    if (-not (Test-Path -LiteralPath $Fichier -PathType Leaf)) { return (& $non 'fichier de paramétrage introuvable') }
+    if ($Action -eq 'creer') {
+        $identite = Get-CopieJeaIdentite
+        if ($null -ne $identite) {
+            $membre = $false
+            if ($config.GroupeAdmin -and $null -ne $identite.Principal) {
+                try { $membre = $identite.Principal.IsInRole($config.GroupeAdmin) } catch { $membre = $false }
+            }
+            if (-not $membre) { return (& $non 'commande réservée aux administrateurs') }
+        }
+    }
+    $bloc = {
+        param([string] $Action, [string] $Fichier)
+        $essai = {
+            param([string] $dossier)
+            $f = Join-Path $dossier ('.test_ecriture_' + [System.Diagnostics.Process]::GetCurrentProcess().Id)
+            try { [System.IO.File]::WriteAllText($f, 'x'); Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue; $true }
+            catch { $false }
+        }
+        $en = $null
+        try {
+            $premiere = (Get-Content -LiteralPath $Fichier -Encoding UTF8 -TotalCount 1)
+            $en = $premiere | ConvertFrom-Json
+        }
+        catch { throw ('en-tête du fichier illisible : ' + $_.Exception.Message) }
+        $lire = { param($nom) $p = $en.PSObject.Properties[$nom]; if ($null -ne $p -and "$($p.Value)".Trim()) { "$($p.Value)".Trim() } else { '' } }
+        $base = & $lire 'base'
+        if (-not $base) { throw 'l''en-tête ne contient pas de chemin de base' }
+        $racine = [System.IO.Path]::GetDirectoryName($base)
+        $logs = & $lire 'dossier_logs'
+        if (-not $logs) { $logs = [System.IO.Path]::Combine($racine, 'logs') }
+        $travail = & $lire 'dossier_travail'
+        if (-not $travail) { $travail = [System.IO.Path]::Combine($racine, 'travail') }
+        $sortie = New-Object System.Collections.Generic.List[object]
+        foreach ($d in @(@('base', $racine), @('journaux', $logs), @('travail', $travail))) {
+            $role = $d[0]
+            $chemin = $d[1]
+            try { $chemin = [System.IO.Path]::GetFullPath($chemin) } catch { $null = $_ }
+            $ligne = [pscustomobject]@{ Role = $role; Chemin = $chemin; Existe = $false; Ecriture = $false; ACreer = $false; Cree = $false; Erreur = '' }
+            if (Test-Path -LiteralPath $chemin -PathType Container) {
+                $ligne.Existe = $true
+                $ligne.Ecriture = [bool](& $essai $chemin)
+            }
+            elseif (Test-Path -LiteralPath $chemin) { $ligne.Erreur = 'un fichier porte ce nom' }
+            else {
+                $parent = $chemin
+                while ($parent -and -not (Test-Path -LiteralPath $parent -PathType Container)) { $parent = [System.IO.Path]::GetDirectoryName($parent) }
+                if (-not $parent) { $ligne.Erreur = 'lecteur ou partage introuvable' }
+                elseif (& $essai $parent) { $ligne.ACreer = $true }
+                else { $ligne.Erreur = ('pas de droit d''écriture dans ' + $parent) }
+            }
+            if ($Action -eq 'creer' -and $ligne.ACreer) {
+                try {
+                    $null = New-Item -ItemType Directory -Path $chemin -Force -ErrorAction Stop
+                    $ligne.Cree = $true
+                    $ligne.Existe = $true
+                    $ligne.ACreer = $false
+                    $ligne.Ecriture = [bool](& $essai $chemin)
+                }
+                catch { $ligne.Erreur = $_.Exception.Message }
+            }
+            $sortie.Add($ligne)
+        }
+        # Un même dossier peut revenir deux fois (base, logs et travail dans le même dossier) : on ne le garde qu'une fois.
+        $vus = @{}
+        foreach ($l in $sortie) {
+            $cle = $l.Chemin.ToLowerInvariant()
+            if ($vus.ContainsKey($cle)) { continue }
+            $vus[$cle] = $true
+            $l
+        }
+    }
+
+    try { $dossiers = @(& $bloc $Action ([System.IO.Path]::GetFullPath($Fichier))) }
+    catch { return [pscustomobject]@{ Code = -1; Dossiers = @(); Erreur = $_.Exception.Message } }
+    [pscustomobject]@{ Code = 0; Dossiers = $dossiers; Erreur = '' }
+}
+
+Export-ModuleMember -Function Invoke-CopieMoteurJea, Invoke-CopieDossiersJea

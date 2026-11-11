@@ -173,3 +173,70 @@ class Controleur(object):
 def verifier_acces(parametrage, rapport, maintenant=None):
     """Ajoute au rapport les diagnostics A01 a A07 des regles actives."""
     return Controleur(parametrage, rapport, maintenant).executer()
+
+
+# --------------------------------------------------------------------------- #
+# Controles d'une regle pour la simulation du front-end (--lancer-regle --simulation)
+# --------------------------------------------------------------------------- #
+def _controle_dossier(role, chemin, ecriture_requise, creer_dossiers, creable):
+    """Un dossier : existe, lecture, ecriture (droit de creer s'il est absent), et s'il peut etre cree.
+    `ecriture_requise` : faux pour une source en mode copie (on n'y supprime rien).
+    Un fichier d'essai `.test_ecriture_<pid>` est cree puis supprime aussitot (comme --verifier)."""
+    c = {"role": role, "chemin": chemin, "existe": os.path.isdir(chemin), "lecture": None, "ecriture": None,
+         "a_creer": False, "detail": ""}
+    if c["existe"]:
+        c["lecture"], detail_lecture = tester_lecture(chemin)
+        detail = [detail_lecture] if detail_lecture else []
+        if ecriture_requise:
+            c["ecriture"], detail_ecriture = essai_ecriture(chemin)
+            if detail_ecriture:
+                detail.append(detail_ecriture)
+        c["detail"] = " ; ".join(detail)
+        return c
+    if not creable:
+        c["detail"] = "le dossier n'existe pas"
+        return c
+    ok, detail = tester_ecriture(chemin, True)
+    c["ecriture"] = ok
+    c["a_creer"] = ok
+    c["detail"] = detail or "le dossier n'existe pas"
+    if ok and not creer_dossiers:
+        c["detail"] += " ; la regle a creer_dossiers = false : le moteur ne le creera pas seul"
+    return c
+
+
+def _controle_espace(c, chemin, besoin):
+    try:
+        libre = chemins.espace_disponible(chemin)
+    except OSError:
+        return
+    c["espace"] = {"libre_octets": libre, "necessaire_octets": besoin, "suffisant": libre >= besoin}
+
+
+def controler_dossiers_regle(regle, entete, octets=0, maintenant=None):
+    """Liste de controles (source, cible, temporaire, archive) pour la simulation d'une regle :
+    existence, droits de lecture et d'ecriture, espace disponible pour les `octets` a livrer plus la
+    marge, et possibilite de creer un dossier absent. Meme logique que le lancement reel."""
+    maintenant = maintenant or datetime.datetime.now()
+    source = os.path.normpath(os.path.expandvars(regle.source))
+    cible = os.path.normpath(os.path.expandvars(regle.cible))
+    besoin = octets + entete.marge_espace_mo * MO
+    resultat = [_controle_dossier("source", source, regle.mode != "copie", regle.creer_dossiers, False)]
+    c = _controle_dossier("cible", cible, True, regle.creer_dossiers, True)
+    _controle_espace(c, cible, besoin)
+    resultat.append(c)
+    if regle.dossier_temporaire:
+        temporaire = os.path.normpath(os.path.expandvars(regle.dossier_temporaire))
+        c = _controle_dossier("temporaire", temporaire, True, regle.creer_dossiers, True)
+        if not chemins.meme_volume(temporaire, cible):
+            c["detail"] = (c["detail"] + " ; " if c["detail"] else "") + \
+                "doit etre sur le meme volume que la cible (renommage atomique)"
+            c["volume_incorrect"] = True
+        resultat.append(c)
+    if regle.mode == "archivage" and regle.archive:
+        archive = chemins.resoudre_archive(regle.archive, source, maintenant)
+        c = _controle_dossier("archive", archive, True, regle.creer_dossiers, True)
+        if not chemins.meme_volume(source, archive):
+            _controle_espace(c, archive, besoin)
+        resultat.append(c)
+    return resultat

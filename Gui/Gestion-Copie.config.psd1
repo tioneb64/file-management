@@ -30,6 +30,7 @@
         VersionsSupportees = @(1)                                     # versions du format d'en-tête que l'interface sait lire
         DossierVersions   = 'versions'                                # sous-dossier des anciennes versions (relatif au dossier de paramétrage ; le compte de service n'y a pas accès)
         DossierBrouillons = '.brouillons'                             # sous-dossier où le moteur vérifie un fichier avant son enregistrement (le compte de service doit pouvoir le lire)
+        DossierSupprimes  = '.supprimes'                                 # sous-dossier où sont rangés le fichier et les versions d'un environnement supprimé (rien n'est effacé)
         PeriodeDeclencheurSec = 300                                   # période du déclencheur Jenkins (contrôle P02)
     }
 

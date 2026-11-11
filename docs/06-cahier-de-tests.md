@@ -1,4 +1,4 @@
-# Cahier de tests
+﻿# Cahier de tests
 
 Ce cahier est **complété à chaque jalon**. Tout est d'abord exécuté sur le poste de développement (Windows 10, Python 3.14.10) par le développement ; la colonne « Serveur » est remplie ensuite par le responsable applicatif sur le serveur de recette (Windows Server 2016).
 
@@ -734,7 +734,52 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 127 
 | J10E-M11 | **Ouverture sans blocage** | Ouvrir l'interface avec plusieurs environnements sur un serveur distant lent | La fenêtre apparaît tout de suite avec les règles ; les statuts arrivent ensuite | |
 | J10E-M12 | **Restauration** | Après deux modifications, « Historique… », choisir la plus ancienne, « Revenir à l'état d'avant cette modification… » | Confirmation avec le nombre de différences, commentaire demandé, fichier rétabli, nouvelle ligne dans l'historique ; une restauration qui supprime une règle demande confirmation des avertissements | |
 
-## 19. Jalons suivants
+## 19. Jalon J10, étape F — Dossier absent ou vide, environnements, simulation, contrôle des répertoires
+
+Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 tests Pester, tous OK, PSScriptAnalyzer sans avertissement, moteur Python réel. Spécification : [04-frontend](04-frontend.md) §3, §4.2 bis et ter, [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md) §4. **Jamais exécuté** : les fenêtres à la souris, une vraie session JEA, le serveur Windows Server 2016.
+
+### 19.1 Tests automatiques
+
+| ID | Ce qui est vérifié | PC | Serveur |
+|---|---|---|---|
+| J10F-A01 | **Moteur, simulation JSON** : `apercu` (fichier, cible, taille), `apercu_total`, plafond, `source` / `cible` / `mode` ; rien n'est écrit ; **aucune temporisation** (source absente signalée tout de suite) | OK | |
+| J10F-A02 | **Moteur, contrôles** : existence, lecture, écriture, espace nécessaire (volume + marge), dossier à créer, espace insuffisant (simulé) ; l'essai d'écriture ne laisse aucun fichier | OK | |
+| J10F-A03 | **Moteur, `--controler-regle`** : sans base, sans livraison ; règle inconnue refusée | OK | |
+| J10F-A04 | **Moteur, `--creer-dossiers-regle`** : exige `--utilisateur`, crée la cible, **jamais la source** | OK | |
+| J10F-A05 | **Moteur, `--renommer-environnement`** : la base absente du nouveau nom est refusée avant, acceptée après ; trace dans le journal des actions ; refusé si une règle est en cours | OK | |
+| J10F-A06 | **JEA** : `--lancer-regle` accepté seulement avec `--simulation` (lecture) ; `--controler-regle` (lecture) ; `--initialiser-base`, `--renommer-environnement`, `--creer-dossiers-regle` (écriture) | OK | |
+| J10F-A07 | **Dossier de paramétrage** : absent + administrateur → question, création ou refus ; absent + non administrateur → message avec le groupe, rien créé ; vide, invalide, fichier, relatif, guillemets | OK | |
+| J10F-A08 | **Fenêtre** : dossier vide → écran « aucun environnement », bouton de création pour l'administrateur seulement ; barre des environnements visible pour l'administrateur seulement et active selon l'onglet | OK | |
+| J10F-A09 | **Saisie d'un environnement** : nom, base (réseau, relative, vide, doublon), dossier de travail doublon, entiers ; en-tête construit sans champ vide | OK | |
+| J10F-A10 | **Créer** (moteur réel) : fichier vérifié, base créée, aucun brouillon laissé ; refus sans droit, nom ou base pris | OK | |
+| J10F-A11 | **Renommer** (moteur réel) : fichier, en-tête, base rouverte par le moteur, versions renommées (pas celles d'un autre environnement), règles conservées ; refus : nom identique, invalide, existant, sans droit | OK | |
+| J10F-A12 | **Supprimer** (moteur réel) : fichier et versions rangés, fiche, base intacte ; refus sans droit ou sans commentaire | OK | |
+| J10F-A13 | **Copier** (moteur réel) : toutes les règles, désactivées ou actives, dépendances et répertoires conservés, base propre, original intact ; même base ou même dossier de travail refusés | OK | |
+| J10F-A14 | **Simulation** (moteur réel) : « Déplacera 2 fichier(s) … vers … », cible à créer signalée, création puis tout OK, source absente = problème non créable | OK | |
+| J10F-A15 | **Résumé** : phrases copie / archivage / vide, verdicts (droits refusés, espace insuffisant, volume incorrect), tailles | OK | |
+| J10F-A16 | **Dossiers d'un environnement** : contrôle (trois dossiers à créer, rien créé), création, second contrôle propre, valeurs par défaut (`logs`, `travail` à côté de la base), lecteur introuvable non créable, aucun fichier d'essai laissé | OK | |
+| J10F-A17 | **Une seule question** : trois dossiers absents = une question qui les nomme ; refus = rien créé ; accord = créés ; tout existe = aucune question | OK | |
+| J10F-A18 | **Création d'environnement** (moteur réel) : question refusée = fichier créé, base non créée, résultat explicite ; question acceptée = base créée dans le dossier créé | OK | |
+| J10F-A19 | **JEA** : `Invoke-CopieDossiersJea` contrôle en lecture, refuse la création hors groupe administrateur, refuse un fichier hors du dossier de paramétrage, crée pour un administrateur | OK | |
+| J10F-A20 | **Détection du moteur** : configuration correcte = aucune question ; chemins d'exemple = une question, correction pour la session ; refus = configuration inchangée et message ; rien trouvé = message sans question ; mode Distant ignoré | OK | |
+
+### 19.2 Tests manuels sur le serveur
+
+| ID | Objectif | Procédure | Attendu | Serveur |
+|---|---|---|---|---|
+| J10F-M01 | **Dossier absent** | `Lancer-GestionCopie.ps1 -DossierParametrage D:\Parametrage\neuf` en administrateur, puis en simple lecteur | Administrateur : question de création, dossier créé, écran « aucun environnement » puis proposition de créer le premier ; lecteur : message avec le groupe, rien créé | |
+| J10F-M02 | **Créer un environnement** | « Nouvel environnement… » avec une base locale, case « créer la base » | Fichier créé, base créée, onglet affiché ; base sur un partage refusée | |
+| J10F-M03 | **Renommer** | Renommer puis lancer le moteur (`--etat`) ; essayer pendant l'exécution d'une règle | Le moteur rouvre la base sous le nouveau nom ; refus pendant l'exécution ; l'historique des versions suit | |
+| J10F-M04 | **Copier** | « Copier vers un nouvel environnement… » | Toutes les règles présentes, désactivées ; répertoires à modifier | |
+| J10F-M05 | **Supprimer** | Supprimer : annuler au 1er avertissement, puis au 2e (mauvais nom : bouton grisé), puis confirmer | Fichier et versions dans `.supprimes\…` ; base intacte ; remise en place du fichier = environnement de retour | |
+| J10F-M06 | **Contrôle après enregistrement** | Enregistrer une règle dont la cible n'existe pas ; puis une dont la source n'existe pas ; puis une cible sans droit d'écriture | Cible : proposition de créer ; source : problème, pas de création ; droit : message avec le compte utilisé (JEA : compte de service) | |
+| J10F-M07 | **Simulation** | « Simuler la règle… » sur une règle avec des fichiers en attente | Phrase correcte, contrôles, liste ; rien n'a bougé ; espace insuffisant signalé sur un petit volume de test | |
+| J10F-M09 | **Dossiers d'un environnement** | Créer « preprod » avec une base, un dossier de journaux et un dossier de travail qui n'existent pas ; répondre Non, puis recommencer avec Oui | Une seule question qui nomme les trois dossiers ; Non : fichier créé, base non créée, message ; Oui : dossiers et base créés, lignes `dossier_cree` dans le journal de l'interface | |
+| J10F-M10 | **Python introuvable** | Lancer avec la configuration modèle (chemins d'exemple) sur un poste où Python est dans le PATH | Une question propose Python et le dépôt trouvés ; Oui : tout fonctionne pour la session ; le fichier de configuration est inchangé | |
+| J10F-M11 | **Dossiers par JEA** | Créer un environnement avec `ConfigurationJea`, dossiers absents, avec puis sans le groupe administrateur | Administrateur : question puis création avec le compte de service ; autre : création refusée, message clair | |
+| J10F-M08 | **Simulation par JEA** | Même simulation avec `ConfigurationJea` | Résultat identique ; la commande n'est pas refusée ; `--lancer-regle` sans `--simulation` refusé | |
+
+## 20. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :
 

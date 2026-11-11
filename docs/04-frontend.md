@@ -1,4 +1,4 @@
-# Front-end de gestion
+﻿# Front-end de gestion
 
 Application **PowerShell 5.1** (Windows Server 2016) pour gérer le paramétrage et suivre l'état des règles. Son aspect graphique reprend celui du projet de gestion des clusters Hyper-V : **les maquettes seront fournies** et complétées dans ce document. Ce document décrit les fonctions, les règles et les échanges avec le moteur, pas l'aspect visuel.
 
@@ -33,6 +33,8 @@ Le front-end peut tourner **sur le serveur d'exécution ou sur un autre poste** 
 
 - Au démarrage, le front-end **parcourt `dossier_parametrage`** et charge chaque fichier `*.jsonl`. Il lit la première ligne (en-tête) de chacun.
 - **Un onglet par environnement**, nommé d'après l'en-tête.
+- **Moteur introuvable** (mode Local) : `Resolve-CopieMoteurLocal` vérifie `Moteur.Python` et `Moteur.Racine` ; s'ils n'existent pas, il cherche `python.exe` (PATH hors faux lanceurs du Windows Store, puis `py -3`) et le dépôt au-dessus du module, pose **une question**, et corrige la configuration **en mémoire** pour la session si l'utilisateur accepte. Sinon l'interface s'ouvre avec un avertissement et chaque appel du moteur dit quelle clé corriger.
+- **Dossier absent** : un administrateur se voit proposer de le créer (jamais sans réponse), un autre compte reçoit un message qui nomme le groupe administrateur. **Dossier vide** : écran « aucun environnement » avec, pour un administrateur, la création du premier environnement proposée d'office.
 - Contrôles à l'ouverture : deux fichiers qui déclarent le même environnement, un environnement différent du nom du fichier, une version de format inconnue. Un fichier non supporté est affiché en lecture seule avec un message.
 
 ## 4. Fonctions
@@ -63,6 +65,26 @@ Réalisation (étape D) :
 | Promouvoir | Copier une règle validée d'un environnement vers un autre, en adaptant les chemins : choix de la cible, remplacement d'un texte dans les dossiers et dans la commande des programmes (littéral, sans tenir compte de la casse, aperçu avant/après), avertissement si la règle existe déjà dans la cible (elle est remplacée) ou si ses dépendances n'y existent pas. La règle adaptée s'ouvre ensuite dans le **formulaire de la cible** puis suit exactement l'enregistrement sécurisé du §5 (vérification du moteur, commentaire, version précédente) : la promotion ne contourne aucun contrôle |
 
 Aides à la saisie : durées en unités lisibles à l'écran (converties en `_sec` à l'enregistrement), planification en sélecteurs, masques en liste, variables de date disponibles en liste, dépendances choisies parmi les règles existantes.
+
+### 4.2 bis Gestion des environnements (administrateurs)
+
+| Fonction | Détail |
+|---|---|
+| Créer | Nom (`^[a-z0-9_-]{1,32}$`), base locale complète (E04, E05), dossiers, parallélisme, rétentions ; refus d'un nom, d'un fichier, d'une base ou d'un dossier de travail déjà utilisés ; fichier sans règle, vérifié par le moteur (`--verifier --syntaxe-seule`) avant d'être placé ; `--initialiser-base` ensuite (une base existante n'est pas une erreur) |
+| Modifier l'en-tête | Même pipeline que l'enregistrement d'une règle (§5) |
+| Renommer | Fichier + en-tête + nom dans la base (`--renommer-environnement ANCIEN`, refusé si une règle est en cours) + préfixe des versions de l'historique. Le nouveau fichier est placé avant le renommage de la base ; si le moteur refuse, il est retiré et rien n'a changé. Une base absente n'empêche pas le renommage. Le nom ne se change pas en même temps que le reste |
+| Copier | Nouvel environnement avec toutes les règles (écrites telles quelles, `actif = false` par défaut), même en-tête sauf nom, base, dossiers de logs et de travail |
+| Supprimer | Double validation (avertissement, puis saisie du nom exact + commentaire). Le fichier, ses versions et une fiche vont dans `Parametrage.DossierSupprimes` (`.supprimes`) ; **base, journaux et archives intacts** ; refusé si une règle est en cours ou si l'état n'est pas lisible |
+
+**Dossiers techniques (base, journaux, travail).** Après l'écriture du fichier et avant la création de la base, `Invoke-CopieQuestionDossiers` contrôle les trois dossiers par `Invoke-CopieDossiersEnvironnement` (PowerShell, pas le moteur Python : une création de dossier n'a rien de propre au moteur). Les chemins sont lus dans l'en-tête du fichier ; vides, ils valent `logs` et `travail` à côté de la base (comme le moteur). Local : dans le processus de l'interface ; Distant : `Invoke-Command` sur le serveur ; JEA : `Invoke-CopieDossiersJea` du point d'accès (lecture libre, création réservée au groupe administrateur, aucun chemin fourni par l'appelant). Un dossier absent est créable si son plus proche parent existant accepte l'écriture (fichier d'essai créé puis supprimé). **Une seule question** liste les dossiers à créer ; refus = fichier créé, base non créée. Appelé par la création, la copie, la modification et « Créer la base… ».
+
+Toutes ces fonctions exigent le profil Admin dans l'interface **et** les droits NTFS d'écriture sur le dossier. Par JEA, `--initialiser-base`, `--renommer-environnement` et `--creer-dossiers-regle` sont des commandes d'écriture (groupe administrateur).
+
+### 4.2 ter Contrôle des répertoires et simulation
+
+- Après l'enregistrement d'une règle : `--controler-regle ID` (sans base) renvoie, pour la source, la cible, le dossier temporaire et l'archive : existence, lecture, écriture (essai réel d'un fichier temporaire), possibilité de création d'un dossier absent, espace pour la cible et l'archive. Les problèmes sont affichés ; les dossiers absents créables (jamais la source) peuvent être créés par `--creer-dossiers-regle ID --utilisateur U` (tracé dans le journal du moteur).
+- « Simuler la règle… » : `--lancer-regle ID --simulation` donne la liste des fichiers (`apercu`, plafonnée à 500) et les contrôles de répertoires avec l'espace nécessaire (volume à livrer + marge). Par JEA, la simulation est une commande de **lecture** : le point d'accès exige `--simulation` et ne lance jamais de transfert réel.
+- Ces contrôles s'exécutent avec le compte du moteur (le vôtre, celui du serveur ou le compte de service du point d'accès JEA).
 
 ### 4.3 Actions d'exploitation (administrateurs)
 
@@ -148,6 +170,7 @@ L'application est dans `Gui\` (même organisation que l'outil de gestion du clus
 | **C** | Actions d'exploitation (§4.3 : reprise, lancement, acquittement, déblocage), purge (`--purger`), exécution en arrière-plan de la vérification et de la purge, « Actualiser l'état » | faite |
 | **D** | Graphe des dépendances, promotion d'un environnement à l'autre, historique des versions | faite |
 | **E** | Compléments : point d'accès JEA, écran des livraisons incertaines, état lu en arrière-plan, restauration d'une version | faite |
+| **F** | Dossier de paramétrage absent ou vide, gestion des environnements (créer, modifier / renommer, copier, créer la base, supprimer), simulation d'une règle, contrôle des répertoires après enregistrement | faite (non rejouée sur le serveur) |
 
 Dossier protégé : `Initialiser-DossierParametrage.ps1 -Dossier … -GroupeAdmin … -CompteService …` crée le dossier et son sous-dossier de versions, coupe l'héritage et pose : administrateurs en modification, compte de service Jenkins en **lecture seule** (le moteur ne l'écrit jamais), aucun accès du compte de service aux versions. Il demande confirmation (`-WhatIf` pour voir), et refuse de s'appliquer si le compte qui le lance n'est pas dans le groupe (il se couperait l'accès).
 

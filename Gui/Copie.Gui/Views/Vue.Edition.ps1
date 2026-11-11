@@ -120,6 +120,8 @@ function Update-CopieBoutons {
     $Vue.Purger.IsEnabled = ($exploitation -and -not $occupe)
     $Vue.Verifier.IsEnabled = (-not $occupe)
     $Vue.Actualiser.IsEnabled = (-not $occupe)
+    $Vue.Simuler.IsEnabled = ($lisible -and $choisie -and -not $occupe)
+    Update-CopieBarreEnvironnements
 }
 
 function Invoke-CopieEnregistrement {
@@ -327,8 +329,7 @@ function Invoke-CopieFormulaireEtEnregistrement {
         $r = Invoke-CopieEnregistrement -Vue $Vue -Regle $liste -Question $question -Action $verbeJournal -IdRegle $nouvelId
         if ($r -eq 'ok') {
             Sync-CopieParametrage -Vue $Vue -Selection $nouvelId
-            $suite = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Règle « {0} » enregistrée.`n`nLancer maintenant la vérification complète (accès aux dossiers, programmes...) ?" -f $nouvelId), 'Enregistré', 'YesNo', 'Information')
-            if ($suite -eq [System.Windows.MessageBoxResult]::Yes) { Invoke-CopieVerification -Vue $Vue }
+            Invoke-CopieControleRegle -Vue $Vue -Id $nouvelId
             return
         }
         if ($r -eq 'abandon') { Sync-CopieParametrage -Vue $Vue -Selection $IdChoisi; return }

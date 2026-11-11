@@ -1,4 +1,4 @@
-# Guide d'utilisation de l'interface de gestion
+﻿# Guide d'utilisation de l'interface de gestion
 
 Ce guide s'adresse aux personnes qui **suivent** les transferts de fichiers (consultation) et à celles qui **gèrent** le paramétrage et l'exploitation (administrateurs). L'installation est décrite dans [10-installation](10-installation.md) ; les règles complètes du paramétrage dans [01-parametrage](01-parametrage.md).
 
@@ -17,7 +17,13 @@ Elle n'ouvre jamais la base de données : tout passe par les commandes du moteur
 
 ## 2. Ouvrir l'interface
 
-Lancer `Lancer-GestionCopie.ps1 -DossierParametrage <dossier>` (ou le raccourci fourni par l'exploitation). La fenêtre s'ouvre avec :
+Lancer `Lancer-GestionCopie.ps1 -DossierParametrage <dossier>` (ou le raccourci fourni par l'exploitation).
+
+**Si le dossier n'existe pas** : un administrateur se voit proposer de le créer (Oui / Non, le chemin complet est rappelé) ; un autre compte reçoit un message qui nomme le groupe des administrateurs. Un chemin vide, invalide, qui désigne un fichier ou un dossier inaccessible donne un message clair, jamais une erreur technique.
+**Si Python ou le moteur configurés n'existent pas** (mode Local) : l'interface les cherche (PATH, lanceur `py`, dépôt) et vous demande, en une seule question, si vous voulez les utiliser pour la session. Le fichier de configuration n'est pas modifié : corrigez `Moteur.Python` et `Moteur.Racine` dedans pour que ce soit définitif.
+**Si le dossier est vide** : la fenêtre explique qu'il n'y a aucun environnement ; l'administrateur se voit proposer tout de suite de **créer le premier** (§13), les autres sont renvoyés à un administrateur.
+
+La fenêtre s'ouvre avec :
 
 - **en haut** : le dossier de paramétrage, votre compte, et un badge **ADMINISTRATEUR** (vert) ou **LECTURE SEULE** (orange). Le badge dépend de votre appartenance au groupe AD des administrateurs, lue à l'ouverture de votre session Windows ;
 - **un onglet par environnement** (production, recette…), nommé d'après le fichier. Un environnement au fichier problématique (même nom déclaré deux fois, nom différent de celui du fichier, format inconnu) s'affiche en **lecture seule** avec un message dans le bandeau ;
@@ -66,6 +72,8 @@ Filtres en haut de la liste : recherche libre (identifiant, description, chemins
 | Purger… | Administrateurs | Purge des journaux et archives (§6.6) |
 | Promouvoir… | Administrateurs | Copier une règle vers un autre environnement (§9) |
 | Historique… | Tous (si le dossier des versions est lisible) | Modifications passées, restauration (§10) |
+| Simuler la règle… | Tous (règle sélectionnée) | Ce que la règle ferait maintenant, avec contrôle des répertoires (§14) |
+| Nouvel environnement…, Modifier / renommer…, Copier vers un nouvel environnement…, Créer la base…, Supprimer… | Administrateurs (barre « Environnements », au-dessus des onglets) | Gestion des environnements (§13) |
 
 Les boutons d'édition n'apparaissent que si vous êtes administrateur **et** que l'environnement n'est pas en lecture seule. Ceux d'exploitation exigent un administrateur et un fichier lisible, et (sauf Purger) une règle sélectionnée.
 
@@ -103,13 +111,23 @@ Le bouton **Enregistrer…** déclenche la même séquence pour toute modificati
 3. Les **avertissements** (par exemple une règle qui démarre avant une règle dont elle dépend, ou une sélection élargie qui ferait livrer plus de fichiers qu'avant) sont soumis à votre confirmation.
 4. Si quelqu'un d'autre a modifié le fichier entre-temps, **rien n'est écrit** : le fichier est rechargé et vous recommencez.
 5. L'ancienne version est **copiée dans `versions\`** avec une fiche (compte, date, commentaire), puis le fichier est remplacé en une seule opération : il n'est jamais écrit à moitié.
-6. L'interface propose alors de lancer la vérification complète (§4).
+6. L'interface **contrôle aussitôt les répertoires de la règle** (§5.4).
 
 Le moteur **prend en compte** le nouveau fichier au lancement suivant (dans les 5 minutes). Une règle nouvelle démarre à son **créneau suivant** ; pour la lancer tout de suite : **Lancer maintenant**.
 
 ### 5.3 Activer, désactiver, supprimer
 
 **Désactiver** (ou **Activer**) change seulement le champ `actif`. **Supprimer** retire la règle du fichier après confirmation ; son historique reste en base (le moteur la signale comme « orpheline » dans le bandeau). Dans les deux cas, le commentaire est demandé et la même vérification s'applique.
+
+### 5.4 Contrôle des répertoires après l'enregistrement
+
+Le moteur vérifie le fichier **sans** aller voir les dossiers (la vérification d'enregistrement est « syntaxe seule »). C'est pourquoi, **dès qu'une règle est enregistrée**, l'interface demande au moteur de contrôler ses répertoires : source, cible, dossier temporaire et archive. Pour chacun : **existe**, **lecture**, **écriture** (un petit fichier d'essai est créé puis supprimé aussitôt) ; la cible et l'archive dont le volume diffère de la source sont aussi contrôlées pour l'**espace disque**.
+
+- Tout va bien : un message le confirme, en nommant le compte avec lequel le contrôle a été fait.
+- Un **problème** (dossier absent côté source, droit refusé, dossier temporaire sur un autre volume) : message en clair, avec le chemin, ce qui manque et le conseil de corriger la règle ou les droits. La règle reste enregistrée : le contrôle n'empêche rien, il informe.
+- Un **dossier absent qui peut être créé** (cible, temporaire, archive) : l'administrateur se voit proposer de le **créer** ; le contrôle est refait ensuite. **La source n'est jamais créée par l'outil** : un dossier source absent est presque toujours une faute de frappe, et c'est le système producteur qui l'alimente.
+
+**Avec quel compte ?** Les droits contrôlés sont ceux du compte qui exécute le moteur : le vôtre en mode local, celui du serveur en mode distant, le **compte de service du point d'accès JEA** si vous passez par JEA (c'est le compte qui fera les transferts). Le message le dit.
 
 ## 6. Exploitation (administrateurs)
 
@@ -201,9 +219,36 @@ Le panneau du bas montre ce que fait l'interface (ouverture, appels du moteur av
 | Un bouton est grisé | Aucune règle sélectionnée, un appel du moteur est en cours, ou (Trancher…) pas de livraison incertaine |
 | « Le dossier des versions n'est pas lisible avec votre compte » | Votre compte n'a pas accès à `versions\` : demander les droits à l'exploitation |
 
-## 13. Ce que l'interface ne fait pas
+## 13. Gérer les environnements (administrateurs)
+
+Au-dessus des onglets, la barre **Environnements** n'est visible que pour un administrateur. Toutes ces opérations passent par un brouillon vérifié par le moteur avant l'écriture, et sont **tracées** (journal de l'interface : compte, action, résultat). Le contrôle des droits de l'interface ne remplace pas ceux du dossier de paramétrage (NTFS) : voir [10-installation](10-installation.md).
+
+| Bouton | Ce qu'il fait |
+|---|---|
+| **Nouvel environnement…** | Formulaire : nom (minuscules, chiffres, `_`, `-`, 32 maximum), chemin **complet et local** de la base (pas de partage réseau, lettre de lecteur avec son `:`), dossiers des journaux et de travail, parallélisme, rétentions, marge d'espace. Refus d'un nom ou d'une base déjà utilisés. Le fichier est écrit **sans règle**, puis les dossiers sont contrôlés (voir ci-dessous) et la base est créée si la case est cochée. Proposé d'office quand le dossier est vide |
+| **Modifier / renommer…** | Modifie l'en-tête. **Renommer** change le nom du fichier, de l'environnement dans la base, et de l'historique des versions ; il se fait **seul**, sans autre changement, et est refusé tant qu'une règle s'exécute. Les **jobs Jenkins** qui citent l'ancien nom de fichier restent à modifier. Changer le chemin de la base ne déplace pas l'historique : la nouvelle base démarre vide (confirmation demandée) |
+| **Copier vers un nouvel environnement…** | Nouvel environnement avec **toutes les règles** de l'original, même en-tête (le nom, la base et les dossiers propres à chaque environnement sont à saisir). Les règles **gardent leurs répertoires** : c'est à vous de les modifier ensuite. Par défaut elles sont copiées **désactivées**, pour que deux environnements ne livrent pas les mêmes fichiers au même endroit ; décochez la case pour les garder actives |
+| **Créer la base…** | Crée la base d'un environnement qui n'en a pas encore ; refuse d'écraser une base existante |
+| **Supprimer…** | **Double validation** : (1) un avertissement qui détaille les conséquences, (2) la saisie du **nom exact** de l'environnement et d'un commentaire. Rien n'est effacé : le fichier et ses versions sont rangés dans `.supprimes\<nom>_<date>\` avec une fiche (compte, date, commentaire, chemin de la base) ; pour annuler, remettre le fichier `.jsonl` dans le dossier de paramétrage. La **base, les journaux et les archives ne sont jamais touchés**. Refusé tant qu'une règle s'exécute |
+
+**Dossiers de la base, des journaux et du travail.** Dès que le fichier d'un environnement est écrit (création, copie, modification de ces chemins, bouton « Créer la base… »), l'interface contrôle les trois dossiers là où tourne le moteur. S'il en manque, **une seule question** les liste et propose de les créer (Oui / Non), en rappelant le compte dont les droits sont contrôlés. Oui : ils sont créés (tracé dans le journal), puis la base. Non : le fichier reste créé, la base ne l'est pas, et le message le dit. Un dossier qu'on ne peut pas créer (lecteur introuvable, droits) est signalé en clair. Cette règle vaut pour **tout chemin saisi dans l'outil** : dossier de paramétrage, dossiers d'un environnement, répertoires d'une règle (§5.4) et simulation (§14).
+
+## 14. Simuler une règle
+
+Sélectionnez une règle puis **Simuler la règle…** (tous les comptes) : le moteur dit ce qu'il ferait **maintenant**, sans rien copier, déplacer ni enregistrer. Il faut que la base de l'environnement existe et que la règle soit active.
+
+La fenêtre montre :
+
+- une **phrase** : « Déplacera 12 fichier(s) (3,4 Mo) du répertoire R vers le répertoire D. » (copie : « Copiera… Les originaux restent en place » ; archivage : « …puis archivés dans… ») ;
+- le tableau **Contrôles des répertoires** : pour la source, la cible, le dossier temporaire et l'archive : **existe** Oui / Non, **lecture** Oui / Non, **écriture** Oui / Non (« création possible » pour un dossier absent), **espace disque** (libre et nécessaire pour les fichiers listés plus la marge, OK ou INSUFFISANT), **verdict** (OK, A_CREER, PROBLEME) et remarque ;
+- la liste des **fichiers concernés** (source, destination, taille, archive), plafonnée à 500 ;
+- des remarques : fichiers ignorés (déjà livrés, doublons), avertissements, nombre de problèmes.
+
+Pour un administrateur, le bouton **Créer les dossiers manquants…** apparaît s'il en manque : confirmation, création (cible, temporaire, archive, jamais la source), puis la simulation est refaite. La simulation n'attend jamais : pas de temporisation entre tentatives (une source absente est signalée tout de suite).
+
+## 15. Ce que l'interface ne fait pas
 
 - Elle ne lance pas les transferts : c'est Jenkins (ou **Lancer maintenant** / **Reprise**, qui ne font que demander un départ au prochain lancement).
 - Elle n'interroge rien automatiquement et ne remplace pas Grafana pour la surveillance continue.
-- Elle ne modifie pas l'en-tête d'un fichier (environnement, chemin de la base, parallélisme, rétentions) : ces réglages se font en éditant le fichier, par un administrateur du serveur, puis « Vérifier le paramétrage ».
-- Elle ne crée pas de nouvel environnement ni de base : voir [10-installation](10-installation.md) §4.
+- Elle ne **supprime jamais** une base, un journal ou une archive (la suppression d'un environnement range son fichier, rien d'autre).
+- Elle ne modifie pas les jobs Jenkins : après un renommage ou une suppression d'environnement, ils sont à mettre à jour à la main.

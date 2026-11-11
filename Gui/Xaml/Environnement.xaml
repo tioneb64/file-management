@@ -82,6 +82,8 @@
       <Button x:Name="BtnTrancher" Content="Trancher…" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
       <Button x:Name="BtnPurger" Content="Purger…" Style="{StaticResource BtnDanger}" Margin="0,0,16,6" Visibility="Collapsed"/>
       <Button x:Name="BtnPromouvoir" Content="Promouvoir…" Style="{StaticResource Btn}" Margin="0,0,8,6" Visibility="Collapsed"/>
+      <Button x:Name="BtnSimuler" Content="Simuler la règle…" Style="{StaticResource BtnPrimary}" Margin="0,0,8,6" IsEnabled="False"
+              ToolTip="Montre ce que la règle ferait maintenant (combien de fichiers, de quel répertoire vers quel répertoire), sans rien copier ni déplacer."/>
       <Button x:Name="BtnHistorique" Content="Historique…" Style="{StaticResource Btn}" Margin="0,0,8,6"/>
     </WrapPanel>
     </StackPanel>

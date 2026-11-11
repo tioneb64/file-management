@@ -784,6 +784,19 @@ def initialiser(chemin, environnement, utilisateur):
     c.close()
 
 
+def renommer_environnement(chemin, ancien, nouveau, utilisateur):
+    """--renommer-environnement : la base porte le nouveau nom d'environnement. Refuse si elle porte un
+    autre nom que `ancien` ou si une regle est en cours (le moteur la rouvrirait sous l'ancien nom)."""
+    with ouvrir(chemin, ancien) as b:
+        with b.transaction() as c:
+            if c.execute("SELECT COUNT(*) FROM regles WHERE en_cours = 1").fetchone()[0]:
+                raise ErreurBase("une regle est en cours d'execution : attendre sa fin avant de renommer")
+            c.execute("UPDATE meta SET valeur = ? WHERE cle = 'environnement'", (nouveau,))
+            c.execute("INSERT INTO journal_actions(action, utilisateur, commentaire, demandee_le, "
+                      "resultat) VALUES ('renommage_environnement', ?, ?, ?, 'ok')",
+                      (utilisateur, "environnement %s -> %s" % (ancien, nouveau), b.maintenant()))
+
+
 def ouvrir(chemin, environnement=None, lecture_seule=False, busy_timeout_ms=BUSY_TIMEOUT_MS):
     """Ouvre une base existante (jamais de creation automatique : garantie G6)."""
     verifier_disque_local(chemin)

@@ -30,7 +30,7 @@
     $schema = @{
         Acces       = @('GroupesAdmin')
         Moteur      = @('Mode', 'Python', 'Racine', 'Serveur', 'ConfigurationJea', 'DelaiMaxSec')
-        Parametrage = @('Filtre', 'VersionsSupportees', 'DossierVersions', 'DossierBrouillons', 'PeriodeDeclencheurSec')
+        Parametrage = @('Filtre', 'VersionsSupportees', 'DossierVersions', 'DossierBrouillons', 'DossierSupprimes', 'PeriodeDeclencheurSec')
         Journal     = @('Dossier')
     }
     foreach ($cle in @($brut.Keys)) {
@@ -81,10 +81,11 @@
     $versions = @(& $lire 'Parametrage' 'VersionsSupportees' @(1) | ForEach-Object { [int]$_ })
     $dossierVersions = "$(& $lire 'Parametrage' 'DossierVersions' 'versions')"
     $brouillons = "$(& $lire 'Parametrage' 'DossierBrouillons' '.brouillons')"
-    foreach ($sous in @($dossierVersions, $brouillons)) {
+    $supprimes = "$(& $lire 'Parametrage' 'DossierSupprimes' '.supprimes')"
+    foreach ($sous in @($dossierVersions, $brouillons, $supprimes)) {
         if ($sous -match '[\/:]' -or $sous -in '', '.', '..') { $erreurs.Add(('Parametrage : "{0}" doit être un nom de sous-dossier simple' -f $sous)) }
     }
-    if ($dossierVersions -eq $brouillons) { $erreurs.Add('Parametrage : DossierVersions et DossierBrouillons doivent être différents') }
+    if (@($dossierVersions, $brouillons, $supprimes | Select-Object -Unique).Count -ne 3) { $erreurs.Add('Parametrage : DossierVersions, DossierBrouillons et DossierSupprimes doivent être différents') }
     $periode = [int](& $lire 'Parametrage' 'PeriodeDeclencheurSec' 300)
     if ($periode -lt 1) { $erreurs.Add('Parametrage.PeriodeDeclencheurSec doit être supérieur à 0') }
 
@@ -103,7 +104,7 @@
         }
         Parametrage = [pscustomobject]@{
             Filtre = $filtre; VersionsSupportees = $versions; DossierVersions = $dossierVersions
-            DossierBrouillons = $brouillons; PeriodeDeclencheurSec = $periode
+            DossierBrouillons = $brouillons; DossierSupprimes = $supprimes; PeriodeDeclencheurSec = $periode
         }
         Journal     = [pscustomobject]@{ Dossier = "$(& $lire 'Journal' 'Dossier' '')".Trim() }
     }

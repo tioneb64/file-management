@@ -6,7 +6,7 @@
     CompanyName          = ''
     Description          = 'copie_fichiers - Point d''accès JEA : seule fonction exposée, Invoke-CopieMoteurJea.'
     PowerShellVersion    = '5.1'
-    FunctionsToExport    = @('Invoke-CopieMoteurJea')
+    FunctionsToExport    = @('Invoke-CopieMoteurJea', 'Invoke-CopieDossiersJea')
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()

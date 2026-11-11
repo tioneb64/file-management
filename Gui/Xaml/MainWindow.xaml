@@ -43,7 +43,28 @@
       </DockPanel>
     </Border>
 
-    <TabControl x:Name="Tabs" Grid.Row="1" Margin="12,12,12,6" Background="#F3F5F8" BorderThickness="0"/>
+    <DockPanel Grid.Row="1" Margin="12,12,12,6">
+      <!-- Gestion des environnements (administrateurs) -->
+      <WrapPanel x:Name="BarreEnvironnements" DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
+        <TextBlock Text="Environnements" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+        <Button x:Name="BtnEnvNouveau" Content="Nouvel environnement…" Style="{StaticResource BtnPrimary}" Margin="0,0,8,0"/>
+        <Button x:Name="BtnEnvModifier" Content="Modifier / renommer…" Style="{StaticResource Btn}" Margin="0,0,8,0" IsEnabled="False"/>
+        <Button x:Name="BtnEnvCopier" Content="Copier vers un nouvel environnement…" Style="{StaticResource Btn}" Margin="0,0,8,0" IsEnabled="False"/>
+        <Button x:Name="BtnEnvBase" Content="Créer la base…" Style="{StaticResource Btn}" Margin="0,0,8,0" IsEnabled="False"/>
+        <Button x:Name="BtnEnvSupprimer" Content="Supprimer…" Style="{StaticResource BtnDanger}" Margin="0,0,8,0" IsEnabled="False"/>
+      </WrapPanel>
+      <Grid>
+        <TabControl x:Name="Tabs" Background="#F3F5F8" BorderThickness="0"/>
+        <!-- Aucun environnement affiché : on explique pourquoi et on propose d'en créer un. -->
+        <Border x:Name="EtatVide" Visibility="Collapsed" Background="#F3F5F8" Padding="40">
+          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="760">
+            <TextBlock x:Name="EtatVideTitre" FontSize="18" FontWeight="SemiBold" Foreground="#1F3A5F" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <TextBlock x:Name="EtatVideTexte" TextWrapping="Wrap" Foreground="#2E3A48" Margin="0,0,0,16"/>
+            <Button x:Name="BtnEtatVideCreer" Content="Créer un premier environnement…" Style="{StaticResource BtnPrimary}" HorizontalAlignment="Left" Visibility="Collapsed"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </DockPanel>
 
     <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="#D5DCE5"/>
 

@@ -2,6 +2,7 @@
 concurrence entre processus et arret brutal."""
 import contextlib
 import io
+import json
 import os
 import sqlite3
 import shutil
@@ -604,6 +605,42 @@ class TestCommandes(CasTemporaire):
         code, sortie, _ = self.lancer("--config", conf, "--sauvegarder-base", self.chemin("sauv"))
         self.assertEqual(code, 0)
         self.assertEqual(len(os.listdir(self.chemin("sauv"))), 1)
+
+    def ecrire_entete(self, chemin, environnement, base_db):
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"version": 1, "environnement": environnement, "base": base_db}) + "\n")
+
+    def test_renommer_environnement(self):
+        ancienne = self.parametrage("production")
+        self.assertEqual(self.lancer("--config", ancienne, "--initialiser-base")[0], 0)
+        # le fichier est renomme et son en-tete aussi, la base garde son ancien nom : le moteur la refuse
+        nouvelle = self.chemin("recette.jsonl")
+        self.ecrire_entete(nouvelle, "recette", self.chemin("donnees", "production.db"))
+        code, _, erreur = self.lancer("--config", nouvelle, "--etat")
+        self.assertEqual(code, 2)
+        self.assertIn("production", erreur)
+        code, sortie, _ = self.lancer("--config", nouvelle, "--renommer-environnement", "production",
+                                      "--utilisateur", "benoit")
+        self.assertEqual(code, 0, sortie)
+        self.assertEqual(self.lancer("--config", nouvelle, "--etat")[0], 0)
+        with base.ouvrir(self.chemin("donnees", "production.db"), "recette") as b:
+            self.assertEqual(b.c.execute("SELECT action FROM journal_actions ORDER BY id DESC").fetchone()[0],
+                             "renommage_environnement")
+        # une seconde fois : la base n'est plus a l'ancien nom
+        code, _, erreur = self.lancer("--config", nouvelle, "--renommer-environnement", "production")
+        self.assertEqual(code, 2)
+
+    def test_renommer_refuse_si_une_regle_est_en_cours(self):
+        ancienne = self.parametrage("production")
+        self.lancer("--config", ancienne, "--initialiser-base")
+        with base.ouvrir(self.chemin("donnees", "production.db")) as b:
+            b.synchroniser_regles([("r1", "e")])
+            b.c.execute("UPDATE regles SET en_cours = 1")
+        nouvelle = self.chemin("recette.jsonl")
+        self.ecrire_entete(nouvelle, "recette", self.chemin("donnees", "production.db"))
+        code, _, erreur = self.lancer("--config", nouvelle, "--renommer-environnement", "production")
+        self.assertEqual(code, 2)
+        self.assertIn("en cours", erreur)
 
     def test_sauvegarde_sans_base(self):
         code, _, erreur = self.lancer("--config", self.parametrage(), "--sauvegarder-base",

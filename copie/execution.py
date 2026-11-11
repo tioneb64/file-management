@@ -20,6 +20,7 @@ NIVEAU_STATUT = {"SUCCES": "INFO", "WARNING": "WARNING", "ERREUR": "ERREUR"}
 STATUTS = ("SUCCES", "WARNING", "ERREUR")
 EXCEPTIONS_RETENTABLES = (ErreurTransfert, OSError)
 MARGE_OCTETS = 1024 * 1024
+APERCU_MAX = 500                   # fichiers detailles dans la reponse d'une simulation
 
 
 class Bilan(object):
@@ -32,6 +33,9 @@ class Bilan(object):
         self.erreur = None                  # {"situation", "message"} de la premiere ERREUR
         self.arret_apres_erreur = False
         self.duree_ms = 0
+        self.apercu = []                    # simulation : fichiers qui seraient livres (plafonne)
+        self.apercu_total = 0
+        self.octets_prevus = 0              # volume a livrer, connu avant la livraison (controle d'espace)
 
 
 class EchecSituation(Exception):
@@ -599,7 +603,8 @@ class ExecutionRegle(object):
             self._livrer(c)
 
     def _controler_espace(self, a_livrer):
-        besoin = sum(c.taille for c in a_livrer) + self.entete.marge_espace_mo * MARGE_OCTETS
+        self.bilan.octets_prevus = sum(c.taille for c in a_livrer)
+        besoin = self.bilan.octets_prevus + self.entete.marge_espace_mo * MARGE_OCTETS
 
         def verifier(dossier):
             libre = chemins.espace_disponible(dossier)
@@ -725,6 +730,7 @@ class ExecutionRegle(object):
             self.bilan.compteurs["livres"] += 1
             self.bilan.compteurs["octets"] += c.taille
             self._log("fichier_a_livrer", "INFO", cible=destination, taille=c.taille, **champs)
+            self._noter_apercu(c, destination)
             self._res.update(resultat="a_livrer", cible=destination)
             self._programme("apres_fichier", c=c, destination=destination, **champs)
             return
@@ -769,6 +775,16 @@ class ExecutionRegle(object):
 
         if suivante:
             self._action_du_mode(c, cle_principale, suivante, destination_archive, champs)
+
+    def _noter_apercu(self, c, destination):
+        """Simulation : garde de quoi dire « deplacera X fichier(s) de R vers D » (plafonne a APERCU_MAX)."""
+        self.bilan.apercu_total += 1
+        if len(self.bilan.apercu) >= APERCU_MAX:
+            return
+        element = {"fichier": c.chemin, "cible": destination, "taille": c.taille}
+        if self.regle.mode == "archivage" and self.archive_dir and not self.archive_differee:
+            element["archive"] = self._destination_archive(c)
+        self.bilan.apercu.append(element)
 
     def _destination_archive(self, c):
         nom = c.nom

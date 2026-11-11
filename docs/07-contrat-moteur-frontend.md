@@ -1,4 +1,4 @@
-# Contrat entre le moteur et le front-end
+﻿# Contrat entre le moteur et le front-end
 
 Le front-end (PowerShell, voir [04-frontend](04-frontend.md)) **n'ouvre jamais la base** et **ne relit pas la logique de validation** : il appelle le moteur et lit du JSON. Ce document est le contrat : tant que `version_contrat` vaut `1`, les champs listés ici ne changent ni de nom ni de type ; des champs peuvent être **ajoutés** (le front-end doit ignorer ceux qu'il ne connaît pas).
 
@@ -58,7 +58,10 @@ Colonne « Droits » : **lecture** = tout compte, **écriture** = administrateur
 | `--debloquer ID --utilisateur U [--commentaire C]` | écriture | Arrête l'exécution en cours (processus et descendants) et libère la règle | `commande`, `regle`, `execution_id`, `pid`, `processus_arrete`, `drapeau_libere`, `reprise_necessaire` |
 | `--purger [--regle ID] [--appliquer]` | écriture | Sans `--appliquer` : liste ce qui serait purgé (journaux et archives), **ne supprime rien**. Avec : supprime. Code 4 si une règle n'est pas purgeable ou si une suppression échoue | `commande`, `appliquee`, `a_purger` (`type`, `regle`, `chemin`, `date`, `octets`, `fichiers`), `octets`, `ignores` (`chemin`, `raison`), `erreurs_regles`, `resultat` (avec `--appliquer` : `journaux`, `archives`, `octets`, `erreurs`) |
 | `--trancher-incertain CLE --decision livre\|a_relivrer --utilisateur U --commentaire C` | écriture | Décide du sort d'une livraison de résultat inconnu | `commande`, `decision` |
-| `--lancer-regle ID [--simulation]` | écriture | Exécute une seule règle maintenant | `regle`, `statut`, `compteurs`, `simulation` |
+| `--lancer-regle ID [--simulation]` | écriture (lecture avec `--simulation`) | Exécute une seule règle maintenant. Avec `--simulation`, rien n'est écrit et aucune temporisation n'est observée | `regle`, `statut`, `compteurs`, `simulation` ; avec `--simulation` en plus : `source`, `cible`, `mode`, `situation`, `apercu` (`fichier`, `cible`, `taille`, `archive`), `apercu_total`, `apercu_tronque` (plafond 500), `controles` (voir `--controler-regle`) |
+| `--controler-regle ID` | lecture | Contrôle les dossiers d'une règle sans lire la base ni rien livrer | `regle`, `mode`, `controles` : liste de `role` (`source`, `cible`, `temporaire`, `archive`), `chemin`, `existe`, `lecture`, `ecriture` (`null` : non testé ; dossier absent : droit de le créer), `a_creer`, `detail`, `espace` (`libre_octets`, `necessaire_octets`, `suffisant`), `volume_incorrect` |
+| `--creer-dossiers-regle ID --utilisateur U` | écriture | Crée les dossiers cible, temporaire et archive manquants que les contrôles jugent créables ; **jamais la source** | `regle`, `crees`, `echecs` (`role`, `chemin`, `erreur`) ; code 1 s'il y a un échec |
+| `--renommer-environnement ANCIEN [--utilisateur U]` | écriture | La base du fichier `--config`, encore au nom d'environnement `ANCIEN`, prend le nom du fichier ; refusé si une règle est en cours ou si la base porte un autre nom | `base`, `environnement` |
 | *(aucune)* `[--regle ID] [--simulation]` | écriture | Lancement : toutes les règles dues (utilisé par Jenkins) | `statut`, `compteurs`, `simulation` |
 
 Les commandes d'exploitation (`--reprise`, `--lancer-maintenant`, `--acquitter`, `--debloquer`, `--trancher-incertain`) exigent `--utilisateur`, qui est tracé dans la base et dans le journal ; le front-end y passe le compte Active Directory authentifié. Un **refus** (règle en cours, commentaire manquant…) répond `ok: false`, `code_retour: 2` et la raison dans `message`.

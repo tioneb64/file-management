@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-from copie import __version__, base, lancement, modele, purge
+from copie import __version__, acces, base, lancement, modele, purge
 from copie.controles import verifier_fichier
 from copie.diagnostic import VERSION_CONTRAT
 
@@ -118,6 +118,12 @@ def _commande_base(args, parametrage):
         if args.initialiser_base:
             base.initialiser(entete.base, entete.environnement, args.utilisateur or getpass.getuser())
             return _repondre(args, CODE_OK, "Base creee : %s (environnement %s)" % (entete.base, entete.environnement),
+                             base=entete.base, environnement=entete.environnement)
+        if args.renommer_environnement:
+            base.renommer_environnement(entete.base, args.renommer_environnement, entete.environnement,
+                                        args.utilisateur or getpass.getuser())
+            return _repondre(args, CODE_OK, "Base renommee : %s -> %s" % (args.renommer_environnement,
+                                                                         entete.environnement),
                              base=entete.base, environnement=entete.environnement)
         chemin = base.sauvegarder(entete.base, args.sauvegarder_base)
         return _repondre(args, CODE_OK, "Sauvegarde creee : %s" % chemin, fichier=chemin)
@@ -241,8 +247,10 @@ def _lancer_regle(args, parametrage):
         if not args.simulation:
             b.synchroniser_regles([(r.id, lancement.empreinte_regle(r)) for r in parametrage.regles if r.id])
         try:
+            # une simulation n'attend jamais : pas de delai entre les tentatives (source absente, verrou...)
             bilan = lancer_regle(regle, entete, b, journal, declencheur="manuel", simulation=args.simulation,
-                                 simulation_programmes=args.simulation_programmes)
+                                 simulation_programmes=args.simulation_programmes,
+                                 **({"dormir": lambda secondes: None} if args.simulation else {}))
         except RegleDejaEnCours:
             _terminer_journal(journal, "ERREUR", {}, CODE_ERREUR)
             return _repondre(args, CODE_ERREUR, "la regle %s est deja en cours d'execution" % regle.id)
@@ -253,9 +261,51 @@ def _lancer_regle(args, parametrage):
         code = {"SUCCES": CODE_OK, "WARNING": CODE_AVERTISSEMENT, "ERREUR": CODE_ERREUR}[bilan.statut]
         _terminer_journal(journal, bilan.statut, bilan.compteurs, code)
     if args.format == "json":
+        extra = {}
+        if args.simulation:
+            extra = dict(controles=acces.controler_dossiers_regle(regle, entete, max(bilan.octets_prevus, bilan.compteurs["octets"])),
+                         source=regle.source, cible=regle.cible, mode=regle.mode, apercu=bilan.apercu,
+                         apercu_total=bilan.apercu_total, apercu_tronque=bilan.apercu_total > len(bilan.apercu),
+                         situation=bilan.situation_finale)
         return _repondre(args, code, bilan.motif or "", regle=regle.id, statut=bilan.statut,
-                         compteurs=bilan.compteurs, simulation=bool(args.simulation))
+                         compteurs=bilan.compteurs, simulation=bool(args.simulation), **extra)
     return code
+
+
+def _controler_regle(args, parametrage):
+    """Controles de dossiers d'une regle (meme logique que la simulation), sans base : sert au front-end
+    apres l'enregistrement d'une regle, pour signaler un dossier absent ou inaccessible."""
+    regle = next((r for r in parametrage.regles if r.id and r.id.lower() == args.controler_regle.lower()), None)
+    if regle is None:
+        return _repondre(args, CODE_CONFIG, "regle inconnue : %s" % args.controler_regle)
+    return _repondre(args, CODE_OK, "", regle=regle.id, mode=regle.mode,
+                     controles=acces.controler_dossiers_regle(regle, parametrage.entete))
+
+
+def _creer_dossiers_regle(args, parametrage):
+    """Cree les dossiers cible, temporaire et archive manquants d'une regle (jamais la source), a la demande
+    d'un administrateur. Seuls les dossiers que les controles jugent creables avec les droits du compte sont crees."""
+    regle = next((r for r in parametrage.regles if r.id and r.id.lower() == args.creer_dossiers_regle.lower()), None)
+    if regle is None:
+        return _repondre(args, CODE_CONFIG, "regle inconnue : %s" % args.creer_dossiers_regle)
+    journal = _journal(args, parametrage)
+    crees, echecs = [], []
+    for c in acces.controler_dossiers_regle(regle, parametrage.entete):
+        if c["role"] == "source" or c["existe"] or not c["a_creer"]:
+            continue
+        try:
+            os.makedirs(c["chemin"], exist_ok=True)
+            crees.append({"role": c["role"], "chemin": c["chemin"]})
+            journal.evenement("dossier_cree", "INFO", regle=regle.id, role=c["role"], chemin=c["chemin"],
+                              utilisateur=args.utilisateur)
+        except OSError as e:
+            echecs.append({"role": c["role"], "chemin": c["chemin"], "erreur": str(e)})
+            journal.evenement("dossier_creation_impossible", "ERREUR", regle=regle.id, role=c["role"],
+                              chemin=c["chemin"], erreur=str(e), utilisateur=args.utilisateur)
+    code = CODE_ERREUR if echecs else CODE_OK
+    _terminer_journal(journal, "ERREUR" if echecs else "SUCCES", {"crees": len(crees)}, code)
+    return _repondre(args, code, "%d dossier(s) cree(s), %d echec(s)" % (len(crees), len(echecs)),
+                     regle=regle.id, crees=crees, echecs=echecs)
 
 
 def _lancement(args, parametrage):
@@ -394,6 +444,9 @@ def _arguments(argv=None):
     commande.add_argument("--verifier", action="store_true", help="valide le parametrage (et les acces)")
     commande.add_argument("--initialiser-base", action="store_true",
                           help="cree la base de l'environnement (refuse si elle existe)")
+    commande.add_argument("--renommer-environnement", metavar="ANCIEN",
+                          help="la base de ce parametrage, encore a l'ancien nom d'environnement, prend le nom "
+                               "du fichier (apres un renommage du fichier)")
     commande.add_argument("--sauvegarder-base", metavar="DOSSIER",
                           help="sauvegarde coherente de la base dans ce dossier")
     commande.add_argument("--etat", action="store_true", help="etat des regles (lecture de la base)")
@@ -415,6 +468,12 @@ def _arguments(argv=None):
                           help="convertit l'ancien fichier copies.conf en parametrage v2 (regles inactives)")
     commande.add_argument("--importer-historique", metavar="HISTORIQUE.JSON",
                           help="importe l'historique de l'ancien script : ses fichiers ne seront pas relivres")
+    commande.add_argument("--controler-regle", metavar="ID",
+                          help="controle les dossiers d'une regle (existence, droits de lecture et d'ecriture, "
+                               "espace, creation possible) sans lire la base ni rien livrer")
+    commande.add_argument("--creer-dossiers-regle", metavar="ID",
+                          help="cree les dossiers cible, temporaire et archive manquants d'une regle "
+                               "(jamais la source ; --utilisateur obligatoire)")
     commande.add_argument("--lancer-regle", metavar="ID",
                           help="execute une seule regle maintenant, planification ignoree")
     commande.add_argument("--executer-regle", metavar="ID",
@@ -454,9 +513,11 @@ def _main(argv=None):
     if args.periode_declencheur_sec is not None and args.periode_declencheur_sec < 1:
         p.error("--periode-declencheur-sec doit etre superieur a 0")
     lancement_ou_regle = not (args.verifier or args.initialiser_base or args.sauvegarder_base or args.etat
+                              or args.renommer_environnement
                               or args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
                               or args.trancher_incertain or args.executer_regle or args.migrer_ancien
-                              or args.importer_historique or args.purger or args.modele_regle)
+                              or args.importer_historique or args.purger or args.modele_regle
+                              or args.creer_dossiers_regle or args.controler_regle)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
     if args.simulation_programmes and not args.simulation:
@@ -474,7 +535,7 @@ def _main(argv=None):
     if args.frequence_sec < 1:
         p.error("--frequence-sec doit etre superieur a 0")
     exploitation = (args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
-                    or args.trancher_incertain or args.importer_historique)
+                    or args.trancher_incertain or args.importer_historique or args.creer_dossiers_regle)
     if exploitation and not args.utilisateur:
         p.error("--utilisateur est obligatoire pour cette commande")
 
@@ -496,7 +557,7 @@ def _main(argv=None):
             print(rapport.en_texte(), file=sys.stderr)
             print("Parametrage invalide : commande annulee.", file=sys.stderr)
         return CODE_CONFIG
-    if args.initialiser_base or args.sauvegarder_base:
+    if args.initialiser_base or args.sauvegarder_base or args.renommer_environnement:
         return _commande_base(args, parametrage)
     if args.etat:
         return _etat(args, parametrage)
@@ -504,6 +565,10 @@ def _main(argv=None):
         return _importer_historique(args, parametrage)
     if args.purger:
         return _purger(args, parametrage)
+    if args.controler_regle:
+        return _controler_regle(args, parametrage)
+    if args.creer_dossiers_regle:
+        return _creer_dossiers_regle(args, parametrage)
     if exploitation:
         return _exploitation(args, parametrage)
     if args.executer_regle:
