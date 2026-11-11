@@ -7,9 +7,9 @@
     RootModule           = 'Copie.Gui.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = '3f6f0a54-0d57-4a2c-9a3e-6c1e5a3d7b11'
-    Author               = 'Benoit Thibaudeau (benoit.thibaudeau64@gmail.com)'
+    Author               = 'copie_fichiers'
     CompanyName          = ''
-    Copyright            = '(c) Benoit Thibaudeau'
+    Copyright            = '(c) copie_fichiers'
     Description          = 'copie_fichiers - Interface graphique WPF : environnements, règles, état.'
     PowerShellVersion    = '5.1'
     CompatiblePSEditions = @('Desktop', 'Core')

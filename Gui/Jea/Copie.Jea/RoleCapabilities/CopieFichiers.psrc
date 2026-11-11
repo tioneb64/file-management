@@ -1,6 +1,6 @@
 ﻿@{
     GUID            = 'c4d8a1f2-3b6e-4f70-8a19-5e2b9d0c7a13'
-    Author          = 'Benoit Thibaudeau (benoit.thibaudeau64@gmail.com)'
+    Author          = 'copie_fichiers'
     Description     = 'Appelle le moteur copie_fichiers (grammaire du contrat docs/07) sans rien d''autre.'
     ModulesToImport = @('Copie.Jea')
     VisibleFunctions = @('Invoke-CopieMoteurJea', 'Invoke-CopieDossiersJea')
