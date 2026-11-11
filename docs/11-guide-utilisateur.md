@@ -1,0 +1,209 @@
+# Guide d'utilisation de l'interface de gestion
+
+Ce guide s'adresse aux personnes qui **suivent** les transferts de fichiers (consultation) et à celles qui **gèrent** le paramétrage et l'exploitation (administrateurs). L'installation est décrite dans [10-installation](10-installation.md) ; les règles complètes du paramétrage dans [01-parametrage](01-parametrage.md).
+
+> L'interface n'a pas encore été utilisée sur le serveur de production. Les écrans ont été vérifiés par des tests automatiques et des captures d'écran, **pas encore à la souris par une personne** : signaler tout écart avec ce guide.
+
+## 1. À quoi sert l'interface
+
+Le transfert lui-même est fait par le **moteur**, lancé par Jenkins toutes les 5 minutes : il copie, déplace ou archive des fichiers selon des **règles**. L'interface ne copie rien. Elle sert à :
+
+- **voir** les règles et leur état (réussie, en erreur, en attente…) ;
+- **modifier** les règles (administrateurs) ;
+- **agir** quand une règle est en difficulté : la reprendre, la lancer tout de suite, acquitter une erreur, débloquer une exécution, trancher une livraison incertaine, purger les vieux journaux ;
+- **comprendre** (graphe des dépendances, historique des modifications) et **réutiliser** une règle d'un environnement dans un autre.
+
+Elle n'ouvre jamais la base de données : tout passe par les commandes du moteur, qui est la seule référence pour valider un paramétrage.
+
+## 2. Ouvrir l'interface
+
+Lancer `Lancer-GestionCopie.ps1 -DossierParametrage <dossier>` (ou le raccourci fourni par l'exploitation). La fenêtre s'ouvre avec :
+
+- **en haut** : le dossier de paramétrage, votre compte, et un badge **ADMINISTRATEUR** (vert) ou **LECTURE SEULE** (orange). Le badge dépend de votre appartenance au groupe AD des administrateurs, lue à l'ouverture de votre session Windows ;
+- **un onglet par environnement** (production, recette…), nommé d'après le fichier. Un environnement au fichier problématique (même nom déclaré deux fois, nom différent de celui du fichier, format inconnu) s'affiche en **lecture seule** avec un message dans le bandeau ;
+- **en bas** : la barre d'état et le panneau « Journal » de l'interface (bouton « Effacer » pour le vider à l'écran).
+
+Le bouton **Actualiser** de la fenêtre relit tout le dossier de paramétrage et reconstruit les onglets.
+
+À l'ouverture, la liste des règles s'affiche **tout de suite** ; les statuts arrivent quelques instants plus tard (message « État en cours de lecture… »). Pendant ce temps les boutons de l'onglet sont grisés.
+
+## 3. L'onglet d'un environnement
+
+### 3.1 La liste des règles
+
+Une ligne par règle : identifiant, description, mode, chemins source → cible, planification en clair, actif, **statut**, dernier lancement et prochain créneau.
+
+Filtres en haut de la liste : recherche libre (identifiant, description, chemins), statut, mode (`copie`, `deplacement`, `archivage`) et « Règles actives seulement ». Le compteur indique « N règle(s) affichée(s) sur M ».
+
+### 3.2 Les statuts
+
+| Statut | Sens | Que faire |
+|---|---|---|
+| `JAMAIS_LANCEE` | La règle n'a jamais tourné (nouvelle, ou pas encore à l'heure) | Rien ; **Lancer maintenant** pour ne pas attendre |
+| `SUCCES` | Dernière exécution sans erreur ni avertissement | Rien |
+| `WARNING` | Terminée avec au moins un avertissement (archive indisponible, fichier ignoré…) | Lire le motif dans l'onglet **État** |
+| `ERREUR` | Dernière exécution en erreur, ou arrêtée | Voir §6 : corriger la cause, puis **Reprise** ou **Acquitter** |
+| `ACQUITTEE` | Erreur déclarée corrigée par un administrateur | Rien |
+| `EN_COURS` | Une exécution est en cours | Attendre ; **Débloquer** seulement si elle est figée |
+| `EN_ATTENTE` | Son heure est passée, mais une règle dont elle dépend n'a pas encore tourné | Normal ; partira toute seule |
+| `BLOQUEE` | Une règle dont elle dépend est en `ERREUR` ; le motif la nomme | Corriger la règle en erreur : toute la chaîne repart ensuite |
+| `INACTIVE` | La règle est désactivée dans le paramétrage | Rien, ou **Activer** |
+
+### 3.3 Les onglets du bas
+
+- **Détail de la règle** : tous les champs de la règle sélectionnée, regroupés.
+- **État** : statut, motif, dernière erreur, dernier succès, dernière exécution (fichiers livrés, erreurs, durée), actions en attente, livraisons incertaines, drapeaux (reprise demandée, arrêt après erreur, archivage dégradé).
+- **Dépendances** : voir §8.
+
+### 3.4 Boutons
+
+| Bouton | Qui | Rôle |
+|---|---|---|
+| Vérifier le paramétrage | Tous | Contrôle complet du fichier par le moteur (§4) |
+| Actualiser l'état | Tous | Relit le fichier et l'état. **Il n'y a pas d'actualisation automatique** |
+| Ajouter, Dupliquer, Modifier, Activer / Désactiver, Supprimer | Administrateurs | Édition (§5) |
+| Reprise, Lancer maintenant, Acquitter, Débloquer, Trancher… | Administrateurs | Exploitation (§6) |
+| Purger… | Administrateurs | Purge des journaux et archives (§6.6) |
+| Promouvoir… | Administrateurs | Copier une règle vers un autre environnement (§9) |
+| Historique… | Tous (si le dossier des versions est lisible) | Modifications passées, restauration (§10) |
+
+Les boutons d'édition n'apparaissent que si vous êtes administrateur **et** que l'environnement n'est pas en lecture seule. Ceux d'exploitation exigent un administrateur et un fichier lisible, et (sauf Purger) une règle sélectionnée.
+
+## 4. Vérifier le paramétrage
+
+**Vérifier le paramétrage** lance, en arrière-plan, le contrôle complet du moteur : syntaxe et accès (sources lisibles, cibles et archives accessibles en écriture, programmes présents, base utilisable, espace disque). Une fenêtre liste :
+
+- les **refus** (rouge) : le moteur n'accepterait pas ce fichier ;
+- les **avertissements** (orange) : acceptable, mais à lire ;
+- les **informations** (bleu) : par exemple l'espace disponible.
+
+Les accès sont contrôlés **avec le compte qui exécute le moteur** : avec un point d'accès JEA, celui du compte de service (donc de Jenkins) ; sans JEA, **le vôtre** : dans ce cas, un contrôle réussi ne prouve rien pour Jenkins.
+
+## 5. Modifier le paramétrage (administrateurs)
+
+### 5.1 Ajouter, dupliquer, modifier
+
+**Ajouter** ouvre le formulaire d'une règle avec les valeurs de secours du moteur ; **Dupliquer** part de la règle sélectionnée (il faut un nouvel identifiant) ; **Modifier** ouvre la règle sélectionnée.
+
+Le formulaire est organisé en onglets : **Général** (identifiant, description, actif, source, cible, mode, archive, planification), **Sélection** (masque, exclusions, récursivité, fenêtre de dates, âges, tailles), **Anti-doublon et nommage**, **Dépendances** (règles qui doivent avoir tourné avant, et à quelle condition), **Durée et erreurs** (durée maximale, réactions aux situations : nouvel essai, délai, suite), **Purge**, ainsi que les programmes externes à appeler.
+
+Points d'attention :
+
+- **L'identifiant d'une règle ne doit jamais changer** : l'historique en base y est rattaché. Pour « renommer », créer une nouvelle règle.
+- Les durées se saisissent avec leur unité (secondes, minutes, heures…) ; les champs à choix sont des listes.
+- Une règle **active** ne peut pas dépendre d'une règle **inactive**.
+- Modifier ou ajouter un **programme** fait exécuter ce programme par le compte de service : le formulaire le rappelle et la modification est tracée.
+
+### 5.2 Enregistrer
+
+Le bouton **Enregistrer…** déclenche la même séquence pour toute modification :
+
+1. Vous saisissez un **commentaire obligatoire** (pourquoi cette modification).
+2. Le fichier complet est écrit dans un brouillon et **vérifié par le moteur** (syntaxe et comparaison avec la version actuelle). Un **refus** s'affiche dans la fenêtre des diagnostics et vous revenez au formulaire, avec votre saisie, pour corriger.
+3. Les **avertissements** (par exemple une règle qui démarre avant une règle dont elle dépend, ou une sélection élargie qui ferait livrer plus de fichiers qu'avant) sont soumis à votre confirmation.
+4. Si quelqu'un d'autre a modifié le fichier entre-temps, **rien n'est écrit** : le fichier est rechargé et vous recommencez.
+5. L'ancienne version est **copiée dans `versions\`** avec une fiche (compte, date, commentaire), puis le fichier est remplacé en une seule opération : il n'est jamais écrit à moitié.
+6. L'interface propose alors de lancer la vérification complète (§4).
+
+Le moteur **prend en compte** le nouveau fichier au lancement suivant (dans les 5 minutes). Une règle nouvelle démarre à son **créneau suivant** ; pour la lancer tout de suite : **Lancer maintenant**.
+
+### 5.3 Activer, désactiver, supprimer
+
+**Désactiver** (ou **Activer**) change seulement le champ `actif`. **Supprimer** retire la règle du fichier après confirmation ; son historique reste en base (le moteur la signale comme « orpheline » dans le bandeau). Dans les deux cas, le commentaire est demandé et la même vérification s'applique.
+
+## 6. Exploitation (administrateurs)
+
+Toutes ces actions sont tracées avec **votre compte** dans la base, le journal du moteur et celui de l'interface. Quand le moteur refuse (règle déjà en cours, commentaire manquant…), son message est affiché tel quel et rien n'est modifié.
+
+### 6.1 Reprise
+
+À utiliser après avoir **corrigé la cause** d'une erreur : la règle repartira **au prochain lancement**, quelle que soit l'heure, et son programme « reprise » sera appelé en premier s'il existe. La confirmation liste les règles qui **dépendent** de celle-ci : elles repartiront d'elles-mêmes dès que leurs dépendances seront remplies. Le commentaire est facultatif.
+
+### 6.2 Lancer maintenant
+
+La règle part au prochain lancement sans attendre son créneau et **sans** programme de reprise. Utile pour une règle nouvelle ou pour une relance ponctuelle.
+
+### 6.3 Acquitter
+
+Pour une règle en `ERREUR` que vous considérez comme **traitée à la main** (le fichier a été livré autrement, l'erreur est sans conséquence) : elle passe en `ACQUITTEE` sans être relancée. Le **commentaire est obligatoire**. Pour que la règle reparte, utiliser plutôt **Reprise**.
+
+### 6.4 Débloquer
+
+Une règle `EN_COURS` qui ne se termine pas (programme figé) : **Débloquer arrête l'exécution**, tue le processus et tous ses descendants, et libère la règle (elle passe en erreur). Selon son réglage `apres_erreur`, une **reprise** est ensuite nécessaire ; l'interface le signale. À n'utiliser que si l'exécution est réellement figée : une copie interrompue en pleine écriture devient une livraison incertaine (§6.5).
+
+### 6.5 Trancher une livraison incertaine
+
+Quand une exécution est arrêtée brutalement **pendant la copie d'un fichier**, le moteur ne sait pas si le fichier est arrivé entier. Pour ne **jamais créer de doublon**, il s'arrête et la règle reste en erreur (« livraison incertaine ») ; l'onglet **État** affiche leur nombre. Le bouton **Trancher…** est actif quand la règle sélectionnée en a.
+
+1. **Regardez dans le dossier cible** : le fichier est-il là, entier ?
+2. **Trancher…** ouvre la liste (source, cible, clé). Choisissez une ligne.
+3. Choisissez **« Le fichier est bien arrivé… »** (il est considéré comme livré) ou **« Le fichier n'est pas arrivé (ou incomplet)… »** (il sera relivré).
+4. Saisissez un **commentaire obligatoire** (ce que vous avez vérifié), puis **Valider la décision**.
+
+Une livraison est tranchée à la fois : recommencez pour les suivantes (l'interface indique combien il en reste). Après avoir tranché, demandez une **Reprise** pour que la règle reparte.
+
+### 6.6 Purger
+
+**Purger…** supprime les **journaux** et **archives** plus anciens que la durée de conservation réglée dans le paramétrage. Si une règle est sélectionnée, l'interface demande si la purge ne doit porter que sur elle.
+
+1. L'interface affiche d'abord la **liste** de ce qui serait supprimé (type, règle, date, taille, chemin), les règles non purgeables et les éléments ignorés. **Rien n'est supprimé à ce stade.**
+2. **Purger** confirme ; **Fermer sans purger** abandonne. La suppression est **définitive**.
+
+Le job Jenkins de purge fait la même chose chaque jour ; commencez par lire la liste avant d'activer `--appliquer`.
+
+## 7. Actualiser et comprendre un état
+
+**Actualiser l'état** relit le fichier et le statut des règles et conserve la règle sélectionnée. Rien n'est interrogé automatiquement : si vous attendez une règle, cliquez de temps en temps.
+
+Si le bandeau (en haut de l'onglet) indique **« État indisponible : … »**, la liste des règles s'affiche quand même, d'après le fichier, mais sans statut : la base n'est pas initialisée, le moteur est injoignable ou trop ancien. Le message donne la raison.
+
+## 8. Le graphe des dépendances
+
+L'onglet **Dépendances** dessine les règles qui dépendent les unes des autres : chaque règle est **à droite** de celles qu'elle attend, la flèche va de la règle attendue vers celle qui attend. Les règles sans lien ne sont pas dessinées (leur nombre est indiqué).
+
+- La **couleur** est celle du statut ; un nœud estompé est une règle inactive ; l'infobulle donne le motif d'attente.
+- Une flèche **rouge** désigne la règle qui retient les autres (règle `EN_ATTENTE` ou `BLOQUEE` dont le motif la nomme).
+- Un **clic** sur un nœud sélectionne la règle dans la liste (si un filtre la masque, rien ne se passe : assouplir les filtres).
+
+## 9. Promouvoir une règle d'un environnement à un autre
+
+Pour reprendre une règle validée (par exemple de la recette vers la production) en **adaptant ses chemins** :
+
+1. Sélectionnez la règle, puis **Promouvoir…**.
+2. Choisissez l'**environnement cible**, le **texte à remplacer** et le **texte de remplacement** (par exemple `\\serveur-recette\` par `\\serveur-prod\`). Le remplacement est littéral, sans tenir compte de la casse, et s'applique aux dossiers de la règle et à la commande de ses programmes. L'aperçu montre avant et après.
+3. L'interface signale si la règle **existe déjà** dans la cible (elle sera remplacée) ou si les règles dont elle dépend **n'y existent pas**.
+4. **Continuer vers le formulaire…** : la règle adaptée s'ouvre dans le formulaire de la cible. Vous relisez, puis l'enregistrement suit **exactement** le §5.2 (vérification du moteur, commentaire, version précédente) : la promotion ne contourne aucun contrôle.
+
+Il faut être administrateur et pouvoir modifier l'environnement cible.
+
+## 10. Historique et restauration
+
+**Historique…** liste les modifications faites par l'interface : date, compte, commentaire. Sélectionnez une ligne : la partie droite affiche **ce que cette modification a changé** (règle ajoutée, supprimée, modifiée champ par champ, en-tête), les avertissements acceptés à l'époque, et signale une version sans fiche (copiée à la main : compte et date lus dans le nom du fichier).
+
+Pour **revenir en arrière** (administrateurs) : choisissez la modification à défaire puis **Revenir à l'état d'avant cette modification…**. L'interface indique le nombre de différences avec le fichier actuel : **les modifications faites depuis seront annulées**. Après confirmation, le commentaire est demandé et l'enregistrement suit le §5.2 (le moteur peut avertir qu'une règle disparaît : c'est normal). **Rien n'est effacé** : l'état avant restauration est lui-même conservé, la restauration est une ligne de l'historique et peut être défaite de la même façon.
+
+## 11. Le journal de l'interface
+
+Le panneau du bas montre ce que fait l'interface (ouverture, appels du moteur avec leur code retour et leur durée, enregistrements, actions). Si `Journal.Dossier` est renseigné, le même journal est écrit chaque jour dans un fichier JSON Lines lu par la plateforme de surveillance : c'est **la trace de qui a fait quoi** côté interface (la base et le journal du moteur gardent leur propre trace).
+
+## 12. Que faire quand…
+
+| Situation | Action |
+|---|---|
+| Une règle est `ERREUR` | Lire le motif (onglet État) ; corriger la cause (droits, dossier, programme) ; **Reprise** ; ou **Acquitter** si traité à la main |
+| Des règles sont `BLOQUEE` | Regarder le graphe : la flèche rouge désigne la règle en erreur ; la corriger et la reprendre, toute la chaîne repart |
+| Une règle est `EN_COURS` depuis trop longtemps | Vérifier sa durée maximale ; en dernier recours **Débloquer** |
+| « livraison(s) incertaine(s) » | §6.5 |
+| Une règle nouvelle ne part pas | Elle part à son prochain créneau ; **Lancer maintenant** pour la lancer tout de suite |
+| On a enregistré une modification par erreur | **Historique…** puis **Revenir à l'état d'avant cette modification…** |
+| « Le fichier a été modifié depuis son affichage » | Quelqu'un d'autre a enregistré : l'interface recharge ; refaire sa modification |
+| Un bouton est absent | Mode lecture seule (badge orange, ou environnement en lecture seule) |
+| Un bouton est grisé | Aucune règle sélectionnée, un appel du moteur est en cours, ou (Trancher…) pas de livraison incertaine |
+| « Le dossier des versions n'est pas lisible avec votre compte » | Votre compte n'a pas accès à `versions\` : demander les droits à l'exploitation |
+
+## 13. Ce que l'interface ne fait pas
+
+- Elle ne lance pas les transferts : c'est Jenkins (ou **Lancer maintenant** / **Reprise**, qui ne font que demander un départ au prochain lancement).
+- Elle n'interroge rien automatiquement et ne remplace pas Grafana pour la surveillance continue.
+- Elle ne modifie pas l'en-tête d'un fichier (environnement, chemin de la base, parallélisme, rétentions) : ces réglages se font en éditant le fichier, par un administrateur du serveur, puis « Vérifier le paramétrage ».
+- Elle ne crée pas de nouvel environnement ni de base : voir [10-installation](10-installation.md) §4.

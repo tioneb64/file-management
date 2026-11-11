@@ -7,7 +7,7 @@
 | Responsable applicatif | Benoit Thibaudeau |
 | Version du format de paramétrage | 1 |
 
-Ces documents décrivent la **cible (v2)**. Le [README](../README.md) décrit le script actuel (v1) et reste valable jusqu'à la livraison de la v2.
+Ces documents décrivent la **cible (v2)**. Le [README](../README.md) présente la v2 et oriente vers ces documents ; l'ancien script (v1), encore en service jusqu'à la bascule, est décrit dans [12-ancien-script-v1](12-ancien-script-v1.md).
 
 | Document | Contenu |
 |---|---|
@@ -21,6 +21,9 @@ Ces documents décrivent la **cible (v2)**. Le [README](../README.md) décrit le
 | [08-jenkins](08-jenkins.md) | Jobs Jenkins, bibliothèque partagée, builds simultanés, codes retour, journaux de job |
 | [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md) | Commandes, codes retour et JSON échangés entre le moteur et le front-end |
 | [06-cahier-de-tests](06-cahier-de-tests.md) | Tests joués sur le poste de développement puis sur le serveur de recette, complété à chaque jalon |
+| [10-installation](10-installation.md) | **Installation** pas à pas : Python, moteur, dossier protégé, base, Jenkins, journaux, interface, JEA, vérification |
+| [11-guide-utilisateur](11-guide-utilisateur.md) | **Guide d'utilisation** de l'interface : consulter, modifier, exploiter, promouvoir, historique |
+| [12-ancien-script-v1](12-ancien-script-v1.md) | Documentation de l'ancien script (v1), conservée jusqu'à la bascule |
 
 ---
 
@@ -47,10 +50,11 @@ Le script actuel copie de façon incrémentale et vérifiée des fichiers de la 
 - Intégration Jenkins (Jenkinsfile type) ; format attendu par la Shared Library Groovy.
 - Front-end PowerShell de gestion du paramétrage et de l'état.
 - Outil de migration depuis le script actuel.
+- Purge des journaux et des archives (`--purger`, `Jenkinsfile.purge`, lancée depuis le front-end).
+- Point d'accès JEA pour l'accès distant restreint au moteur.
 
 **Hors périmètre de la v2** (prévu plus tard, voir [05-decoupage](05-decoupage.md))
 
-- Module de purge des journaux et des archives (paramétré depuis le même front-end, projet séparé).
 - Fichiers témoins (`.ok`), conversion d'encodage, fichier `.sha256`, compression.
 - Propagation des suppressions de la source vers la cible.
 - Client SFTP : le moteur dépose dans un dossier, le serveur SFTP le publie.
