@@ -245,6 +245,24 @@ function Update-CopiePlanificationVisible {
     $pl.Rattrapage.Boite.Visibility = & $v ($type -in 'quotidien', 'intervalle')
 }
 
+function Update-CopieHorodatageDisponible {
+    <#
+    .SYNOPSIS
+        Ne propose la case « Horodater les fichiers traités » que pour les modes copie et archivage.
+    .PARAMETER Fenetre
+        Fenêtre du formulaire (son Tag porte les champs). Pour un autre mode, la case est grisée et décochée.
+    #>
+    [CmdletBinding()]
+    param([System.Windows.Window] $Fenetre)
+    $champs = @($Fenetre.Tag.Champs)
+    $mode = $champs | Where-Object { $_.Spec.Chemin -eq 'mode' } | Select-Object -First 1
+    $horodatage = $champs | Where-Object { $_.Spec.Chemin -eq 'horodater' } | Select-Object -First 1
+    if ($null -eq $mode -or $null -eq $horodatage) { return }
+    $permis = "$($mode.Controle.SelectedItem)" -in 'copie', 'archivage'
+    $horodatage.Controle.IsEnabled = $permis
+    if (-not $permis) { $horodatage.Controle.IsChecked = $false }
+}
+
 function New-CopieOngletSituations {
     <#
     .SYNOPSIS
@@ -514,6 +532,9 @@ function New-CopieFormulaireRegle {
         Base = $Regle; Mode = $Mode; IdsExistants = $IdsExistants; Resultat = $null
     }
     Update-CopiePlanificationVisible -Fenetre $fenetre
+    $champMode = $champs | Where-Object { $_.Spec.Chemin -eq 'mode' } | Select-Object -First 1
+    if ($null -ne $champMode) { $champMode.Controle.Add_SelectionChanged({ param($s) Update-CopieHorodatageDisponible -Fenetre ([System.Windows.Window]::GetWindow($s)) }) }
+    Update-CopieHorodatageDisponible -Fenetre $fenetre
     $fenetre.FindName('BtnOk').Add_Click({ param($s) Confirm-CopieFormulaire -Fenetre ([System.Windows.Window]::GetWindow($s)) })
     $fenetre
 }

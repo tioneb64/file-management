@@ -132,11 +132,13 @@ function Show-CopieResultatEnvironnement {
         -Message ('{0} {1} (compte {2}) : {3} - {4}' -f $Action, $Environnement, $Contexte.Utilisateur, $Resultat.Etape, ($Resultat.Message -replace '\s+', ' ')) `
         -Donnees @{ action = $Action; environnement = $Environnement; etape = $Resultat.Etape; compte = $Contexte.Utilisateur }
     if ($Resultat.Etape -eq 'refus' -and $Resultat.Refus.Count -gt 0) {
+        Reset-CopieOperation
         Show-CopieDiagnostics -Contexte $Contexte -Reponse ([pscustomobject]@{ Json = [pscustomobject]@{ refus = $Resultat.Refus; avertissements = $Resultat.Avertissements; informations = @() } })
         return
     }
-    $icone = $(if ($Resultat.Ok -and $Resultat.Etape -eq 'ok') { 'Information' } elseif ($Resultat.Ok) { 'Warning' } else { 'Error' })
-    [void][System.Windows.MessageBox]::Show($Contexte.Fenetre, $Resultat.Message, $Titre, 'OK', $icone)
+    $gravite = $(if ($Resultat.Ok -and $Resultat.Etape -eq 'ok') { 'Information' } elseif ($Resultat.Ok) { 'Avertissement' } else { 'Erreur' })
+    $principale = New-CopieLigneResultat -Gravite $gravite -Sujet $Titre -Message "$($Resultat.Message)"
+    Show-CopieOperation -Contexte $Contexte -Titre $Titre -Ligne @($principale)
 }
 
 function Get-CopieEnvironnementsActuels {
@@ -191,9 +193,10 @@ function Invoke-CopieQuestionDossiers {
         }
     }
     if ($null -eq $Informer) {
+        # Pas de boîte « OK » : l'opération en cours montre tout dans sa fenêtre de fin (Show-CopieOperation).
         $Informer = {
             param($texte, $icone)
-            [void][System.Windows.MessageBox]::Show($Contexte.Fenetre, $texte, 'Dossiers de l''environnement', 'OK', $icone)
+            Add-CopieLigneOperation -Gravite (Get-CopieGraviteIcone -Icone $icone) -Sujet 'Dossiers de l''environnement' -Message $texte
         }
     }
     $compte = Get-CopieCompteControle -Contexte $Contexte
@@ -205,7 +208,10 @@ function Invoke-CopieQuestionDossiers {
         return $false
     }
     $etat = Get-CopieTexteDossiersManquants -Dossier @($controle.Dossiers) -Compte $compte
-    if ($etat.ACreer.Count -eq 0 -and $etat.Impossibles.Count -eq 0) { return $true }
+    if ($etat.ACreer.Count -eq 0 -and $etat.Impossibles.Count -eq 0) {
+        Add-CopieLigneOperation -Gravite 'Information' -Sujet 'Dossiers de l''environnement' -Message 'La base, les journaux et le dossier de travail existent et sont accessibles en écriture.'
+        return $true
+    }
     if ($etat.ACreer.Count -eq 0) {
         & $Informer ($etat.Texte) 'Warning'
         return $false
@@ -222,6 +228,7 @@ function Invoke-CopieQuestionDossiers {
     }
     foreach ($d in @($creation.Dossiers | Where-Object { $_.Cree })) {
         Write-CopieJournal -Contexte $Contexte -Niveau 'INFO' -Evenement 'dossier_cree' -Message ('dossier cree pour {0} ({1}) : {2} (compte {3})' -f $nom, $d.Role, $d.Chemin, $Contexte.Utilisateur) -Donnees @{ environnement = $nom; role = $d.Role; chemin = $d.Chemin }
+        Add-CopieLigneOperation -Gravite 'Information' -Sujet 'Dossier créé' -Message ('{0} : {1}' -f $d.Role, $d.Chemin)
     }
     $reste = Get-CopieTexteDossiersManquants -Dossier @($creation.Dossiers) -Compte $compte
     if ($reste.ACreer.Count -gt 0 -or $reste.Impossibles.Count -gt 0) {
@@ -241,6 +248,7 @@ function Invoke-CopieNouvelEnvironnement {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable] $Contexte)
     if ($Contexte.Profil -ne 'Admin') { return }
+    Reset-CopieOperation
     $existants = Get-CopieEnvironnementsActuels -Contexte $Contexte
     $saisie = @{}
     while ($true) {
@@ -276,6 +284,7 @@ function Invoke-CopieCopierEnvironnement {
     param([Parameter(Mandatory)] [hashtable] $Vue)
     $ctx = $Vue.Contexte
     if ($ctx.Profil -ne 'Admin' -or $Vue.Occupe) { return }
+    Reset-CopieOperation
     $source = Read-CopieFichierParametrage -Chemin $Vue.Env.Fichier
     if ($null -eq $source.Entete -or $source.Erreurs.Count -gt 0) {
         [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ('Le fichier de l''environnement n''est pas lisible, il ne peut pas être copié : ' + ($source.Erreurs -join ' ')), 'Copie impossible', 'OK', 'Error')
@@ -332,6 +341,7 @@ function Invoke-CopieModifierEnvironnement {
     $origine = ConvertFrom-CopieEnteteEnvironnement -Entete $Vue.Env.Parametrage.Entete
     $existants = Get-CopieEnvironnementsActuels -Contexte $ctx
     $saisie = $origine
+    Reset-CopieOperation
     while ($true) {
         $reponse = Read-CopieSaisieEnvironnement -Contexte $ctx -Mode 'modification' -Saisie $saisie -Existants $existants
         if ($null -eq $reponse) { return }
@@ -339,10 +349,7 @@ function Invoke-CopieModifierEnvironnement {
         $renomme = ($nouveau.Nom -cne $origine.Nom)
         $change = $false
         foreach ($n in $origine.Keys) { if ($nouveau[$n] -cne "$($origine[$n])") { $change = $true } }
-        if (-not $change -and -not $reponse.CreerBase) {
-            [void][System.Windows.MessageBox]::Show($ctx.Fenetre, 'Rien n''a été modifié.', 'Environnement', 'OK', 'Information')
-            return
-        }
+        if (-not $change -and -not $reponse.CreerBase) { return }       # rien à faire : on ne dérange pas l'utilisateur
         if ($renomme) {
             $suite = Invoke-CopieRenommage -Vue $Vue -NouveauNom $nouveau.Nom -Existants $existants
             if ($suite -eq 'corriger') { $saisie = $nouveau; continue }
@@ -355,21 +362,23 @@ function Invoke-CopieModifierEnvironnement {
             }
             $entete = ConvertTo-CopieEnteteEnvironnement -Saisie $nouveau
             $issue = Invoke-CopieEnregistrement -Vue $Vue -Regle @($Vue.Env.Parametrage.Regles) -Entete $entete `
-                -Question ('Modification de l''environnement « {0} »' -f $origine.Nom) -Action 'modification_environnement' -IdRegle ''
+                -Question ('Modification de l''environnement « {0} »' -f $origine.Nom) -Action 'modification_environnement' -IdRegle '(environnement)'
             if ($issue -eq 'corriger') { $saisie = $nouveau; continue }
-            if ($issue -ne 'ok') { Update-CopieEnvironnements -Selection $origine.Nom; return }
+            if ($issue -ne 'ok') { Reset-CopieOperation; Update-CopieEnvironnements -Selection $origine.Nom; return }
+            Add-CopieLigneOperation -Gravite 'Information' -Sujet 'Enregistrement' -Message ('Les réglages de l''environnement « {0} » sont enregistrés.' -f $origine.Nom)
         }
         $dossiersPrets = Invoke-CopieQuestionDossiers -Contexte $ctx -Fichier $Vue.Env.Fichier
         if ($reponse.CreerBase -and -not $dossiersPrets) {
-            [void][System.Windows.MessageBox]::Show($ctx.Fenetre, 'Base NON créée : les dossiers de la base, des journaux ou du travail ne sont pas prêts.', 'Base', 'OK', 'Warning')
+            Add-CopieLigneOperation -Gravite 'Avertissement' -Sujet 'Base' -Message 'Base NON créée : les dossiers de la base, des journaux ou du travail ne sont pas prêts.'
         }
         elseif ($reponse.CreerBase) {
             $b = Initialize-CopieBaseEnvironnement -Config $ctx.Config -Fichier $Vue.Env.Fichier -Compte $ctx.Utilisateur
             $texte = switch ($b.Statut) { 'creee' { 'Base créée.' } 'existante' { 'La base existe déjà : rien à créer.' } default { 'Base NON créée : ' + $b.Message } }
             Write-CopieJournal -Contexte $ctx -Niveau $(if ($b.Statut -eq 'echec') { 'ERREUR' } else { 'INFO' }) -Evenement 'environnement' -Message ('creation_base {0} : {1}' -f $origine.Nom, $texte) `
                 -Donnees @{ action = 'creation_base'; environnement = $origine.Nom; etape = $b.Statut }
-            [void][System.Windows.MessageBox]::Show($ctx.Fenetre, $texte, 'Base', 'OK', $(if ($b.Statut -eq 'echec') { 'Error' } else { 'Information' }))
+            Add-CopieLigneOperation -Gravite $(if ($b.Statut -eq 'echec') { 'Erreur' } else { 'Information' }) -Sujet 'Base' -Message $texte
         }
+        Show-CopieOperation -Contexte $ctx -Titre 'Modification de l''environnement' -Debut ('Environnement « {0} ».' -f $origine.Nom)
         Update-CopieEnvironnements -Selection $origine.Nom
         return
     }
@@ -393,6 +402,7 @@ function Invoke-CopieRenommage {
     param([Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] [string] $NouveauNom, [AllowEmptyCollection()] [object[]] $Existants = @())
     $ctx = $Vue.Contexte
     $ancien = $Vue.Env.Nom
+    Reset-CopieOperation
     $commentaire = Read-CopieCommentaire -Contexte $ctx -Question ('Renommer l''environnement « {0} » en « {1} »' -f $ancien, $NouveauNom)
     if ($null -eq $commentaire) { return 'corriger' }
     $Script:ContexteEnCours = $ctx
@@ -424,8 +434,10 @@ function Invoke-CopieCreerBase {
     $chemin = (Get-CopieCheminsEnvironnement -Entete $Vue.Env.Parametrage.Entete).Base
     $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Créer la base de l'environnement « {0} » ?`n`n{1}`n`nLe moteur refuse d'écraser une base qui existe déjà." -f $Vue.Env.Nom, $chemin), 'Créer la base', 'YesNo', 'Question')
     if ($r -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    Reset-CopieOperation
     if (-not (Invoke-CopieQuestionDossiers -Contexte $ctx -Fichier $Vue.Env.Fichier)) {
-        [void][System.Windows.MessageBox]::Show($ctx.Fenetre, 'Base NON créée : les dossiers de la base, des journaux ou du travail ne sont pas prêts.', 'Créer la base', 'OK', 'Warning')
+        Add-CopieLigneOperation -Gravite 'Avertissement' -Sujet 'Base' -Message 'Base NON créée : les dossiers de la base, des journaux ou du travail ne sont pas prêts.'
+        Show-CopieOperation -Contexte $ctx -Titre 'Créer la base' -Debut ('Environnement « {0} ».' -f $Vue.Env.Nom)
         return
     }
     $ctx.Fenetre.Cursor = [System.Windows.Input.Cursors]::Wait
@@ -434,7 +446,8 @@ function Invoke-CopieCreerBase {
     $texte = switch ($b.Statut) { 'creee' { 'Base créée : ' + $chemin } 'existante' { 'La base existe déjà : rien à créer.' } default { 'Base NON créée : ' + $b.Message } }
     Write-CopieJournal -Contexte $ctx -Niveau $(if ($b.Statut -eq 'echec') { 'ERREUR' } else { 'INFO' }) -Evenement 'environnement' -Message ('creation_base {0} (compte {1}) : {2}' -f $Vue.Env.Nom, $ctx.Utilisateur, $b.Statut) `
         -Donnees @{ action = 'creation_base'; environnement = $Vue.Env.Nom; etape = $b.Statut; compte = $ctx.Utilisateur }
-    [void][System.Windows.MessageBox]::Show($ctx.Fenetre, $texte, 'Créer la base', 'OK', $(if ($b.Statut -eq 'echec') { 'Error' } else { 'Information' }))
+    Add-CopieLigneOperation -Gravite $(if ($b.Statut -eq 'echec') { 'Erreur' } else { 'Information' }) -Sujet 'Base' -Message $texte
+    Show-CopieOperation -Contexte $ctx -Titre 'Créer la base' -Debut ('Environnement « {0} ».' -f $Vue.Env.Nom)
     Update-CopieEtatVue -Vue $Vue
 }
 

@@ -206,7 +206,9 @@ def _controle_dossier(role, chemin, ecriture_requise, creer_dossiers, creable):
     c["ecriture"] = ok
     c["a_creer"] = ok
     c["detail"] = detail or "le dossier n'existe pas"
-    if ok and not creer_dossiers:
+    if role == "source":
+        c["detail"] += " ; le moteur ne cree jamais la source seul : seul un administrateur peut la creer, sur demande"
+    elif ok and not creer_dossiers:
         c["detail"] += " ; la regle a creer_dossiers = false : le moteur ne le creera pas seul"
     return c
 
@@ -227,7 +229,7 @@ def controler_dossiers_regle(regle, entete, octets=0, maintenant=None):
     source = os.path.normpath(os.path.expandvars(regle.source))
     besoin = octets + entete.marge_espace_mo * MO
     resultat = [_controle_dossier("source", source, regle.mode not in ("copie", "count", "size"),
-                                  regle.creer_dossiers, False)]
+                                  regle.creer_dossiers, True)]
     if regle.mode not in ("copie", "deplacement", "archivage"):
         return resultat                 # suppression, count, size : ni cible ni archive
     cible = os.path.normpath(os.path.expandvars(regle.cible))

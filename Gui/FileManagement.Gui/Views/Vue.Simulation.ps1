@@ -40,38 +40,67 @@ function Show-CopieSimulation {
 function Invoke-CopieCreationDossiersRegle {
     <#
     .SYNOPSIS
-        Crée les dossiers cible, temporaire et archive manquants d'une règle (jamais la source) après confirmation.
+        Crée les dossiers manquants d'une règle (source, cible, temporaire, archive) avec le compte du moteur ; trace chaque création.
+    .DESCRIPTION
+        Par défaut, une question Oui / Non liste les dossiers. L'appelant qui a déjà posé la question passe -SansQuestion.
+        Le résultat n'est pas affiché ici quand -SansResultat est donné (l'appelant le rassemble dans sa fenêtre) ; sinon,
+        seuls les échecs sont montrés : une création réussie se voit à la simulation relancée.
     .PARAMETER Vue
         Vue d'un environnement.
     .PARAMETER Regle
         Identifiant de la règle.
     .PARAMETER Dossier
-        Dossiers à créer (lignes ACreer de la simulation), montrés dans la confirmation.
+        Dossiers à créer (lignes ACreer de la simulation), montrés dans la question.
+    .PARAMETER SansQuestion
+        L'accord a déjà été demandé.
+    .PARAMETER SansResultat
+        N'affiche rien : l'appelant lit les propriétés du résultat.
     .OUTPUTS
-        [bool] $true si au moins un dossier a été créé.
+        [pscustomobject] Fait (au moins un dossier créé), Refuse (question refusée), Crees, Echecs, Erreur.
     #>
     [CmdletBinding()]
-    [OutputType([bool])]
-    param([Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] [string] $Regle, [Parameter(Mandatory)] [object[]] $Dossier)
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] [string] $Regle, [Parameter(Mandatory)] [object[]] $Dossier,
+        [switch] $SansQuestion, [switch] $SansResultat
+    )
     $ctx = $Vue.Contexte
-    if ($ctx.Profil -ne 'Admin') { return $false }
-    $liste = (@($Dossier | ForEach-Object { '- {0} : {1}' -f $_.Role, $_.Chemin }) -join "`n")
-    $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Créer ces dossiers avec le compte du moteur ?`n`n{0}`n`nLe répertoire d'origine n'est jamais créé par l'outil." -f $liste), 'Créer les dossiers manquants', 'YesNo', 'Question')
-    if ($r -ne [System.Windows.MessageBoxResult]::Yes) { return $false }
-    $reponse = Invoke-CopieMoteur -Config $ctx.Config -Fichier $Vue.Env.Fichier -Argument @('--creer-dossiers-regle', $Regle, '--utilisateur', $ctx.Utilisateur)
-    $crees = @(Get-CopieValeur $reponse.Json 'crees' @())
-    $echecs = @(Get-CopieValeur $reponse.Json 'echecs' @())
-    Write-CopieJournal -Contexte $ctx -Niveau $(if ($reponse.Reussi) { 'INFO' } else { 'ERREUR' }) -Evenement 'exploitation' `
-        -Message ('creation_dossiers {0} dans {1} (compte {2}) : {3} créé(s), {4} échec(s)' -f $Regle, $Vue.Env.Nom, $ctx.Utilisateur, $crees.Count, $echecs.Count) `
-        -Donnees @{ environnement = $Vue.Env.Nom; regle = $Regle; action = 'creation_dossiers'; code = $reponse.Code }
-    if ($null -eq $reponse.Json) {
-        [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ('Création impossible : ' + (Get-CopieTexteReponse -Reponse $reponse)), 'Créer les dossiers', 'OK', 'Error')
-        return $false
+    $sortie = [pscustomobject]@{ Fait = $false; Refuse = $false; Crees = @(); Echecs = @(); Erreur = '' }
+    if ($ctx.Profil -ne 'Admin') { return $sortie }
+    if (-not $SansQuestion) {
+        $liste = (@($Dossier | ForEach-Object { '- {0} : {1}' -f $_.Role, $_.Chemin }) -join "`n")
+        $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ("Créer ces dossiers avec le compte du moteur ?`n`n{0}`n`nAu lancement, le moteur ne crée jamais le répertoire d'origine seul : cette création est faite uniquement ici, sur votre demande." -f $liste), 'Créer les dossiers manquants', 'YesNo', 'Question')
+        if ($r -ne [System.Windows.MessageBoxResult]::Yes) { $sortie.Refuse = $true; return $sortie }
     }
-    $texte = (Get-CopieTexteReponse -Reponse $reponse)
-    if ($echecs.Count -gt 0) { $texte += "`n`nÉchecs :`n" + ((@($echecs | ForEach-Object { '- {0} : {1}' -f $_.chemin, $_.erreur })) -join "`n") }
-    [void][System.Windows.MessageBox]::Show($ctx.Fenetre, $texte, 'Créer les dossiers', 'OK', $(if ($echecs.Count -gt 0) { 'Warning' } else { 'Information' }))
-    $crees.Count -gt 0
+    $reponse = Invoke-CopieMoteur -Config $ctx.Config -Fichier $Vue.Env.Fichier -Argument @('--creer-dossiers-regle', $Regle, '--utilisateur', $ctx.Utilisateur)
+    $sortie.Crees = @(Get-CopieValeur $reponse.Json 'crees' @())
+    $sortie.Echecs = @(Get-CopieValeur $reponse.Json 'echecs' @())
+    Write-CopieJournal -Contexte $ctx -Niveau $(if ($reponse.Reussi) { 'INFO' } else { 'ERREUR' }) -Evenement 'exploitation' `
+        -Message ('creation_dossiers {0} dans {1} (compte {2}) : {3} créé(s), {4} échec(s)' -f $Regle, $Vue.Env.Nom, $ctx.Utilisateur, $sortie.Crees.Count, $sortie.Echecs.Count) `
+        -Donnees @{ environnement = $Vue.Env.Nom; regle = $Regle; action = 'creation_dossiers'; code = $reponse.Code }
+    if ($null -eq $reponse.Json) { $sortie.Erreur = 'Création impossible : ' + (Get-CopieTexteReponse -Reponse $reponse) }
+    $sortie.Fait = ($sortie.Crees.Count -gt 0)
+    if (-not $SansResultat -and ($sortie.Erreur -or $sortie.Echecs.Count -gt 0)) {
+        $lignes = @(New-CopieLignesCreation -Resultat $sortie)
+        Show-CopieResultat -Contexte $ctx -Titre 'Créer les dossiers manquants' -Resume (Get-CopieResumeResultat -Ligne $lignes) -Ligne $lignes
+    }
+    $sortie
+}
+
+function New-CopieLignesCreation {
+    <#
+    .SYNOPSIS
+        Résultat d'une création de dossiers (Invoke-CopieCreationDossiersRegle) -> lignes de la fenêtre de résultat.
+    .PARAMETER Resultat
+        Sortie de Invoke-CopieCreationDossiersRegle (Crees, Echecs, Erreur).
+    .OUTPUTS
+        [pscustomobject[]]
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Resultat)
+    foreach ($c in @($Resultat.Crees)) { New-CopieLigneResultat -Gravite 'Information' -Sujet 'Dossier créé' -Message ('{0} : {1}' -f (Get-CopieValeur $c 'role' ''), (Get-CopieValeur $c 'chemin' '')) }
+    foreach ($e in @($Resultat.Echecs)) { New-CopieLigneResultat -Gravite 'Erreur' -Sujet 'Création impossible' -Message ('{0} : {1}' -f (Get-CopieValeur $e 'chemin' ''), (Get-CopieValeur $e 'erreur' '')) }
+    if ($Resultat.Erreur) { New-CopieLigneResultat -Gravite 'Erreur' -Sujet 'Création impossible' -Message $Resultat.Erreur }
 }
 
 function Get-CopieCompteControle {
@@ -97,9 +126,9 @@ function Invoke-CopieControleRegle {
 
     .DESCRIPTION
         Appel court du moteur (--controler-regle : pas de base, rien n'est livré). Les droits vérifiés sont ceux du
-        compte qui exécute le moteur. Un problème ou un dossier absent est signalé en clair ; l'administrateur peut
-        créer les dossiers cible, temporaire et archive manquants (jamais la source). Le contrôle n'empêche pas
-        l'enregistrement : la règle est déjà enregistrée, on la corrige ensuite.
+        compte qui exécute le moteur. Une seule question Oui / Non (créer les dossiers absents) ; tout le reste, soit
+        l'enregistrement, les créations, les répertoires en bon état, les avertissements et les erreurs, est rassemblé
+        dans UNE fenêtre de résultat. Le contrôle n'empêche pas l'enregistrement : la règle est déjà enregistrée.
 
     .PARAMETER Vue
         Vue d'un environnement.
@@ -111,39 +140,47 @@ function Invoke-CopieControleRegle {
     param([Parameter(Mandatory)] [hashtable] $Vue, [Parameter(Mandatory)] [string] $Id)
     $ctx = $Vue.Contexte
     $compte = Get-CopieCompteControle -Contexte $ctx
+    $titre = 'Contrôle des répertoires'
+    $debut = ('Règle « {0} » enregistrée.' -f $Id)
+    $faits = New-Object System.Collections.Generic.List[object]          # enregistrement, créations
+    $faits.Add((New-CopieLigneResultat -Gravite 'Information' -Sujet 'Enregistrement' -Message ('La règle « {0} » est enregistrée dans {1}.' -f $Id, $Vue.Env.Nom)))
     for ($tour = 0; $tour -lt 2; $tour++) {
         $ctx.Fenetre.Cursor = [System.Windows.Input.Cursors]::Wait
         try { $reponse = Invoke-CopieMoteur -Config $ctx.Config -Fichier $Vue.Env.Fichier -Argument @('--controler-regle', $Id) }
         finally { $ctx.Fenetre.Cursor = $null }
         if ($null -eq $reponse.Json -or $null -eq $reponse.Json.PSObject.Properties['controles']) {
-            [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ("Règle « {0} » enregistrée.`n`nLe contrôle des répertoires n'a pas pu être fait : {1}" -f $Id, (Get-CopieTexteReponse -Reponse $reponse)), 'Contrôle des répertoires', 'OK', 'Warning')
+            $faits.Add((New-CopieLigneResultat -Gravite 'Avertissement' -Sujet $titre -Message ('Le contrôle des répertoires n''a pas pu être fait : ' + (Get-CopieTexteReponse -Reponse $reponse))))
+            Show-CopieResultat -Contexte $ctx -Titre $titre -Resume (Get-CopieResumeResultat -Ligne $faits.ToArray() -Debut $debut) -Ligne $faits.ToArray()
             return
         }
-        $lignes = @(ConvertTo-CopieControleSimulation -Controle @($reponse.Json.controles))
-        $problemes = @($lignes | Where-Object { $_.Verdict -eq 'PROBLEME' })
-        $manquants = @($lignes | Where-Object { $_.Verdict -eq 'A_CREER' })
+        $controles = @(ConvertTo-CopieControleSimulation -Controle @($reponse.Json.controles))
+        $problemes = @($controles | Where-Object { $_.Verdict -eq 'PROBLEME' })
+        $manquants = @($controles | Where-Object { $_.Verdict -eq 'A_CREER' })
         Write-CopieJournal -Contexte $ctx -Niveau $(if ($problemes.Count -gt 0) { 'WARNING' } else { 'INFO' }) -Evenement 'controle_repertoires' `
             -Message ('Contrôle des répertoires de {0} dans {1} : {2} problème(s), {3} dossier(s) à créer' -f $Id, $Vue.Env.Nom, $problemes.Count, $manquants.Count) `
             -Donnees @{ environnement = $Vue.Env.Nom; regle = $Id; problemes = $problemes.Count; a_creer = $manquants.Count }
-        if ($problemes.Count -eq 0 -and $manquants.Count -eq 0) {
-            [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ("Règle « {0} » enregistrée.`n`nRépertoires contrôlés avec {1} : tous existent et sont accessibles en lecture et écriture." -f $Id, $compte), 'Contrôle des répertoires', 'OK', 'Information')
-            return
-        }
-        $texte = New-Object System.Collections.Generic.List[string]
-        $texte.Add(("Règle « {0} » enregistrée. Contrôle des répertoires avec {1} :" -f $Id, $compte))
-        foreach ($l in $problemes) { $texte.Add(('- PROBLÈME, {0} ({1}) : existe {2}, lecture {3}, écriture {4}. {5}' -f $l.Role, $l.Chemin, $l.Existe, $l.Lecture, $l.Ecriture, $l.Remarque)) }
-        foreach ($l in $manquants) { $texte.Add(('- À CRÉER, {0} ({1}) : le dossier n''existe pas ; il peut être créé avec ce compte.' -f $l.Role, $l.Chemin)) }
         if ($ctx.Profil -eq 'Admin' -and $manquants.Count -gt 0 -and $tour -eq 0) {
+            # La seule question : l'accord pour créer. Elle liste les dossiers (et les problèmes déjà vus) pour qu'on réponde en connaissance de cause.
+            $texte = New-Object System.Collections.Generic.List[string]
+            $texte.Add(("Règle « {0} » enregistrée. Contrôle des répertoires avec {1} :" -f $Id, $compte))
+            foreach ($l in $problemes) { $texte.Add(('- PROBLÈME, {0} ({1}) : existe {2}, lecture {3}, écriture {4}. {5}' -f $l.Role, $l.Chemin, $l.Existe, $l.Lecture, $l.Ecriture, $l.Remarque)) }
+            foreach ($l in $manquants) { $texte.Add(('- À CRÉER, {0} ({1}) : le dossier n''existe pas ; il peut être créé avec ce compte.' -f $l.Role, $l.Chemin)) }
             $texte.Add('')
             $texte.Add('Créer maintenant les dossiers manquants ?')
-            $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ($texte -join "`n"), 'Contrôle des répertoires', 'YesNo', $(if ($problemes.Count -gt 0) { 'Warning' } else { 'Question' }))
-            if ($r -ne [System.Windows.MessageBoxResult]::Yes) { return }
-            if (-not (Invoke-CopieCreationDossiersRegle -Vue $Vue -Regle $Id -Dossier $manquants)) { return }
-            continue          # on recontrôle pour montrer le résultat
+            $r = [System.Windows.MessageBox]::Show($ctx.Fenetre, ($texte -join "`n"), $titre, 'YesNo', $(if ($problemes.Count -gt 0) { 'Warning' } else { 'Question' }))
+            if ($r -eq [System.Windows.MessageBoxResult]::Yes) {
+                $c = Invoke-CopieCreationDossiersRegle -Vue $Vue -Regle $Id -Dossier $manquants -SansQuestion -SansResultat
+                foreach ($ligne in @(New-CopieLignesCreation -Resultat $c)) { $faits.Add($ligne) }
+                if ($c.Fait) { continue }                 # on recontrôle pour montrer l'état final
+            }
+            else { $faits.Add((New-CopieLigneResultat -Gravite 'Avertissement' -Sujet 'Création' -Message 'Création des dossiers manquants refusée : la règle ne pourra pas fonctionner tant qu''ils n''existent pas.')) }
         }
-        $texte.Add('')
-        $texte.Add('Corrigez la règle (Modifier) ou les droits, puis relancez « Simuler la règle ».')
-        [void][System.Windows.MessageBox]::Show($ctx.Fenetre, ($texte -join "`n"), 'Contrôle des répertoires', 'OK', 'Warning')
+        $lignes = @($faits.ToArray()) + @(ConvertTo-CopieLignesResultatControle -Controle $controles)
+        $debutFinal = ('{0} Répertoires contrôlés avec {1}.' -f $debut, $compte)
+        $texteAide = $null
+        if ($problemes.Count -gt 0 -or $manquants.Count -gt 0) { $texteAide = 'Corrigez la règle (Modifier) ou les droits, puis relancez « Simuler la règle ».' }
+        if ($texteAide) { $lignes += @(New-CopieLigneResultat -Gravite 'Information' -Sujet 'À faire' -Message $texteAide) }
+        Show-CopieResultat -Contexte $ctx -Titre $titre -Resume (Get-CopieResumeResultat -Ligne $lignes -Debut $debutFinal) -Ligne $lignes
         return
     }
 }
@@ -191,7 +228,7 @@ function Complete-CopieSimulation {
     $resume = ConvertTo-CopieResumeSimulation -Json $reponse.Json
     $creer = Show-CopieSimulation -Contexte $ctx -Regle $regle -Resume $resume
     # Création demandée : on crée, puis on relance la simulation pour montrer le nouveau résultat.
-    if ($creer -and (Invoke-CopieCreationDossiersRegle -Vue $vue -Regle $regle -Dossier @($resume.ACreer))) {
+    if ($creer -and (Invoke-CopieCreationDossiersRegle -Vue $vue -Regle $regle -Dossier @($resume.ACreer)).Fait) {
         if ($Script:Vues.ContainsKey($vue.Cle)) { Invoke-CopieSimulation -Vue $vue }
     }
 }

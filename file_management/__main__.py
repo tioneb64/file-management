@@ -283,15 +283,16 @@ def _controler_regle(args, parametrage):
 
 
 def _creer_dossiers_regle(args, parametrage):
-    """Cree les dossiers cible, temporaire et archive manquants d'une regle (jamais la source), a la demande
-    d'un administrateur. Seuls les dossiers que les controles jugent creables avec les droits du compte sont crees."""
+    """Cree les dossiers manquants d'une regle (source, cible, temporaire, archive), a la demande d'un
+    administrateur. Seuls les dossiers que les controles jugent creables avec les droits du compte sont crees.
+    Au lancement, le moteur ne cree jamais la source seul."""
     regle = next((r for r in parametrage.regles if r.id and r.id.lower() == args.creer_dossiers_regle.lower()), None)
     if regle is None:
         return _repondre(args, CODE_CONFIG, "regle inconnue : %s" % args.creer_dossiers_regle)
     journal = _journal(args, parametrage)
     crees, echecs = [], []
     for c in acces.controler_dossiers_regle(regle, parametrage.entete):
-        if c["role"] == "source" or c["existe"] or not c["a_creer"]:
+        if c["existe"] or not c["a_creer"]:
             continue
         try:
             os.makedirs(c["chemin"], exist_ok=True)

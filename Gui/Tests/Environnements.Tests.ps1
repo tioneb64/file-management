@@ -532,7 +532,7 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
             @(Get-ChildItem -LiteralPath (Join-Path $z 'src')).Count | Should -Be 2
         }
     }
-    It 'crée les dossiers manquants à la demande (jamais la source) puis tout est OK' {
+    It 'crée les dossiers manquants à la demande puis tout est OK' {
         InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
             param($c, $f, $z)
             $creation = Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--creer-dossiers-regle', 'export', '--utilisateur', 'DOM\ben')
@@ -545,7 +545,7 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
             @($resume.ACreer).Count | Should -Be 0
         }
     }
-    It 'signale une source absente comme un problème, sans proposer de la créer' {
+    It 'propose de créer une source absente (jamais seul au lancement) et la crée sur demande' {
         InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Cfg; f = $Script:Fichier; z = $Script:Zone } {
             param($c, $f, $z)
             Rename-Item -LiteralPath (Join-Path $z 'src') -NewName 'src-parti'
@@ -553,10 +553,11 @@ Describe 'Simulation d''une règle (moteur réel)' -Skip:(-not $Script:PythonDis
                 $r = Invoke-CopieMoteur -Config $c -Fichier $f -Argument @('--lancer-regle', 'export', '--simulation')
                 $resume = ConvertTo-CopieResumeSimulation -Json $r.Json
                 $src = $resume.Controles | Where-Object RoleId -eq 'source'
-                ($src.Existe, $src.Verdict) -join '/' | Should -Be 'Non/PROBLEME'
-                $resume.Niveau | Should -Be 'ERREUR'
-                @($resume.ACreer).Count | Should -Be 0
-                $resume.Phrase | Should -Match '^Aucun fichier'
+                ($src.Existe, $src.Verdict) -join '/' | Should -Be 'Non/A_CREER'
+                $src.Remarque | Should -Match 'ne cree jamais la source seul'
+                $resume.Niveau | Should -Be 'ERREUR'                       # la règle ne pourrait pas s'exécuter telle quelle
+                @($resume.ACreer | Where-Object RoleId -eq 'source').Count | Should -Be 1
+                Test-Path -LiteralPath (Join-Path $z 'src') | Should -BeFalse     # la simulation n'écrit rien
             }
             finally { Rename-Item -LiteralPath (Join-Path $z 'src-parti') -NewName 'src' }
         }

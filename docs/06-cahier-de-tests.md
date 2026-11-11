@@ -745,7 +745,7 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10F-A01 | **Moteur, simulation JSON** : `apercu` (fichier, cible, taille), `apercu_total`, plafond, `source` / `cible` / `mode` ; rien n'est écrit ; **aucune temporisation** (source absente signalée tout de suite) | OK | |
 | J10F-A02 | **Moteur, contrôles** : existence, lecture, écriture, espace nécessaire (volume + marge), dossier à créer, espace insuffisant (simulé) ; l'essai d'écriture ne laisse aucun fichier | OK | |
 | J10F-A03 | **Moteur, `--controler-regle`** : sans base, sans livraison ; règle inconnue refusée | OK | |
-| J10F-A04 | **Moteur, `--creer-dossiers-regle`** : exige `--utilisateur`, crée la cible, **jamais la source** | OK | |
+| J10F-A04 | **Moteur, `--creer-dossiers-regle`** : exige `--utilisateur`, crée la cible et, sur demande, la source absente (le moteur ne la crée **jamais** seul au lancement) | OK | |
 | J10F-A05 | **Moteur, `--renommer-environnement`** : la base absente du nouveau nom est refusée avant, acceptée après ; trace dans le journal des actions ; refusé si une règle est en cours | OK | |
 | J10F-A06 | **JEA** : `--lancer-regle` accepté seulement avec `--simulation` (lecture) ; `--controler-regle` (lecture) ; `--initialiser-base`, `--renommer-environnement`, `--creer-dossiers-regle` (écriture) | OK | |
 | J10F-A07 | **Dossier de paramétrage** : absent + administrateur → question, création ou refus ; absent + non administrateur → message avec le groupe, rien créé ; vide, invalide, fichier, relatif, guillemets | OK | |
@@ -790,6 +790,8 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10G-A03 | `tests/test_modes_et_racines.py` | **count / size** : nombre et volume, seuils, ATTENTE persisté, bilan `SUCCES` code 0, dépendance `succes` qui patiente puis part | OK | 2026-11-11 |
 | J10G-A04 | `Gui/Tests/Racines.Tests.ps1` | `Resolve-CopieChemin`, chemins complets d'un environnement et d'une règle, saisie avec racine, en-tête, création des dossiers sous la racine | OK | 2026-11-11 |
 | J10G-A05 | `Gui/Tests/Racines.Tests.ps1` | Ligne de la grille (chemins selon le mode, aspect inactive / erreur), détail, couleur `ATTENTE`, modes, simulation suppression et mesure | OK | 2026-11-11 |
+| J10G-A06 | `tests/test_horodatage.py` | **Horodater** : forme et reconnaissance du nom marqué, copie (original marqué, pas de recopie, nouvelle version, date ordinaire dans le nom, simulation, original modifié, échec puis reprise), archivage (nom archivé, avec `renommage_archive`, archive dans la source), R16, E06, modèle du front-end | OK | 2026-11-11 |
+| J10G-A07 | `Gui/Tests/Formulaire.Tests.ps1`, `Racines.Tests.ps1` | Case « Horodater » : proposée pour copie et archivage seulement, décochée et grisée sinon, écrite dans la règle | OK | 2026-11-11 |
 
 Suite complète : 682 tests Python OK ; Pester 187 réussis, 0 échec, 4 ignorés (droits administrateur, voir le CHANGELOG).
 
@@ -801,6 +803,8 @@ Suite complète : 682 tests Python OK ; Pester 187 réussis, 0 échec, 4 ignoré
 | J10G-M02 | Copie d'un environnement | Copier un environnement en changeant seulement la racine | Les chemins partiels des règles suivent la nouvelle racine | |
 | J10G-M03 | Couleurs et filtres | Rendre une règle inactive, en provoquer une en erreur, filtrer sur `ERREUR`, `count`, « Inactives » | Ligne grise / rouge / bleu ciel ; filtres corrects | |
 | J10G-M04 | Déclencheur `count` | Règle `count` (minimum 5) sur un dossier de 4 fichiers, règle de déplacement dépendante (`succes`) ; ajouter le 5e fichier | `ATTENTE` puis succès ; le déplacement patiente puis part | |
+| J10G-M06 | Horodater (copie) | Cocher « Horodater les fichiers traités » sur une règle `copie`, déposer `a.csv`, lancer deux fois | La cible contient `a.csv` ; la source contient `a_traite_AAAAMMJJ_hhmmss.csv` ; le 2e lancement ne copie rien | |
+| J10G-M07 | Horodater (archivage) et case grisée | Même essai en mode `archivage` ; puis passer le mode à `deplacement` dans le formulaire | L'archive contient le nom marqué ; la case se grise et se décoche | |
 | J10G-M05 | Suppression | Règle `suppression` d'âge minimum sur un dossier d'essai ; simulation puis exécution | Avertissement à l'enregistrement ; simulation annonce la suppression définitive ; seuls les fichiers assez anciens sont supprimés | |
 
 ## 20. Jalons suivants

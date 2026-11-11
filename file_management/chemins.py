@@ -47,6 +47,26 @@ def nom_avec_suffixe(nom, instant, compteur=0):
     return base + suffixe + ext
 
 
+MARQUEUR_HORODATAGE = "_traite_"
+RE_HORODATE = re.compile(r"_traite_\d{8}_\d{6}(_\d+)?$")
+
+
+def nom_horodate(nom, instant, compteur=0):
+    """Marque un fichier traite : 'a.csv' -> 'a_traite_20261111_103012.csv' (puis '_2', '_3'... au
+    besoin). Le marqueur '_traite_' distingue ce nom d'une date ordinaire du nom d'origine."""
+    base, ext = decouper_nom(nom)
+    v = variables_date(instant)
+    suffixe = "%s%s%s%s_%s%s%s" % (MARQUEUR_HORODATAGE, v["AAAA"], v["MM"], v["JJ"], v["hh"], v["mm"], v["ss"])
+    if compteur:
+        suffixe += "_%d" % (compteur + 1)
+    return base + suffixe + ext
+
+
+def est_horodate(nom):
+    """Vrai si `nom` porte deja la marque de nom_horodate (le fichier a deja ete traite)."""
+    return bool(RE_HORODATE.search(decouper_nom(nom)[0]))
+
+
 def nom_invalide(nom):
     """Raison pour laquelle un NOM de fichier est refuse par Windows, ou None s'il est valide."""
     if not nom or not nom.strip():

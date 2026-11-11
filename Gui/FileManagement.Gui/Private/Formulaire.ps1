@@ -172,6 +172,7 @@ function Get-CopieChampsRegle {
                 (champ 'seuil_minimum' 'Seuil minimum (count, size)' 'entier' $null $false 'count : nombre de fichiers ; size : octets. La règle sort en ATTENTE (ni succès ni erreur) tant que la valeur est en dessous : les règles qui en dépendent patientent.')
                 (champ 'seuil_maximum' 'Seuil maximum (count, size)' 'entier' $null $false 'Même unité. Vide : pas de maximum.')
                 (champ 'creer_dossiers' 'Créer les dossiers manquants' 'bool')
+                (champ 'horodater' 'Horodater les fichiers traités' 'bool' $null $false 'Garde une trace visible du moment du traitement. Copie : le fichier d''origine, laissé dans la source, est renommé nom_traite_AAAAMMJJ_hhmmss.ext (la copie dans la cible garde son nom). Archivage : le fichier archivé porte cette marque. Les fichiers marqués ne sont plus repris par la règle. Disponible pour copie et archivage seulement.')
                 (champ 'dossier_temporaire' 'Dossier temporaire' 'texte' $null $false 'Vide : le moteur choisit.')
                 (champ 'identite' 'Identité d''un fichier' 'choix' 'identites')
             )

@@ -122,6 +122,28 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
         }
         ($erreurs -join '|') | Should -Match 'existe déjà'
     }
+    It 'ne propose la case Horodater que pour copie et archivage, et la décoche pour un autre mode' {
+        $o = & $Script:Construire $null 'ajout'
+        InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
+            param($f)
+            $mode = $f.Tag.Champs | Where-Object { $_.Spec.Chemin -eq 'mode' }
+            $horo = $f.Tag.Champs | Where-Object { $_.Spec.Chemin -eq 'horodater' }
+            $horo.Spec.Type | Should -Be 'bool'
+            $mode.Controle.SelectedItem = 'copie'
+            $horo.Controle.IsEnabled | Should -BeTrue
+            $horo.Controle.IsChecked = $true
+            $mode.Controle.SelectedItem = 'archivage'
+            $horo.Controle.IsEnabled | Should -BeTrue
+            $horo.Controle.IsChecked | Should -BeTrue
+            (Read-CopieFormulaire -Etat $f.Tag).Regle.horodater | Should -BeTrue
+            foreach ($autre in 'deplacement', 'suppression', 'count', 'size') {
+                $mode.Controle.SelectedItem = $autre
+                $horo.Controle.IsEnabled | Should -BeFalse
+                $horo.Controle.IsChecked | Should -BeFalse
+            }
+            (Read-CopieFormulaire -Etat $f.Tag).Regle.horodater | Should -BeFalse
+        }
+    }
     It 'montre seulement les champs du type de planification choisi' {
         $o = & $Script:Construire $null 'ajout'
         InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {

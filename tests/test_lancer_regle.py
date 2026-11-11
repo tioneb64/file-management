@@ -146,7 +146,7 @@ class TestLancerRegle(CasTemporaire):
         self.assertFalse(c["cible"]["existe"])
         self.assertTrue(c["cible"]["a_creer"])
         self.assertFalse(os.path.exists(self.dst))
-        # --creer-dossiers-regle exige --utilisateur, cree la cible, jamais la source
+        # --creer-dossiers-regle exige --utilisateur ; la source existe : seule la cible est creee
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.commande("--creer-dossiers-regle", "export")
@@ -155,14 +155,19 @@ class TestLancerRegle(CasTemporaire):
         self.assertEqual([x["role"] for x in json.loads(sortie)["crees"]], ["cible"])
         self.assertTrue(os.path.isdir(self.dst))
 
-    def test_simulation_source_absente_n_est_jamais_creee(self):
+    def test_source_absente_est_proposee_a_la_creation_mais_jamais_creee_au_lancement(self):
         self.initialiser()
         os.rmdir(self.src)
         code, sortie, _ = self.commande("--lancer-regle", "export", "--simulation", "--format", "json")
         c = self.controles(json.loads(sortie))
-        self.assertEqual((c["source"]["existe"], c["source"]["a_creer"]), (False, False))
-        self.commande("--creer-dossiers-regle", "export", "--utilisateur", "benoit")
-        self.assertFalse(os.path.exists(self.src))
+        self.assertEqual((c["source"]["existe"], c["source"]["a_creer"]), (False, True))
+        self.assertIn("ne cree jamais la source seul", c["source"]["detail"])
+        self.assertFalse(os.path.exists(self.src))                 # la simulation n'ecrit rien
+        code, sortie, _ = self.commande("--creer-dossiers-regle", "export", "--utilisateur", "benoit", "--format", "json")
+        self.assertEqual(code, 0, sortie)
+        self.assertEqual(sorted(x["role"] for x in json.loads(sortie)["crees"]), ["cible", "source"])
+        self.assertTrue(os.path.isdir(self.src))
+        self.assertTrue(os.path.isdir(self.dst))
 
     def test_simulation_espace_insuffisant(self):
         from file_management import acces

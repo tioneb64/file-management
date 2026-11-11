@@ -3,6 +3,7 @@ import datetime
 import fnmatch
 import os
 
+from file_management import chemins
 from file_management.parametrage import RE_MODIFIE_DEPUIS
 
 SUFFIXE_TEMPORAIRE = ".copie_en_cours"
@@ -28,6 +29,7 @@ class Resultat(object):
     def __init__(self):
         self.candidats = []
         self.vus = 0
+        self.deja_horodates = 0        # fichiers deja marques par `horodater` : traites, donc ecartes
         self.hors_masque = 0
         self.trop_recents = 0
         self.trop_anciens = 0
@@ -57,10 +59,11 @@ def seuil_modifie_depuis(modifie_depuis, maintenant):
     return (minuit - datetime.timedelta(days=jours)).timestamp()
 
 
-def lister(source, selection, maintenant, est_exclu=None, interdits=()):
+def lister(source, selection, maintenant, est_exclu=None, interdits=(), ignorer_horodates=False):
     """Parcourt `source` selon `selection` (objet Selection). `maintenant` : datetime local.
-    interdits : noms de dossiers absolus a ne pas traverser. Renvoie un Resultat ; les erreurs
-    de lecture sont rapportees, jamais levees."""
+    interdits : noms de dossiers absolus a ne pas traverser. ignorer_horodates : les fichiers deja
+    marques par `horodater` ne sont pas des candidats (ils ont ete traites). Renvoie un Resultat ;
+    les erreurs de lecture sont rapportees, jamais levees."""
     res = Resultat()
     masques = compiler_masques(selection.masque) or ["*"]
     exclus = compiler_masques(selection.exclure)
@@ -100,6 +103,9 @@ def lister(source, selection, maintenant, est_exclu=None, interdits=()):
             res.vus += 1
             nom = entree.name
             if nom.endswith(SUFFIXE_TEMPORAIRE):
+                continue
+            if ignorer_horodates and chemins.est_horodate(nom):
+                res.deja_horodates += 1
                 continue
             if not correspond(nom, masques) or (exclus and correspond(nom, exclus)):
                 res.hors_masque += 1

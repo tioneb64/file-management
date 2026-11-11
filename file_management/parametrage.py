@@ -19,6 +19,7 @@ RE_MODIFIE_DEPUIS = re.compile(r"^(TOUT|J|J-(\d+))$")
 MODES = ("copie", "deplacement", "archivage", "suppression", "count", "size")
 MODES_TRANSFERT = ("copie", "deplacement", "archivage")     # ces modes ont une cible
 MODES_MESURE = ("count", "size")                            # ces modes comptent, sans rien toucher
+MODES_HORODATAGE = ("copie", "archivage")                   # seuls modes ou `horodater` a un sens
 NIVEAUX = ("INFO", "WARNING", "ERREUR")
 ORDRES = ("nom", "date_modification")
 IDENTITES = ("version", "contenu")
@@ -154,6 +155,7 @@ class Regle(object):
         self.seuil_minimum = None                 # modes count / size : bornes de la valeur mesuree
         self.seuil_maximum = None
         self.creer_dossiers = True
+        self.horodater = False                    # copie / archivage : marque chaque fichier traite d'un horodatage
         self.dossier_temporaire = None
         self.selection = Selection()
         self.identite = "version"
@@ -585,6 +587,7 @@ def lire_regle(objet, ligne, rapport, entete=None):
             setattr(r, nom, None)
     r.archive = lecteur.valeur("archive", "texte_ou_null", None)
     r.creer_dossiers = lecteur.valeur("creer_dossiers", "booleen", True)
+    r.horodater = lecteur.valeur("horodater", "booleen", False)
     r.dossier_temporaire = lecteur.valeur("dossier_temporaire", "texte_ou_null", None)
     r.seuil_minimum = lecteur.entier("seuil_minimum", None, minimum=0, nullable=True)
     r.seuil_maximum = lecteur.entier("seuil_maximum", None, minimum=0, nullable=True)
@@ -608,6 +611,9 @@ def lire_regle(objet, ligne, rapport, entete=None):
     elif r.archive and r.mode in ("copie", "deplacement") + ("suppression",) + MODES_MESURE:
         lecteur.signaler("R05", "'archive' est renseigne mais le mode est '%s' : il sera ignore"
                          % r.mode)
+    if r.horodater and r.mode is not None and r.mode not in MODES_HORODATAGE:
+        lecteur.signaler("R16", "'horodater' n'a de sens que pour les modes copie et archivage : "
+                         "il sera ignore (mode '%s')" % r.mode)
     if r.mode in ("suppression",) + MODES_MESURE and r.cible:
         lecteur.signaler("R16", "'cible' est renseignee mais le mode est '%s' : elle sera ignoree" % r.mode)
     if r.mode == "suppression":

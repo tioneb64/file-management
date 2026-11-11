@@ -130,5 +130,6 @@
     }
 
     if ($SansAffichage) { return $fenetre }
+    Register-CopieGardeErreurs -Fenetre $fenetre -Contexte $ctx
     $null = $fenetre.ShowDialog()
 }

@@ -199,6 +199,15 @@ Describe 'Modes d''une règle' {
             ((Get-CopieChampsRegle | ForEach-Object Champs) | Where-Object Chemin -like 'seuil_*').Count | Should -Be 2
         }
     }
+    It 'le formulaire propose une case à cocher pour horodater les fichiers traités, avec son aide' {
+        InModuleScope FileManagement.Gui {
+            $champ = (Get-CopieChampsRegle | ForEach-Object Champs) | Where-Object Chemin -eq 'horodater'
+            $champ.Type | Should -Be 'bool'
+            $champ.Libelle | Should -Be 'Horodater les fichiers traités'
+            $champ.Obligatoire | Should -BeFalse
+            $champ.Aide | Should -Match 'copie et archivage'
+        }
+    }
     It 'décrit la simulation d''une suppression et d''un comptage' {
         InModuleScope FileManagement.Gui {
             $sup = '{"source":"D:\\in","cible":null,"mode":"suppression","statut":"SUCCES","motif":"","compteurs":{"livres":3,"octets":3072},"apercu":[]}' | ConvertFrom-Json

@@ -49,7 +49,7 @@ function ConvertTo-CopieControleSimulation {
         $ecritureTexte = & $ouiNon $ecriture
         if (-not $existe -and $aCreer) { $ecritureTexte = 'Oui (création possible)' }
         $verdict = 'OK'
-        if (-not $existe) { $verdict = $(if ($aCreer -and $role -ne 'source') { 'A_CREER' } else { 'PROBLEME' }) }
+        if (-not $existe) { $verdict = $(if ($aCreer) { 'A_CREER' } else { 'PROBLEME' }) }
         elseif ($lecture -eq $false -or $ecriture -eq $false) { $verdict = 'PROBLEME' }
         if (-not $espaceOk -or [bool](Get-CopieValeur $c 'volume_incorrect' $false)) { $verdict = 'PROBLEME' }
         [pscustomobject]@{
@@ -57,6 +57,41 @@ function ConvertTo-CopieControleSimulation {
             Chemin = "$(Get-CopieValeur $c 'chemin' '')"; Existe = $(if ($existe) { 'Oui' } else { 'Non' })
             Lecture = (& $ouiNon $lecture); Ecriture = $ecritureTexte; Espace = $espaceTexte; Verdict = $verdict
             Remarque = "$(Get-CopieValeur $c 'detail' '')"
+        }
+    }
+}
+
+function ConvertTo-CopieLignesResultatControle {
+    <#
+    .SYNOPSIS
+        Contrôles de répertoires (ConvertTo-CopieControleSimulation) -> lignes de la fenêtre de résultat (une par répertoire).
+
+    .DESCRIPTION
+        OK : information. PROBLEME : erreur (avec la remarque du moteur). A_CREER : avertissement (le dossier peut être créé
+        avec le compte du moteur ; à ce stade, il ne l'a pas été).
+
+    .PARAMETER Controle
+        Lignes de ConvertTo-CopieControleSimulation.
+    .OUTPUTS
+        [pscustomobject[]] Voir New-CopieLigneResultat.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()] [object[]] $Controle = @())
+    foreach ($l in $Controle) {
+        switch ($l.Verdict) {
+            'PROBLEME' {
+                $m = '{0} : existe {1}, lecture {2}, écriture {3}.' -f $l.Chemin, $l.Existe, $l.Lecture, $l.Ecriture
+                if ($l.Remarque) { $m += ' ' + $l.Remarque }
+                New-CopieLigneResultat -Gravite 'Erreur' -Sujet $l.Role -Message $m
+            }
+            'A_CREER' {
+                New-CopieLigneResultat -Gravite 'Avertissement' -Sujet $l.Role -Message ('{0} : le dossier n''existe pas ; il peut être créé avec le compte du moteur.' -f $l.Chemin)
+            }
+            default {
+                $m = '{0} : existe, lecture {1}, écriture {2}.' -f $l.Chemin, $l.Lecture, $l.Ecriture
+                if ($l.Espace -and $l.Espace -ne [string][char]0x2014) { $m += ' Espace : ' + $l.Espace + '.' }
+                New-CopieLigneResultat -Gravite 'Information' -Sujet $l.Role -Message $m
+            }
         }
     }
 }

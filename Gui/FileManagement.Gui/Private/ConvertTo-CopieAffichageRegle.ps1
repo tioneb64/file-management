@@ -136,6 +136,7 @@ function ConvertTo-CopieGroupeRegle {
         (New-CopieLigne 'Seuil maximum (count : fichiers, size : octets)' (Format-CopieTexte (Get-CopieValeur $Regle 'seuil_maximum') $tiretLong)),
         (New-CopieLigne 'Archive' (Format-CopieTexte (Get-CopieValeur $Regle 'archive') ([string][char]0x2014))),
         (New-CopieLigne 'Créer les dossiers' (& $v $Regle 'creer_dossiers')),
+        (New-CopieLigne 'Horodater les fichiers traités' (Format-CopieTexte (Get-CopieValeur $Regle 'horodater' $false))),
         (New-CopieLigne 'Dossier temporaire' $(if ("$(Get-CopieValeur $Regle 'dossier_temporaire' '')".Trim()) { & $complet $chemins.DossierTemporaire 'dossier_temporaire' '' } else { 'dans la cible' })))
     & $ajouter 'Sélection' @(
         (New-CopieLigne 'Masque' (& $v $sel 'masque')),

@@ -55,7 +55,8 @@ Les durées sont des **entiers**, l'unité figure dans le nom du champ (`_sec`, 
 | `mode` | texte | oui | — | `copie` : l'original reste en place ; `deplacement` : l'original est supprimé après copie vérifiée ; `archivage` : l'original est déplacé dans `archive` après copie vérifiée ; `suppression` : **supprime définitivement** les fichiers sélectionnés (avertissement **R15**) ; `count` / `size` : comptent / mesurent les fichiers sélectionnés et les comparent aux seuils, sans rien toucher |
 | `seuil_minimum`, `seuil_maximum` | entier ou `null` | non | `null` | Modes `count` (nombre de fichiers) et `size` (octets) seulement. En dessous du minimum ou au-dessus du maximum, la règle sort en **ATTENTE** (§3.2 bis). Ignorés avec un autre mode (**R16**) ; minimum > maximum : refus (**R07**) |
 | `archive` | chemin ou `null` | si `mode = archivage` | `null` | Absolu (`C:\archive`) ou relatif (`.\archive`, calculé depuis la **racine** de `source`). Variables de date acceptées (§5.2) |
-| `creer_dossiers` | booléen | non | `true` | Créer `cible` et `archive` s'ils n'existent pas |
+| `creer_dossiers` | booléen | non | `true` | Créer `cible` et `archive` s'ils n'existent pas, au lancement. La **source** n'est jamais créée au lancement (un administrateur peut la créer sur demande depuis l'interface) |
+| `horodater` | booléen | non | `false` | Modes `copie` et `archivage` seulement : garde une **trace visible du moment du traitement** (§3.2 ter). Ignoré avec un autre mode (**R16**) |
 | `dossier_temporaire` | chemin ou `null` | non | `null` | Dossier où écrire les fichiers en cours de copie. `null` : dans `cible`, avec le suffixe `.copie_en_cours`. Si renseigné, il doit être **sur le même volume que `cible`** (renommage atomique) et hors du périmètre surveillé par le logiciel destinataire |
 
 ### 3.2 bis Modes `suppression`, `count` et `size`
@@ -63,6 +64,16 @@ Les durées sont des **entiers**, l'unité figure dans le nom du champ (`_sec`, 
 - **`suppression`** : supprime définitivement les fichiers sélectionnés (masque, âge, date). Exemple : `"selection": {"masque": "*.log", "age_minimum_sec": 31536000}` supprime les journaux de plus de 365 jours. Sans critère d'âge ni de date, **tous** les fichiers du masque sont supprimés à chaque lancement : le diagnostic **R15** le précise. L'interface avertit à l'enregistrement et la simulation annonce « supprimera DÉFINITIVEMENT ». Pas de cible ni d'archive.
 - **`count`** et **`size`** : comptent (nombre de fichiers) ou mesurent (octets) les fichiers sélectionnés, inscrivent le résultat au journal et le comparent à `seuil_minimum` / `seuil_maximum`. Aucun fichier n'est touché. Résultat dans les bornes : **succès**. Hors bornes : statut d'exécution **`ATTENTE`**, ni succès ni erreur (bilan `SUCCES`, code retour 0).
 - **Déclencheur.** Un flux SSIS dépose 5 fichiers : une règle `count` (`seuil_minimum: 5`) sort en `ATTENTE` tant qu'il en manque ; la règle de déplacement qui en dépend (`apres` avec `condition: succes`) **patiente** (statut `EN_ATTENTE`) au lieu d'être bloquée, et part dès que le `count` sort en succès. Une règle en `ATTENTE` ne compte pas comme un succès pour les dépendances.
+
+### 3.2 ter Horodater les fichiers traités (`horodater`)
+
+Case à cocher de la règle (modes `copie` et `archivage`). Le nom reçoit la marque `_traite_AAAAMMJJ_hhmmss` avant l'extension (`a.csv` → `a_traite_20261111_103012.csv` ; `_2`, `_3`… si ce nom existe déjà). L'heure est celle du traitement du fichier.
+
+- **`copie`** : l'original, laissé dans la **source**, est renommé **après** la copie vérifiée (et après le programme `apres_fichier`, qui voit encore le nom d'origine). La copie dans la cible garde son nom. Le renommage n'a lieu que si l'original est inchangé depuis la copie (sinon il est conservé tel quel et sera livré comme une nouvelle version). Un échec (fichier verrouillé…) est un **avertissement** : le fichier est livré, et la marque est reposée au lancement suivant.
+- **`archivage`** : le fichier **archivé** porte la marque (après `renommage_archive` s'il y en a un). La cible garde le nom d'origine.
+- **Fichiers déjà marqués.** Avec l'option, un fichier dont le nom porte la marque est considéré comme traité : il n'est plus sélectionné (c'est ce qui évite de recopier à l'infini les originaux marqués). Une date ordinaire dans un nom (`export_20261111_103012.csv`) n'est **pas** une marque. Si l'option est retirée plus tard, les fichiers marqués redeviennent des candidats ordinaires.
+- **Fichiers déjà copiés avant l'activation.** Ils sont marqués au lancement suivant (l'heure est alors celle de ce lancement).
+- Sans effet en simulation (rien n'est renommé).
 
 ### 3.3 Sélection
 
@@ -295,7 +306,7 @@ Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier
 | R08 | refus | `retention_historique_jours` doit être supérieure à la fenêtre de sélection, quand il y en a une (`modifie_depuis = J-N`, ou `age_maximum_sec`) |
 | R14 | refus | `source`, `cible` ou `dossier_temporaire` partiel alors que l'en-tête n'a pas de racine pour le compléter |
 | R15 | avert. | Mode `suppression` : suppression définitive des fichiers sélectionnés (précise s'il n'y a ni âge ni date) |
-| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode |
+| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode, `horodater` avec un mode autre que `copie` / `archivage` |
 | R13 | refus | `retention_archive_jours` sans mode `archivage`, ou avec une archive sans date (`{AAAA}` absent) : la date du dossier est la seule date d'archivage fiable (un déplacement conserve la date de modification d'origine) |
 | R09 | avert. | `duree_max_sec` inférieure à la somme des attentes prévues dans `situations` |
 | R10 | avert. | Deux règles avec la même source, cible et masque |

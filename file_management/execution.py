@@ -12,7 +12,7 @@ import time
 
 from file_management import base as modele_base
 from file_management import chemins, processus, programmes, selection, transfert
-from file_management.parametrage import MODES_MESURE, MODES_TRANSFERT
+from file_management.parametrage import MODES_HORODATAGE, MODES_MESURE, MODES_TRANSFERT
 from file_management.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
@@ -112,6 +112,7 @@ class ExecutionRegle(object):
         self.archive_differee = False
         self.archive_dir = None
         self.mode_ecrit = not simulation
+        self.horodate = bool(regle.horodater and regle.mode in MODES_HORODATAGE)
         self.est_exclu = None
         self.dossiers_interdits = []
 
@@ -600,7 +601,7 @@ class ExecutionRegle(object):
 
         def operation():
             res = selection.lister(self.source, regle.selection, self.maintenant(), self.est_exclu,
-                                   interdits)
+                                   interdits, ignorer_horodates=self.horodate)
             self._derniere_selection = res
             if res.erreurs and not res.candidats:
                 raise res.erreurs[0][1]
@@ -636,7 +637,7 @@ class ExecutionRegle(object):
         self._log("selection", "INFO", candidats=len(res.candidats), vus=res.vus,
                   hors_masque=res.hors_masque, trop_recents=res.trop_recents,
                   trop_anciens=res.trop_anciens, trop_petits=res.trop_petits,
-                  dates_futures=len(res.dates_futures))
+                  dates_futures=len(res.dates_futures), deja_horodates=res.deja_horodates or None)
         self.bilan.compteurs["selectionnes"] = len(res.candidats)
 
     def _cle_version(self, c):
@@ -667,6 +668,8 @@ class ExecutionRegle(object):
             ignores += 1
             if self.mode_ecrit and etat == modele_base.TERMINE:
                 self.base.noter_vu(cle)
+                if self.horodate and regle.mode == "copie":
+                    self._horodater_source(c, {"fichier": c.chemin})   # copie faite, marque restee a poser
             self.journal.evenement("fichier_ignore", "DEBUG", fichier=c.chemin)
         self.bilan.compteurs["ignores"] = ignores
         return a_livrer
@@ -862,6 +865,40 @@ class ExecutionRegle(object):
 
         if suivante:
             self._action_du_mode(c, cle_principale, suivante, destination_archive, champs)
+        elif self.horodate and regle.mode == "copie":
+            self._horodater_source(c, champs)
+
+    def _horodater_source(self, c, champs):
+        """Mode copie + horodater : l'original, qui reste dans la source, prend la marque de l'instant
+        du traitement (trace visuelle). Jamais bloquant : un echec est un avertissement, et la marque
+        sera reposee a la prochaine execution (le fichier est alors vu comme deja livre)."""
+        try:
+            if not transfert.verifier_original_inchange(c.chemin, c.taille, c.mtime_ns):
+                return                                  # disparu : rien a marquer
+        except SourceModifiee as e:
+            self._log("horodatage_ignore", "INFO", message="%s ; non marque, sera livre de nouveau" % e, **champs)
+            return
+        except ErreurSource as e:
+            self._horodatage_echoue(str(e), **champs)
+            return
+        maintenant = self.maintenant()
+        dossier = os.path.dirname(c.chemin)
+        for compteur in range(1000):
+            nouveau = os.path.join(dossier, chemins.nom_horodate(c.nom, maintenant, compteur))
+            try:
+                transfert.renommer(c.chemin, nouveau, ecraser=False)
+            except CibleExiste:
+                continue
+            except ErreurCible as e:
+                self._horodatage_echoue(str(e), **champs)
+                return
+            self._log("fichier_horodate", "INFO", fichier_horodate=nouveau, **champs)
+            return
+        self._horodatage_echoue("aucun nom libre pour marquer %s" % c.chemin, **champs)
+
+    def _horodatage_echoue(self, message, **champs):
+        self._log("horodatage_echec", "WARNING", message=message + " ; nouvel essai au prochain lancement", **champs)
+        self._noter_niveau("WARNING")
 
     def _noter_apercu(self, c, destination):
         """Simulation : garde de quoi dire « deplacera X fichier(s) de R vers D » (plafonne a APERCU_MAX)."""
@@ -877,6 +914,8 @@ class ExecutionRegle(object):
         nom = c.nom
         if self.regle.renommage_archive:
             nom = chemins.appliquer_modele_nom(self.regle.renommage_archive, c.nom, self.debut)
+        if self.horodate:
+            nom = chemins.nom_horodate(nom, self.maintenant())     # l'heure de l'archivage de ce fichier
         return os.path.join(self.archive_dir, os.path.dirname(c.relatif), nom)
 
     def _action_du_mode(self, c, cle, type_, destination_archive, champs):

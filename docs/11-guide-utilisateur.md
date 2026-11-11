@@ -126,9 +126,11 @@ Le moteur **prend en compte** le nouveau fichier au lancement suivant (dans les 
 
 Le moteur vérifie le fichier **sans** aller voir les dossiers (la vérification d'enregistrement est « syntaxe seule »). C'est pourquoi, **dès qu'une règle est enregistrée**, l'interface demande au moteur de contrôler ses répertoires : source, cible, dossier temporaire et archive. Pour chacun : **existe**, **lecture**, **écriture** (un petit fichier d'essai est créé puis supprimé aussitôt) ; la cible et l'archive dont le volume diffère de la source sont aussi contrôlées pour l'**espace disque**.
 
-- Tout va bien : un message le confirme, en nommant le compte avec lequel le contrôle a été fait.
+**Un seul écran de résultat.** Seule une *demande* (par exemple « Créer maintenant les dossiers manquants ? ») s'affiche dans une boîte Oui / Non. Tout le reste (règle enregistrée, dossiers créés, répertoires en bon état, avertissements, erreurs) est rassemblé dans **une seule fenêtre « Contrôle des répertoires »**, comme « Vérifier le paramétrage » : une ligne par information, en bleu (information), orange (avertissement) ou rouge (erreur). Plus de série de boîtes « OK ».
+
+- Tout va bien : une ligne d'information par répertoire, et la synthèse en tête de fenêtre nomme le compte avec lequel le contrôle a été fait.
 - Un **problème** (dossier absent côté source, droit refusé, dossier temporaire sur un autre volume) : message en clair, avec le chemin, ce qui manque et le conseil de corriger la règle ou les droits. La règle reste enregistrée : le contrôle n'empêche rien, il informe.
-- Un **dossier absent qui peut être créé** (cible, temporaire, archive) : l'administrateur se voit proposer de le **créer** ; le contrôle est refait ensuite. **La source n'est jamais créée par l'outil** : un dossier source absent est presque toujours une faute de frappe, et c'est le système producteur qui l'alimente.
+- Un **dossier absent qui peut être créé** (source, cible, temporaire, archive) : l'administrateur se voit proposer de le **créer**, dans **une seule question** qui les liste tous ; le contrôle est refait ensuite. Vérifiez bien le chemin complet affiché avant de répondre Oui : un dossier source absent est souvent une faute de frappe. Au lancement, le moteur ne crée **jamais** la source seul (c'est le système producteur qui l'alimente) ; il crée la cible et l'archive si la case « Créer les dossiers manquants » est cochée.
 
 **Avec quel compte ?** Les droits contrôlés sont ceux du compte qui exécute le moteur : le vôtre en mode local, celui du serveur en mode distant, le **compte de service du point d'accès JEA** si vous passez par JEA (c'est le compte qui fera les transferts). Le message le dit.
 
@@ -224,6 +226,8 @@ Le panneau du bas montre ce que fait l'interface (ouverture, appels du moteur av
 
 ## 13. Gérer les environnements (administrateurs)
 
+**Une seule fenêtre de résultat.** Chaque opération (créer, modifier, copier, créer la base, renommer, supprimer) pose ses **questions** en boîtes Oui / Non (accord pour créer les dossiers, changement de base, suppression), puis rassemble **tout le reste** (enregistrement, dossiers créés, base créée ou non, avertissements, erreurs) dans **une seule fenêtre** à la fin, une ligne par information.
+
 Au-dessus des onglets, la barre **Environnements** n'est visible que pour un administrateur. Toutes ces opérations passent par un brouillon vérifié par le moteur avant l'écriture, et sont **tracées** (journal de l'interface : compte, action, résultat). Le contrôle des droits de l'interface ne remplace pas ceux du dossier de paramétrage (NTFS) : voir [10-installation](10-installation.md).
 
 | Bouton | Ce qu'il fait |
@@ -243,6 +247,15 @@ Au-dessus des onglets, la barre **Environnements** n'est visible que pour un adm
 - **`suppression`** : supprime **définitivement** les fichiers sélectionnés (par exemple ceux de plus de 365 jours : critère d'âge de la sélection). Pas de dossier cible. L'enregistrement affiche un avertissement ; sans critère d'âge ni de date, tous les fichiers du masque sont supprimés à chaque lancement. Commencez toujours par **Simuler la règle** (§14).
 - **`count`** / **`size`** : comptent (nombre) ou mesurent (octets) les fichiers sélectionnés et écrivent le résultat dans le journal, sans rien toucher. Avec un `seuil_minimum` et / ou `seuil_maximum`, la règle sort en succès dans les bornes et en **`ATTENTE`** sinon. **Déclencheur** : un flux dépose 5 fichiers ; une règle `count` (minimum 5) attend qu'ils soient là ; la règle de déplacement qui en dépend (condition `succes`) ne part qu'ensuite.
 
+## 13 ter. Horodater les fichiers traités
+
+Pour les règles en mode `copie` ou `archivage`, cochez **« Horodater les fichiers traités »** (onglet *Général* du formulaire de règle ; la case est grisée pour les autres modes). C'est un simple clic qui laisse une **trace visible du moment du traitement** :
+
+- **copie** : le fichier d'origine, resté dans le dossier source, est renommé `rapport_traite_20261111_103012.csv`. La copie dans la cible garde son nom.
+- **archivage** : le fichier rangé dans l'archive porte cette marque.
+
+Les fichiers marqués ne sont plus repris par la règle (ils sont considérés comme traités). Les fichiers déjà copiés avant d'avoir coché la case sont marqués au prochain lancement. Si un fichier est verrouillé au moment du renommage, la règle sort en avertissement et réessaie au lancement suivant.
+
 ## 14. Simuler une règle
 
 Sélectionnez une règle puis **Simuler la règle…** (tous les comptes) : le moteur dit ce qu'il ferait **maintenant**, sans rien copier, déplacer ni enregistrer. Il faut que la base de l'environnement existe et que la règle soit active.
@@ -254,7 +267,7 @@ La fenêtre montre :
 - la liste des **fichiers concernés** (source, destination, taille, archive), plafonnée à 500 ;
 - des remarques : fichiers ignorés (déjà livrés, doublons), avertissements, nombre de problèmes.
 
-Pour un administrateur, le bouton **Créer les dossiers manquants…** apparaît s'il en manque : confirmation, création (cible, temporaire, archive, jamais la source), puis la simulation est refaite. La simulation n'attend jamais : pas de temporisation entre tentatives (une source absente est signalée tout de suite).
+Pour un administrateur, le bouton **Créer les dossiers manquants…** apparaît s'il en manque : confirmation, création (source, cible, temporaire, archive), puis la simulation est refaite. La simulation n'attend jamais : pas de temporisation entre tentatives (une source absente est signalée tout de suite).
 
 ## 15. Ce que l'interface ne fait pas
 

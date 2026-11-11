@@ -200,9 +200,9 @@ Voir [03-base-de-donnees §4](03-base-de-donnees.md). En résumé : avant toute 
 
 | Mode | Action de l'étape 12 |
 |---|---|
-| `copie` | Aucune. L'original reste en place. |
+| `copie` | Aucune. L'original reste en place ; avec `horodater`, il est renommé avec l'heure du traitement (`_traite_AAAAMMJJ_hhmmss`, voir docs/01 §3.2 ter). |
 | `deplacement` | Suppression de l'original, après vérification que sa taille et sa date sont **inchangées** depuis la copie (G4). Attribut lecture seule levé si besoin. |
-| `archivage` | Déplacement de l'original dans le dossier d'archive (§7), après la même vérification. |
+| `archivage` | Déplacement de l'original dans le dossier d'archive (§7), après la même vérification. Avec `horodater`, le nom archivé porte l'heure de l'archivage. |
 | `suppression` | Pas de livraison : les fichiers sélectionnés sont **supprimés définitivement** (journal : un événement par fichier, motif = âge / date). Pas de cible, ni de contrôle d'espace. |
 | `count`, `size` | Pas de livraison : le nombre ou le volume des fichiers sélectionnés est inscrit au journal et comparé à `seuil_minimum` / `seuil_maximum`. Hors bornes : statut **`ATTENTE`** (persisté en base seulement ; le bilan reste `SUCCES`, code 0). |
 
