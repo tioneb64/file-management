@@ -330,7 +330,7 @@ def _lancement(args, parametrage):
                          compteurs=resultat.compteurs)
     if args.format == "json":
         return _repondre(args, resultat.code_retour, "", statut=statut, compteurs=resultat.compteurs,
-                         simulation=bool(args.simulation))
+                         simulation=bool(args.simulation), suspendu=resultat.suspendu)
     return resultat.code_retour
 
 

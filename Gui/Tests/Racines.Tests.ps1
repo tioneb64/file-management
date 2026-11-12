@@ -214,6 +214,23 @@ Describe 'Modes d''une règle' {
             $champ.Aide | Should -Match 'copie et archivage'
         }
     }
+    It 'le formulaire propose le fichier déclencheur, sa consommation, le témoin de la cible et le plafond de volume, avec leur aide' {
+        InModuleScope FileManagement.Gui {
+            $champs = Get-CopieChampsRegle | ForEach-Object Champs
+            $decl = $champs | Where-Object Chemin -eq 'fichier_declencheur'
+            $decl.Type | Should -Be 'texte'
+            $decl.Obligatoire | Should -BeFalse
+            $decl.Aide | Should -Match 'témoin'
+            ($champs | Where-Object Chemin -eq 'consommer_declencheur').Type | Should -Be 'bool'
+            $tc = $champs | Where-Object Chemin -eq 'temoin_cible'
+            $tc.Type | Should -Be 'texte'
+            $tc.Obligatoire | Should -BeFalse
+            $tc.Aide | Should -Match 'logiciel destinataire'
+            $vol = $champs | Where-Object Chemin -eq 'selection.limite_octets'
+            $vol.Type | Should -Be 'entier'
+            $vol.Aide | Should -Match 'premier fichier'
+        }
+    }
     It 'décrit la simulation d''une suppression et d''un comptage' {
         InModuleScope FileManagement.Gui {
             $sup = '{"source":"D:\\in","cible":null,"mode":"suppression","statut":"SUCCES","motif":"","compteurs":{"livres":3,"octets":3072},"apercu":[]}' | ConvertFrom-Json

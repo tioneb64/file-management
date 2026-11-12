@@ -59,12 +59,30 @@ def seuil_modifie_depuis(modifie_depuis, maintenant):
     return (minuit - datetime.timedelta(days=jours)).timestamp()
 
 
-def lister(source, selection, maintenant, est_exclu=None, interdits=(), ignorer_horodates=False):
+def trouver_declencheurs(source, declencheur):
+    """Fichiers temoins presents a la racine de `source` (nom ou masque, sans tenir compte de la casse).
+    Renvoie la liste des chemins complets, triee ; leve OSError si la source est illisible."""
+    masques = compiler_masques(declencheur)
+    trouves = []
+    with os.scandir(source) as it:
+        for entree in it:
+            try:
+                if entree.is_file() and not entree.is_symlink() and correspond(entree.name, masques):
+                    trouves.append(entree.path)
+            except OSError:
+                continue
+    return sorted(trouves, key=str.lower)
+
+
+def lister(source, selection, maintenant, est_exclu=None, interdits=(), ignorer_horodates=False,
+           declencheur=None):
     """Parcourt `source` selon `selection` (objet Selection). `maintenant` : datetime local.
     interdits : noms de dossiers absolus a ne pas traverser. ignorer_horodates : les fichiers deja
-    marques par `horodater` ne sont pas des candidats (ils ont ete traites). Renvoie un Resultat ;
+    marques par `horodater` ne sont pas des candidats (ils ont ete traites). declencheur : nom ou
+    masque du fichier temoin de la regle, a la racine : jamais un candidat. Renvoie un Resultat ;
     les erreurs de lecture sont rapportees, jamais levees."""
     res = Resultat()
+    temoins = compiler_masques(declencheur) if declencheur else []
     masques = compiler_masques(selection.masque) or ["*"]
     exclus = compiler_masques(selection.exclure)
     seuil = seuil_modifie_depuis(selection.modifie_depuis, maintenant)
@@ -104,6 +122,8 @@ def lister(source, selection, maintenant, est_exclu=None, interdits=(), ignorer_
             nom = entree.name
             if nom.endswith(SUFFIXE_TEMPORAIRE):
                 continue
+            if temoins and not composants and correspond(nom, temoins):
+                continue                    # le temoin signale la fin du depot : il n'est pas livre
             if ignorer_horodates and chemins.est_horodate(nom):
                 res.deja_horodates += 1
                 continue

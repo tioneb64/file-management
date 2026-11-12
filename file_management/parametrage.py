@@ -33,7 +33,8 @@ MODES_MESURE = ("count", "size")                            # ces modes comptent
 MODE_SYNCHRO = "synchro"           # aucun dossier : retourne seulement un statut (apres des dependances)
 # Champs sans objet pour le mode synchro : les dossiers sont refuses, le reste est ignore (R16).
 CHAMPS_DOSSIERS_SYNCHRO = ("source", "cible", "archive", "dossier_temporaire")
-CHAMPS_FICHIERS_SYNCHRO = ("creer_dossiers", "horodater", "selection", "seuil_minimum", "seuil_maximum",
+CHAMPS_FICHIERS_SYNCHRO = ("creer_dossiers", "horodater", "selection", "fichier_declencheur",
+                           "consommer_declencheur", "temoin_cible", "seuil_minimum", "seuil_maximum",
                            "identite", "retention_historique_jours", "retention_journaux_jours",
                            "retention_archive_jours", "si_cible_absente", "si_existe_cible",
                            "si_existe_archive", "renommage_cible", "renommage_archive")
@@ -113,6 +114,8 @@ class Entete(object):
         self.retention_executions_jours = 365
         self.retention_journaux_jours = None      # None : les journaux ne sont jamais purges
         self.marge_espace_mo = 64
+        self.suspendu = False                     # maintenance : aucune regle n'est lancee
+        self.motif_suspension = None
 
 
 class Selection(object):
@@ -126,6 +129,7 @@ class Selection(object):
         self.taille_minimum_octets = None
         self.ordre = "nom"
         self.limite_fichiers = None
+        self.limite_octets = None        # volume maximum d'un lot (le premier fichier est toujours pris)
 
     def fenetre_jours(self):
         """Fenetre de selection en jours (None = pas de fenetre) : J = 1, J-N = N + 1."""
@@ -178,6 +182,9 @@ class Regle(object):
         self.seuil_maximum = None
         self.creer_dossiers = True
         self.horodater = False                    # copie / archivage : marque chaque fichier traite d'un horodatage
+        self.fichier_declencheur = None           # nom ou masque d'un fichier temoin (.ok) attendu dans la source
+        self.consommer_declencheur = True         # le temoin est supprime quand le lot est entierement traite
+        self.temoin_cible = None                  # nom du fichier temoin depose dans la cible apres chaque lot livre
         self.dossier_temporaire = None
         self.selection = Selection()
         self.identite = "version"
@@ -361,6 +368,8 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
     e.retention_executions_jours = lecteur.entier("retention_executions_jours", 365, minimum=1)
     e.retention_journaux_jours = lecteur.entier("retention_journaux_jours", None, minimum=1, nullable=True)
     e.marge_espace_mo = lecteur.entier("marge_espace_mo", 64, minimum=0)
+    e.suspendu = lecteur.valeur("suspendu", "booleen", False)
+    e.motif_suspension = (lecteur.valeur("motif_suspension", "texte_ou_null", None) or "").strip() or None
     lecteur.inconnus()
 
     nom_fichier = os.path.splitext(os.path.basename(chemin_fichier))[0]
@@ -465,6 +474,7 @@ def _lire_selection(objet, ligne, regle, rapport):
     s.taille_minimum_octets = lecteur.entier("taille_minimum_octets", None, minimum=0, nullable=True)
     s.ordre = lecteur.choix("ordre", ORDRES, "nom")
     s.limite_fichiers = lecteur.entier("limite_fichiers", None, minimum=1, nullable=True)
+    s.limite_octets = lecteur.entier("limite_octets", None, minimum=1, nullable=True)
     lecteur.inconnus()
     if (s.age_minimum_sec is not None and s.age_maximum_sec is not None
             and s.age_minimum_sec >= s.age_maximum_sec):
@@ -627,6 +637,17 @@ def lire_regle(objet, ligne, rapport, entete=None):
     r.creer_dossiers = lecteur.valeur("creer_dossiers", "booleen", True)
     r.horodater = lecteur.valeur("horodater", "booleen", False)
     r.dossier_temporaire = lecteur.valeur("dossier_temporaire", "texte_ou_null", None)
+    r.fichier_declencheur = (lecteur.valeur("fichier_declencheur", "texte_ou_null", None) or "").strip() or None
+    r.consommer_declencheur = lecteur.valeur("consommer_declencheur", "booleen", True)
+    if r.fichier_declencheur and any(c in r.fichier_declencheur for c in "\\/;:"):
+        lecteur.signaler("R06", "fichier_declencheur : un nom ou un masque de fichier de la source (exemple : "
+                         "*.ok), sans chemin ni point-virgule")
+        r.fichier_declencheur = None
+    r.temoin_cible = (lecteur.valeur("temoin_cible", "texte_ou_null", None) or "").strip() or None
+    if r.temoin_cible and any(c in r.temoin_cible for c in "\\/;:*?"):
+        lecteur.signaler("R06", "temoin_cible : un nom de fichier fixe (exemple : fin.ok), sans chemin, "
+                         "masque ni point-virgule")
+        r.temoin_cible = None
     r.seuil_minimum = lecteur.entier("seuil_minimum", None, minimum=0, nullable=True)
     r.seuil_maximum = lecteur.entier("seuil_maximum", None, minimum=0, nullable=True)
     if synchro:
@@ -653,6 +674,9 @@ def lire_regle(objet, ligne, rapport, entete=None):
                          % r.mode)
     if r.horodater and r.mode is not None and r.mode not in MODES_HORODATAGE and not synchro:
         lecteur.signaler("R16", "'horodater' n'a de sens que pour les modes copie et archivage : "
+                         "il sera ignore (mode '%s')" % r.mode)
+    if r.temoin_cible and r.mode is not None and r.mode not in MODES_TRANSFERT and not synchro:
+        lecteur.signaler("R16", "'temoin_cible' n'a de sens que pour les modes copie, deplacement et archivage : "
                          "il sera ignore (mode '%s')" % r.mode)
     if r.mode in ("suppression",) + MODES_MESURE and r.cible:
         lecteur.signaler("R16", "'cible' est renseignee mais le mode est '%s' : elle sera ignoree" % r.mode)

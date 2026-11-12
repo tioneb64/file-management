@@ -67,7 +67,7 @@ function Test-CopieSaisieEnvironnement {
         guider l'utilisateur : tout ce qui est écrit est de nouveau vérifié par le moteur.
     .PARAMETER Saisie
         Table : Nom, CodeEnvironnement, Racine, RacineSource, RacineCible, Base, DossierLogs, DossierTravail, ParalleleMax, RetentionExecutions,
-        RetentionJournaux, MargeEspaceMo. Base, journaux et travail peuvent être partiels : ils se placent sous Racine.
+        RetentionJournaux, MargeEspaceMo, Suspendu (booléen : maintenance, aucune règle lancée), MotifSuspension. Base, journaux et travail peuvent être partiels : ils se placent sous Racine.
     .PARAMETER Existants
         Les environnements déjà présents (Get-CopieEnvironnement), pour refuser un doublon de nom ou de base.
     .PARAMETER Ignorer
@@ -166,6 +166,10 @@ function ConvertTo-CopieEnteteEnvironnement {
         $v = "$($Saisie[$def[0]])".Trim()
         if ($v) { $e[$def[1]] = [int]$v }
     }
+    if ($Saisie.Suspendu -eq $true) {
+        $e['suspendu'] = $true
+        if ("$($Saisie.MotifSuspension)".Trim()) { $e['motif_suspension'] = "$($Saisie.MotifSuspension)".Trim() }
+    }
     [pscustomobject]$e
 }
 
@@ -186,6 +190,7 @@ function ConvertFrom-CopieEnteteEnvironnement {
         DossierTravail = (& $texte $Entete 'dossier_travail'); ParalleleMax = (& $texte $Entete 'parallele_max')
         RetentionExecutions = (& $texte $Entete 'retention_executions_jours'); RetentionJournaux = (& $texte $Entete 'retention_journaux_jours')
         MargeEspaceMo = (& $texte $Entete 'marge_espace_mo')
+        Suspendu = [bool](Get-CopieValeur $Entete 'suspendu' $false); MotifSuspension = (& $texte $Entete 'motif_suspension')
     }
 }
 

@@ -47,6 +47,19 @@ Describe 'Saisie d''un environnement (sans moteur)' {
             $s.DossierLogs | Should -Be ''
         }
     }
+    It 'écrit la suspension et son motif seulement quand l''environnement est suspendu, et la relit' {
+        InModuleScope FileManagement.Gui {
+            $e = ConvertTo-CopieEnteteEnvironnement -Saisie @{ Nom = 'recette'; Base = 'D:\r.db'; Suspendu = $false; MotifSuspension = 'ignoré' }
+            ($e | ConvertTo-Json -Compress) | Should -Be '{"version":1,"environnement":"recette","base":"D:\\r.db"}'
+            $e = ConvertTo-CopieEnteteEnvironnement -Saisie @{ Nom = 'recette'; Base = 'D:\r.db'; Suspendu = $true; MotifSuspension = ' migration du serveur ' }
+            $e.suspendu | Should -BeTrue
+            $e.motif_suspension | Should -Be 'migration du serveur'
+            $s = ConvertFrom-CopieEnteteEnvironnement -Entete $e
+            $s.Suspendu | Should -BeTrue
+            $s.MotifSuspension | Should -Be 'migration du serveur'
+            (ConvertFrom-CopieEnteteEnvironnement -Entete ([pscustomobject]@{ version = 1; environnement = 'x'; base = 'D:\x.db' })).Suspendu | Should -BeFalse
+        }
+    }
 }
 
 Describe 'Code d''environnement de la plateforme d''observabilité (sans moteur)' {

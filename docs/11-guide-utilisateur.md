@@ -257,6 +257,14 @@ Pour les règles en mode `copie` ou `archivage`, cochez **« Horodater les fichi
 
 Les fichiers marqués ne sont plus repris par la règle (ils sont considérés comme traités). Les fichiers déjà copiés avant d'avoir coché la case sont marqués au prochain lancement. Si un fichier est verrouillé au moment du renommage, la règle sort en avertissement et réessaie au lancement suivant.
 
+## 13 quater. Fichier déclencheur, plafond de volume et suspension
+
+- **Fichier déclencheur** (onglet *Général* de la règle) : pour un flux qui dépose ses fichiers puis un fichier témoin (`export.ok`) quand il a fini. Saisissez le nom ou le masque du témoin ; tant qu'il n'est pas à la racine de la source, la règle reste en **ATTENTE** et ne touche à rien. Le témoin n'est jamais livré ; il est supprimé quand le lot est entièrement traité (décochez *Supprimer le témoin après le lot* pour le garder).
+- **Fichier témoin dans la cible** (onglet *Général*) : pour un logiciel destinataire qui ne doit lire qu'un lot complet. Saisissez un nom fixe (`fin.ok`) : la règle dépose ce fichier vide dans la cible **après** les fichiers, seulement si le lot s'est bien passé. Le destinataire le supprime quand il a fini ; s'il ne l'a pas fait, la règle le retire avant le lot suivant puis le redépose. Si le témoin ne peut pas être écrit, la règle passe en erreur (les fichiers sont déjà livrés : déposez le témoin à la main).
+- **Volume maximum par lot** (onglet *Sélection*) : pour rattraper un gros arriéré sans saturer le réseau, la règle s'arrête avant de dépasser ce nombre d'octets et reprend le reste au lancement suivant. Un fichier plus gros que la limite est quand même pris, seul.
+- **Suspendre l'environnement** (boîte « Environnement », administrateurs) : pour une maintenance. Tant que la case est cochée, **aucune règle n'est lancée** et Jenkins reste vert (code 0). Un bandeau le rappelle sur l'onglet. Pensez à la décocher : la plateforme d'observabilité peut vous alerter d'une suspension qui dure (`exemples\loki\regles_alerte.yaml`).
+- **Une règle longue n'est pas lancée deux fois** : si Jenkins relance pendant qu'elle tourne encore, le second lancement l'ignore (aucun fichier `.lock` n'est posé dans vos dossiers).
+
 ## 14. Simuler une règle
 
 Sélectionnez une règle puis **Simuler la règle…** (tous les comptes) : le moteur dit ce qu'il ferait **maintenant**, sans rien copier, déplacer ni enregistrer. Il faut que la base de l'environnement existe et que la règle soit active.

@@ -32,6 +32,8 @@
 | `retention_executions_jours` | entier | non | Durée de conservation des exécutions en base. Défaut : `365` |
 | `retention_journaux_jours` | entier | non | Durée de conservation des fichiers de journaux (`<règle>_<AAAA-MM-JJ>.jsonl`, `_orchestrateur_…`), d'après la **date inscrite dans leur nom**. Absent : jamais purgés. Peut être surchargé par règle |
 | `marge_espace_mo` | entier | non | Espace libre à conserver en plus de la taille des fichiers à livrer, pour la cible et l'archive. Défaut : `64` |
+| `suspendu` | booléen | non | **Maintenance** (défaut `false`) : `true` suspend l'environnement, aucune règle n'est lancée (§3.2 quater). Les exécutions déjà en cours ne sont pas interrompues |
+| `motif_suspension` | texte | non | Raison de la suspension, écrite au journal et affichée par l'interface |
 
 **Chemins complets et partiels.** Un chemin est *complet* s'il commence par un lecteur (`D:\...`) ou un partage (`\\serveur\partage`). Exemple avec `"racine": "D:\\Transferts\\preprod"` : `"base": "BDD\\preprod.db"` donne `D:\Transferts\preprod\BDD\preprod.db` ; `"dossier_logs": "D:\\LOGS"` reste `D:\LOGS`. Un chemin partiel sans racine est refusé (**E07** pour l'en-tête, **R14** pour une règle). Le dossier d'archive n'est pas touché : relatif, il se calcule depuis la source à chaque lancement.
 
@@ -58,6 +60,9 @@ Les durées sont des **entiers**, l'unité figure dans le nom du champ (`_sec`, 
 | `archive` | chemin ou `null` | si `mode = archivage` | `null` | Absolu (`C:\archive`) ou relatif (`.\archive`, calculé depuis la **racine** de `source`). Variables de date acceptées (§5.2) |
 | `creer_dossiers` | booléen | non | `true` | Créer `cible` et `archive` s'ils n'existent pas, au lancement. La **source** n'est jamais créée au lancement (un administrateur peut la créer sur demande depuis l'interface) |
 | `horodater` | booléen | non | `false` | Modes `copie` et `archivage` seulement : garde une **trace visible du moment du traitement** (§3.2 ter). Ignoré avec un autre mode (**R16**) |
+| `fichier_declencheur` | texte ou `null` | non | `null` | Nom ou masque d'un **fichier témoin** (`*.ok`, `FIN.done`) que le flux dépose à la **racine de la source** une fois son dépôt terminé (§3.2 quater). Absent : la règle sort en `ATTENTE` sans rien toucher. Un chemin (`\`, `/`, `;`, `:`) est refusé (**R06**). Avec `synchro` : ignoré (**R16**) |
+| `consommer_declencheur` | booléen | non | `true` | Supprimer le témoin quand le lot est entièrement traité sans erreur. `false` : le témoin reste |
+| `temoin_cible` | texte ou `null` | non | `null` | Nom **fixe** (`fin.ok`) d'un fichier vide déposé à la **racine de la cible** quand le lot est livré sans erreur, pour le logiciel destinataire (§3.2 quater). Modes `copie`, `deplacement`, `archivage` ; ignoré avec un autre mode (**R16**). Nom avec chemin, masque ou `;` : refusé (**R06**) |
 | `dossier_temporaire` | chemin ou `null` | non | `null` | Dossier où écrire les fichiers en cours de copie. `null` : dans `cible`, avec le suffixe `.copie_en_cours`. Si renseigné, il doit être **sur le même volume que `cible`** (renommage atomique) et hors du périmètre surveillé par le logiciel destinataire |
 
 ### 3.2 bis Modes `suppression`, `count` et `size`
@@ -87,6 +92,15 @@ Case à cocher de la règle (modes `copie` et `archivage`). Le nom reçoit la ma
 - **Fichiers déjà copiés avant l'activation.** Ils sont marqués au lancement suivant (l'heure est alors celle de ce lancement).
 - Sans effet en simulation (rien n'est renommé).
 
+### 3.2 quater Fichier déclencheur, plafond de volume et suspension
+
+**Fichier déclencheur (`fichier_declencheur`).** Pour un flux qui dépose plusieurs fichiers puis un témoin (`export.ok`) quand il a fini : la règle ne prend **rien** tant que le témoin n'est pas à la racine de la source (statut **`ATTENTE`**, événement `declencheur_absent`, comme un seuil non atteint : les règles qui en dépendent patientent). Témoin présent (`declencheur_present`) : le lot est traité normalement ; le témoin lui-même n'est **jamais** livré ni compté, même s'il correspond au masque. Il est supprimé (`declencheur_consomme`) seulement si `consommer_declencheur` est vrai **et** que le lot est complet : un lot tronqué par `limite_fichiers` / `limite_octets`, ou en erreur, garde son témoin et la suite part au lancement suivant. Un échec de suppression est un avertissement (`declencheur_non_supprime`) : les fichiers déjà livrés ne le sont pas deux fois. Sans effet en simulation. 
+**Témoin côté cible (`temoin_cible`).** Pour un logiciel destinataire qui ne doit lire les fichiers qu'une fois le lot complet : la règle dépose un fichier **vide** nommé `temoin_cible` à la racine de la cible, après la livraison de tous les fichiers du lot **et** après le programme `apres_lot`, si au moins un fichier a été livré **sans erreur** (événement `temoin_cible_depose`). Un lot tronqué par une limite compte comme un lot complet. Le fichier est écrit sous un nom temporaire puis renommé : le destinataire ne voit jamais un témoin à moitié écrit. Un témoin du lot précédent que le destinataire n'a pas consommé est **retiré avant** la livraison suivante (`temoin_cible_retire`), puis redéposé à la fin : il ne peut pas annoncer un lot en cours d'écriture. Aucun fichier livré : aucun témoin. Une erreur sur un fichier : pas de témoin (le lot est repris au lancement suivant). **Échec d'écriture du témoin** : la règle s'arrête sur la situation `cible_inaccessible` (les fichiers sont déjà livrés et ne le seront pas deux fois : après correction, déposer le témoin à la main). Sans effet en simulation.
+
+**Plafond de volume (`selection.limite_octets`).** Complète `limite_fichiers` : le lot s'arrête **avant** de dépasser ce nombre d'octets cumulés (événement `limite_octets_atteinte` : retenus, restants). Le **premier fichier est toujours pris**, même plus gros que la limite (`limite_octets_depassee`) : sinon il bloquerait le flux pour toujours. Le reste attend le lancement suivant (rattrapage progressif). Appliqué après `limite_fichiers`, aux modes de livraison et de suppression.
+
+**Suspension d'environnement (`suspendu`, `motif_suspension`).** À `true`, le lancement n'évalue ni ne démarre aucune règle : il écrit un seul événement `environnement_suspendu` (INFO, avec le motif) et sort avec le **code 0** (Jenkins ne passe pas au rouge). Les exécutions déjà en cours ne sont pas interrompues. La simulation reste possible. `--etat` renvoie `suspendu` et `motif_suspension` ; le contrôle du paramétrage émet l'information **S01**. Pour reprendre : remettre `false` (ou retirer la clé).
+
 ### 3.3 Sélection
 
 ```json
@@ -106,6 +120,7 @@ Case à cocher de la règle (modes `copie` et `archivage`). Le nom reçoit la ma
 | `taille_minimum_octets` | entier ou `null` | `null` | `1` exclut les fichiers vides |
 | `ordre` | texte | `nom` | `nom` ou `date_modification` (du plus ancien au plus récent) |
 | `limite_fichiers` | entier ou `null` | `null` | Nombre maximum de fichiers livrés par exécution (rattrapage progressif) |
+| `limite_octets` | entier ou `null` | `null` | Volume maximum (octets) d'un lot ; le premier fichier est toujours pris (§3.2 quater) |
 
 Le dossier d'archive est **toujours exclu** du parcours de la source.
 
@@ -314,14 +329,15 @@ Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier
 | R03 | refus | `source` différente de `cible` ; en mode récursif, `cible` hors de `source` |
 | R04 | refus | `mode = archivage` impose `archive` |
 | R05 | avert. | `archive` renseigné alors que le mode n'est pas `archivage` : ignoré |
-| R06 | refus | Valeur hors liste (mode, niveaux, `suite` non autorisée pour la situation, `ordre`, `identite`…) |
+| R06 | refus | Valeur hors liste (mode, niveaux, `suite` non autorisée pour la situation, `ordre`, `identite`…) ; `fichier_declencheur` ou `temoin_cible` contenant un chemin ou un masque (`temoin_cible`) |
 | R07 | refus | Nombres hors bornes (`tentatives` < 1, `delai_sec` < 0, `age_minimum_sec` ≥ `age_maximum_sec`…) |
 | R08 | refus | `retention_historique_jours` doit être supérieure à la fenêtre de sélection, quand il y en a une (`modifie_depuis = J-N`, ou `age_maximum_sec`) |
 | R14 | refus | `source`, `cible` ou `dossier_temporaire` partiel alors que l'en-tête n'a pas de racine pour le compléter |
 | R15 | avert. | Mode `suppression` : suppression définitive des fichiers sélectionnés (précise s'il n'y a ni âge ni date) |
-| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode, `horodater` avec un mode autre que `copie` / `archivage`, champs de fichiers avec `synchro` |
+| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode, `horodater` avec un mode autre que `copie` / `archivage`, `temoin_cible` avec un mode sans cible, champs de fichiers avec `synchro` (y compris `fichier_declencheur` et `temoin_cible`) |
 | R17 | refus | Mode `synchro` : `source`, `cible`, `archive` ou `dossier_temporaire` renseigné |
 | R18 | avert. | Mode `synchro` : programme `apres_fichier` ou `apres_lot` déclaré, jamais exécuté |
+| S01 | info | Environnement suspendu (`suspendu` = `true`) : aucune règle n'est lancée |
 | R13 | refus | `retention_archive_jours` sans mode `archivage`, ou avec une archive sans date (`{AAAA}` absent) : la date du dossier est la seule date d'archivage fiable (un déplacement conserve la date de modification d'origine) |
 | R09 | avert. | `duree_max_sec` inférieure à la somme des attentes prévues dans `situations` |
 | R10 | avert. | Deux règles avec la même source, cible et masque |

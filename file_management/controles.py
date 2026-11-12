@@ -17,6 +17,9 @@ def _cle(ident):
 
 def controler_regles(p, rapport, periode_declencheur_sec=None):
     regles = p.regles
+    if p.entete is not None and p.entete.suspendu:
+        rapport.signaler("S01", "environnement SUSPENDU : aucune regle ne sera lancee%s"
+                         % ((" (" + p.entete.motif_suspension + ")") if p.entete.motif_suspension else ""))
     _controler_ids(regles, rapport)
     par_id = {}
     for r in regles:

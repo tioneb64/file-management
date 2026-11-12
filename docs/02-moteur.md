@@ -50,6 +50,10 @@ L'ancien code 3 (« exécution déjà en cours ») disparaît : le verrou est **
 7. **Surveiller** les fils. À chaque fin d'exécution, ré-évaluer les règles qui l'attendaient : une chaîne 10 → 11 se déroule dans un seul lancement.
 8. **Terminer** quand plus aucune règle n'est en cours ni lançable par ce lancement. Journaliser l'événement `fin_lancement` (compteurs par statut, code retour) et sortir.
 
+**Une règle longue n'est jamais relancée en double — et il n'y a pas de fichier `.lock`.** Si une règle dure 10 minutes et que Jenkins relance le moteur au bout de 5, le second lancement trouve le flag « en cours » de cette règle déjà posé (prise atomique, étape 6) et **l'ignore**, pendant que les autres règles du même lancement s'exécutent normalement. Le flag vit dans la base SQLite et non dans un fichier du dossier surveillé : une sortie en erreur ne laisse donc rien à nettoyer dans la source ; si le processus meurt, l'étape 3 du lancement suivant libère le flag (processus disparu, identifiant **et** date de création vérifiés) et termine l'exécution en `ERREUR` / `arret_anormal`. Le verrou protège la **règle**, pas le dossier : deux règles différentes sur le même dossier ne sont pas exclues entre elles (évitez-le, ou chaînez-les par une dépendance).
+
+**Suspension.** Quand l'en-tête porte `suspendu: true`, le lancement s'arrête avant l'étape 2 (aucune synchronisation, aucun nettoyage, aucune règle) : événement `environnement_suspendu`, code retour 0. Voir 01-parametrage §3.2 quater.
+
 Le fils écrit son résultat dans la base (table `executions`) et un petit fichier JSON dans `dossier_travail`. **C'est l'orchestrateur qui journalise la fin de chaque règle**, y compris quand le fils est mort sans rien écrire : aucune fin de règle ne passe inaperçue.
 
 **Arrêt d'un arbre de processus** : les fils sont placés dans un *Job Object* Windows (via `ctypes`), ce qui garantit l'arrêt des programmes externes qu'ils ont lancés. À défaut : `taskkill /T /F /PID`. Détection d'un processus « vivant » : identifiant **et** date de création du processus (pour éviter qu'un identifiant réutilisé fasse croire qu'il tourne encore). Le nettoyage des orphelins ne concerne que les processus du même serveur (`hote`).
@@ -148,13 +152,17 @@ Dans le processus fils :
 | 1 | Si reprise : appel du programme `reprise` (`COPIE_REPRISE=1`) |
 | 2 | **Actions en attente** des exécutions précédentes : suppressions et archivages différés ; livraisons interrompues (§6.3) |
 | 3 | **Contrôles préalables** : source lisible, cible écrivable (§8), archive (§7), base |
+| 3 bis | **Fichier déclencheur** (§5.3) : absent → statut `ATTENTE`, fin de la règle ; présent → mémorisé |
 | 4 | **Sélection** des fichiers (§5.1), avec la boucle de la situation `aucun_fichier` |
 | 5 | Programme `avant_lot` (reçoit la liste) ; si le programme a tourné, la source est **relue** |
 | 6 | **Filtre anti-doublon** : fichiers dont la version est déjà en base |
 | 7 | **Contrôle d'espace** pour la cible et, si besoin, l'archive (§8) |
-| 8 | Application de `ordre` et de `limite_fichiers` |
+| 8 | Application de `ordre`, de `limite_fichiers` puis de `limite_octets` (§5.3) |
+| 8 bis | Retrait du témoin de la cible resté du lot précédent (§5.3) |
 | 9 | **Pour chaque fichier** : `avant_fichier` → copie vérifiée → `apres_fichier` → action du mode (§6) |
 | 10 | Programme `apres_lot` (reçoit la liste avec le résultat de chaque fichier) |
+| 10 bis | **Témoin de la cible** (§5.3), si au moins un fichier est livré sans erreur |
+| 10 ter | **Consommation du témoin de la source** (§5.3), si le lot est complet et sans erreur |
 | 11 | **Bilan** : statut final, mise à jour de l'état et de l'exécution, libération du flag, événement `regle_terminee` |
 
 En cas d'arrêt de la règle sur anomalie, le programme `sur_erreur` est appelé avant le bilan. La durée totale est surveillée par l'orchestrateur (`duree_max_sec`).
@@ -176,6 +184,13 @@ Particularités :
 ### 5.2 Anti-doublon
 
 Voir [03-base-de-donnees §4](03-base-de-donnees.md). En résumé : avant toute livraison, le moteur calcule l'empreinte de la **version** du fichier (ou de son **contenu** si `identite = contenu`) et la cherche en base. Trouvée : le fichier est ignoré (mode `copie`) ou son original est traité sans nouvelle livraison (modes `deplacement`, `archivage`, si une action est en attente).
+
+### 5.3 Fichier déclencheur et plafond de volume
+
+- **Témoin** : `selection.trouver_declencheurs` ne cherche qu'à la **racine** de la source (jamais dans les sous-dossiers) ; `selection.lister(declencheur=…)` écarte les témoins de la sélection (un `*` ne les livre pas). Absent : `_declencheur_absent` pose `bilan.attente`, journalise `declencheur_absent` et la règle se termine en `ATTENTE` (code 0) ; les règles dépendantes patientent comme pour un seuil non atteint.
+- **Consommation** : `_consommer_declencheurs` ne supprime le témoin que si `consommer_declencheur`, mode d'écriture réel (pas en simulation), lot non tronqué (`lot_tronque`) et aucune erreur. Un lot qui s'arrête sur une limite garde son témoin : au lancement suivant, la suite est reprise.
+- **Témoin de la cible** : `_retirer_temoin_cible` (avant le premier fichier) puis `_deposer_temoin_cible` (après `apres_lot`). Dépôt seulement en mode d'écriture réel, pour `copie` / `deplacement` / `archivage`, si `livres` ≥ 1 et sans erreur ; écriture sous `<nom>.copie_en_cours` puis `os.replace`, temporaire nettoyé en cas d'échec ; un échec passe par `_essayer` (situation `cible_inaccessible`) puis arrête la règle.
+- **Plafond** : `_limiter` applique `limite_fichiers` puis `limite_octets` sur la liste déjà ordonnée. Le premier fichier est toujours retenu. Les événements `limite_atteinte`, `limite_octets_atteinte` et `limite_octets_depassee` donnent la limite, les fichiers retenus et restants. Comme `limite_fichiers`, il est appliqué **avant** le contrôle d'espace, qui ne porte donc que sur le lot réellement livré.
 
 ## 6. Copie vérifiée et modes
 
@@ -442,6 +457,14 @@ Les noms d'événements restent ceux du moteur (`context.event`). Le **message**
 | `base_indisponible` | **CRITICAL** | `DB_CONNECTION_ERROR` | Message |
 | `livraison_incertaine` | **CRITICAL** | `FILE_IO_ERROR` | Fichier dont la livraison est à trancher à la main |
 | `dossier_creation_impossible` | ERROR | `FILE_IO_ERROR` | Rôle, chemin |
+| `declencheur_absent` | INFO | | Masque attendu ; la règle sort en `ATTENTE` |
+| `declencheur_present`, `declencheur_consomme` | INFO | | Masque, fichiers témoins |
+| `declencheur_non_supprime` | WARNING | | Témoin impossible à supprimer (revu au lancement suivant) |
+| `limite_atteinte`, `limite_octets_atteinte` | INFO | | Limite, fichiers retenus et restants |
+| `limite_octets_depassee` | INFO | | Fichier plus gros que la limite de volume, pris seul |
+| `temoin_cible_depose`, `temoin_cible_retire` | INFO | | Fichier témoin de la cible, nombre de fichiers livrés |
+| `temoin_cible_non_retire` | WARNING | | Témoin du lot précédent impossible à retirer |
+| `environnement_suspendu` | INFO | | Motif de la suspension ; aucune règle lancée, code retour 0 |
 
 Types d'erreur par situation (paramétrage, [01-parametrage](01-parametrage.md) §situations) :
 

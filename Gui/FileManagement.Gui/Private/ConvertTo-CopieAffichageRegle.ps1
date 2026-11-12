@@ -137,6 +137,8 @@ function ConvertTo-CopieGroupeRegle {
         (New-CopieLigne 'Archive' (Format-CopieTexte (Get-CopieValeur $Regle 'archive') ([string][char]0x2014))),
         (New-CopieLigne 'Créer les dossiers' (& $v $Regle 'creer_dossiers')),
         (New-CopieLigne 'Horodater les fichiers traités' (Format-CopieTexte (Get-CopieValeur $Regle 'horodater' $false))),
+        (New-CopieLigne 'Témoin dans la cible' $(if ("$(Get-CopieValeur $Regle 'temoin_cible' '')".Trim()) { Get-CopieValeur $Regle 'temoin_cible' } else { $tiretLong })),
+        (New-CopieLigne 'Fichier déclencheur' $(if ("$(Get-CopieValeur $Regle 'fichier_declencheur' '')".Trim()) { '{0}{1}' -f (Get-CopieValeur $Regle 'fichier_declencheur'), $(if ([bool](Get-CopieValeur $Regle 'consommer_declencheur' $true)) { '  (supprimé après le lot)' } else { '  (conservé)' }) } else { $tiretLong })),
         (New-CopieLigne 'Dossier temporaire' $(if ("$(Get-CopieValeur $Regle 'dossier_temporaire' '')".Trim()) { & $complet $chemins.DossierTemporaire 'dossier_temporaire' '' } else { 'dans la cible' })))
     & $ajouter 'Sélection' @(
         (New-CopieLigne 'Masque' (& $v $sel 'masque')),
@@ -147,7 +149,8 @@ function ConvertTo-CopieGroupeRegle {
         (New-CopieLigne 'Âge maximum (s)' (Format-CopieTexte (Get-CopieValeur $sel 'age_maximum_sec') ([string][char]0x2014))),
         (New-CopieLigne 'Taille minimum (octets)' (Format-CopieTexte (Get-CopieValeur $sel 'taille_minimum_octets') ([string][char]0x2014))),
         (New-CopieLigne 'Ordre' (& $v $sel 'ordre')),
-        (New-CopieLigne 'Limite de fichiers' (Format-CopieTexte (Get-CopieValeur $sel 'limite_fichiers') 'aucune')))
+        (New-CopieLigne 'Limite de fichiers' (Format-CopieTexte (Get-CopieValeur $sel 'limite_fichiers') 'aucune')),
+        (New-CopieLigne 'Limite de volume (octets)' (Format-CopieTexte (Get-CopieValeur $sel 'limite_octets') 'aucune')))
     & $ajouter 'Anti-doublon et nommage' @(
         (New-CopieLigne 'Identité' (& $v $Regle 'identite')),
         (New-CopieLigne 'Historique conservé (jours)' (& $v $Regle 'retention_historique_jours')),

@@ -174,6 +174,9 @@ function Get-CopieChampsRegle {
                 (champ 'creer_dossiers' 'Créer les dossiers manquants' 'bool')
                 (champ 'horodater' 'Horodater les fichiers traités' 'bool' $null $false 'Garde une trace visible du moment du traitement. Copie : le fichier d''origine, laissé dans la source, est renommé nom_traite_AAAAMMJJ_hhmmss.ext (la copie dans la cible garde son nom). Archivage : le fichier archivé porte cette marque. Les fichiers marqués ne sont plus repris par la règle. Disponible pour copie et archivage seulement.')
                 (champ 'dossier_temporaire' 'Dossier temporaire' 'texte' $null $false 'Vide : le moteur choisit.')
+                (champ 'fichier_declencheur' 'Fichier déclencheur' 'texte' $null $false 'Nom ou masque d''un fichier témoin (exemple : *.ok) que le flux dépose à la racine de la source une fois son dépôt terminé. Tant qu''il est absent, la règle attend (statut ATTENTE) et ne touche à rien ; présent, elle traite les fichiers sans livrer le témoin. Vide : pas de témoin.')
+                (champ 'consommer_declencheur' 'Supprimer le témoin après le lot' 'bool' $null $false 'Le témoin est supprimé quand le lot est entièrement traité sans erreur ; un lot interrompu par une limite ou une erreur le garde. Décoché : le témoin reste et tout nouveau fichier est repris au lancement suivant.')
+                (champ 'temoin_cible' 'Fichier témoin dans la cible' 'texte' $null $false 'Nom fixe (exemple : fin.ok) du fichier vide que la règle dépose à la racine de la cible une fois le lot livré sans erreur, pour signaler au logiciel destinataire que les fichiers sont complets. Un témoin non consommé du lot précédent est retiré avant la livraison suivante. Copie, déplacement et archivage seulement. Vide : pas de témoin.')
                 (champ 'identite' 'Identité d''un fichier' 'choix' 'identites')
             )
         }
@@ -187,6 +190,7 @@ function Get-CopieChampsRegle {
                 (champ 'selection.taille_minimum_octets' 'Taille minimum (octets)' 'entier')
                 (champ 'selection.ordre' 'Ordre de traitement' 'choix' 'ordres')
                 (champ 'selection.limite_fichiers' 'Nombre maximum de fichiers par lot' 'entier' $null $false 'Vide : pas de limite.')
+                (champ 'selection.limite_octets' 'Volume maximum par lot (octets)' 'entier' $null $false 'Vide : pas de limite. Le lot s''arrête avant de dépasser ce volume ; le premier fichier est toujours pris, même plus gros que la limite. Le reste part au lancement suivant.')
             )
         }
         [pscustomobject]@{ Titre = 'Anti-doublon et nommage'; Champs = @(

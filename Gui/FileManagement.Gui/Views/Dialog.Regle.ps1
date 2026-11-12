@@ -276,9 +276,15 @@ function Update-CopieModeSynchro {
     $mode = $champs | Where-Object { $_.Spec.Chemin -eq 'mode' } | Select-Object -First 1
     if ($null -eq $mode) { return }
     $synchro = "$($mode.Controle.SelectedItem)" -eq 'synchro'
-    foreach ($e in @($champs | Where-Object { $_.Spec.Chemin -in 'source', 'cible', 'archive', 'dossier_temporaire', 'seuil_minimum', 'seuil_maximum' })) {
+    foreach ($e in @($champs | Where-Object { $_.Spec.Chemin -in 'source', 'cible', 'archive', 'dossier_temporaire', 'fichier_declencheur', 'seuil_minimum', 'seuil_maximum' })) {
         $e.Controle.IsEnabled = -not $synchro
         if ($synchro) { $e.Controle.Text = '' }
+    }
+    $temoin = $champs | Where-Object { $_.Spec.Chemin -eq 'temoin_cible' } | Select-Object -First 1
+    if ($null -ne $temoin) {
+        $transfert = "$($mode.Controle.SelectedItem)" -in 'copie', 'deplacement', 'archivage'
+        $temoin.Controle.IsEnabled = $transfert
+        if (-not $transfert) { $temoin.Controle.Text = '' }
     }
     $pl = $Fenetre.Tag.Planif
     if ($null -ne $pl) {

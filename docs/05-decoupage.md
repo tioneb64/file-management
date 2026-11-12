@@ -150,13 +150,13 @@ Les futures montées de version de Python (3.15 et suivantes) se feront en rejou
 
 | Fonction | Remarque |
 |---|---|
-| Fichiers témoins (`.ok`, `.done`) côté source et côté cible | Pour les logiciels qui signalent la fin d'écriture par un témoin |
+| ~~Fichiers témoins (`.ok`, `.done`) côté source et côté cible~~ | **Réalisés** : `fichier_declencheur` (source) et `temoin_cible` (cible), 01 §3.2 quater |
 | Rejeu de fichiers archivés | Action « Rejouer » dans le front-end |
 | Conversion d'encodage et de fins de ligne | À activer règle par règle ; risqué |
 | Fichier `.sha256` déposé à côté | Vérification par le destinataire |
 | Compression ou décompression | |
 | Détection d'un même contenu livré sous un autre nom | |
-| Plafond de volume par exécution | En plus de `limite_fichiers` |
+| ~~Plafond de volume par exécution~~ | **Réalisé** : `selection.limite_octets` (01 §3.2 quater) |
 | Journalisation directe vers Loki ou OpenTelemetry | Sans modifier les appelants du module de journal |
 | Condition de dépendance propre à chaque règle (`export_clients:succes`) | |
 

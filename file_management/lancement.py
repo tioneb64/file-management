@@ -30,6 +30,7 @@ class Lancement(object):
                           "en_attente": 0, "bloquees": 0, "depassees": 0}
         self.niveau = 0                    # 0 INFO, 1 WARNING, 2 ERREUR : pire evenement du lancement
         self.interrompu = None             # message si le lancement a du s'arreter (base indisponible)
+        self.suspendu = False              # environnement suspendu : aucune regle lancee
 
     def noter(self, niveau):
         self.niveau = max(self.niveau, {"INFO": 0, "WARNING": 1, "ERREUR": 2}[niveau])
@@ -146,6 +147,13 @@ def lancer(parametrage, base, journal, filtre=None, simulation=False, maintenant
             return datetime.datetime.fromtimestamp(maintenant())
     lancement = Lancement()
     entete = parametrage.entete
+    if entete.suspendu and not simulation:
+        # Maintenance : rien n'est lance (ni lancement planifie, ni lancement manuel, ni reprise). Les
+        # executions deja en cours ne sont pas touchees. Niveau INFO : le code retour reste 0, Jenkins ne
+        # passe pas au rouge ; l'alerte « suspendu depuis trop longtemps » se regle dans la plateforme.
+        lancement.suspendu = True
+        journal.evenement("environnement_suspendu", "INFO", motif=entete.motif_suspension)
+        return lancement
     try:
         if not simulation:
             synchroniser(parametrage, base, journal, lancement)
@@ -240,7 +248,8 @@ def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre
     maintenant = int((maintenant or time.time)())
     lignes = {l["id"].lower(): l for l in base.toutes_les_regles()}
     resultat = {"environnement": parametrage.entete.environnement, "genere_le": maintenant, "regles": [],
-                "orphelines": []}
+                "orphelines": [], "suspendu": bool(parametrage.entete.suspendu),
+                "motif_suspension": parametrage.entete.motif_suspension}
     connues = set()
     for regle in _regles_a_traiter(parametrage, filtre):
         connues.add(regle.id.lower())
@@ -296,6 +305,9 @@ def _heure(instant):
 
 def etat_texte(resultat):
     lignes = ["Environnement %s - %s" % (resultat["environnement"], _heure(resultat["genere_le"]))]
+    if resultat.get("suspendu"):
+        lignes.append("*** ENVIRONNEMENT SUSPENDU : aucune regle n'est lancee%s ***"
+                      % ((" (" + resultat["motif_suspension"] + ")") if resultat.get("motif_suspension") else ""))
     for r in resultat["regles"]:
         lignes.append("%-24s %-12s %s" % (r["id"], r["statut"], r["planification"]))
         lignes.append("    dernier lancement %s | prochain creneau %s | dernier succes %s" % (

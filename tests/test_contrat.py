@@ -248,7 +248,7 @@ class TestContratJson(CasProcessus):
         self.json("--lancer-maintenant", "export", "--utilisateur", "benoit")
         r = self.json("--etat")
         self.assertEqual(set(r), {"version_contrat", "ok", "code_retour", "environnement", "genere_le", "regles",
-                                  "orphelines"})
+                                  "orphelines", "suspendu", "motif_suspension"})
         self.assertEqual((r["ok"], r["environnement"], r["orphelines"]), (True, "production", []))
         regle = {x["id"]: x for x in r["regles"]}["export"]
         self.assertEqual(set(regle), CLES_REGLE_ETAT)
@@ -334,7 +334,7 @@ class TestContratJson(CasProcessus):
         self.json("--lancer-maintenant", "export", "--utilisateur", "benoit")
         fichier = self.source_reelle("a.csv")
         r = self.json()                                        # vrais processus fils : aucune pollution de la sortie
-        self.assertEqual(set(r), CLES_COMMUNES | {"statut", "compteurs", "simulation"})
+        self.assertEqual(set(r), CLES_COMMUNES | {"statut", "compteurs", "simulation", "suspendu"})
         self.assertEqual(set(r["compteurs"]), CLES_COMPTEURS_LANCEMENT)
         self.assertEqual((r["statut"], r["compteurs"]["livres"] if "livres" in r["compteurs"] else None,
                           r["compteurs"]["SUCCES"], r["simulation"]), ("SUCCES", None, 1, False))

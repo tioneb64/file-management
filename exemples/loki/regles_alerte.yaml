@@ -1,0 +1,77 @@
+# Exemples de regles d'alerte Loki (ruler) pour file_management.
+# NON TESTE : a valider avec l'equipe de la plateforme d'observabilite (version de Loki, tenant,
+# libelles d'environnement, seuils, canaux de notification). Les requetes supposent le format de la
+# plateforme (docs/02-moteur.md, section 11) lu par exemples/alloy/file_management.alloy : libelles
+# environnement, instance, level, service_name (= "file_management.<regle>"), object, error_type ;
+# apres "| json", les champs de la ligne sont aplatis (context_event, context_statut, ...).
+#
+# Le moteur ne fait AUCUNE alerte par lui-meme : il ecrit le journal, la plateforme decide.
+groups:
+  - name: file_management
+    rules:
+
+      # 1. Regle sans succes depuis N heures (ici 6 h).
+      #    Vue "dernier succes" : on compare les regles vues dans les 7 derniers jours (elles existent et
+      #    tournent) a celles qui ont termine en SUCCES ou WARNING dans les 6 dernieres heures.
+      #    Une regle ATTENTE (condition ou fichier declencheur absent) ne compte pas comme un succes :
+      #    si le flux ne depose jamais son temoin, l'alerte part, ce qui est voulu.
+      #    Adapter la fenetre (6h) a la planification de chaque regle ; pour une regle mensuelle,
+      #    dupliquer l'alerte avec un filtre service_name et une fenetre de 35d.
+      - alert: FileManagementRegleSansSucces
+        expr: |
+          (
+            sum by (environnement, service_name) (
+              count_over_time({environnement="prod", service_name=~"file_management\..+"} [7d])
+            )
+          )
+          unless
+          (
+            sum by (environnement, service_name) (
+              count_over_time(
+                {environnement="prod", service_name=~"file_management\..+"}
+                  | json
+                  | context_event = "regle_terminee"
+                  | context_statut =~ "SUCCES|WARNING" [6h]
+              )
+            )
+          )
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La regle {{ $labels.service_name }} n'a pas reussi depuis 6 heures"
+          description: >-
+            Aucune fin en SUCCES ou WARNING dans l'environnement {{ $labels.environnement }}
+            depuis 6 heures alors que la regle a ete vue dans les 7 derniers jours.
+
+      # 2. Regle en ERREUR (un evenement regle_terminee en ERROR ou CRITICAL).
+      - alert: FileManagementRegleEnErreur
+        expr: |
+          sum by (environnement, service_name, error_type) (
+            count_over_time(
+              {environnement="prod", service_name=~"file_management\..+", level=~"ERROR|CRITICAL"}
+                | json
+                | context_event = "regle_terminee" [15m]
+            )
+          ) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Regle {{ $labels.service_name }} en erreur ({{ $labels.error_type }})"
+
+      # 3. Environnement suspendu (maintenance oubliee) : evenement environnement_suspendu depuis plus d'un jour.
+      #    Le moteur ecrit cet evenement (INFO) a chaque lancement tant que la suspension est active.
+      - alert: FileManagementEnvironnementSuspendu
+        expr: |
+          sum by (environnement) (
+            count_over_time(
+              {environnement="prod", service_name=~"file_management\..+|file_management"}
+                | json
+                | context_event = "environnement_suspendu" [1h]
+            )
+          ) > 0
+        for: 24h
+        labels:
+          severity: warning
+        annotations:
+          summary: "L'environnement {{ $labels.environnement }} est suspendu depuis plus de 24 h"

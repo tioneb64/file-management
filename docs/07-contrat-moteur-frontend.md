@@ -62,7 +62,7 @@ Colonne « Droits » : **lecture** = tout compte, **écriture** = administrateur
 | `--controler-regle ID` | lecture | Contrôle les dossiers d'une règle sans lire la base ni rien livrer | `regle`, `mode`, `controles` : liste de `role` (`source`, `cible`, `temporaire`, `archive`), `chemin`, `existe`, `lecture`, `ecriture` (`null` : non testé ; dossier absent : droit de le créer), `a_creer`, `detail`, `espace` (`libre_octets`, `necessaire_octets`, `suffisant`), `volume_incorrect` |
 | `--creer-dossiers-regle ID --utilisateur U` | écriture | Crée les dossiers source, cible, temporaire et archive manquants que les contrôles jugent créables (la source n'est jamais créée par un lancement ordinaire) | `regle`, `crees`, `echecs` (`role`, `chemin`, `erreur`) ; code 1 s'il y a un échec |
 | `--renommer-environnement ANCIEN [--utilisateur U]` | écriture | La base du fichier `--config`, encore au nom d'environnement `ANCIEN`, prend le nom du fichier ; refusé si une règle est en cours ou si la base porte un autre nom | `base`, `environnement` |
-| *(aucune)* `[--regle ID] [--simulation]` | écriture | Lancement : toutes les règles dues (utilisé par Jenkins) | `statut`, `compteurs`, `simulation` |
+| *(aucune)* `[--regle ID] [--simulation]` | écriture | Lancement : toutes les règles dues (utilisé par Jenkins) | `statut`, `compteurs`, `simulation`, `suspendu` (vrai : environnement suspendu, aucune règle lancée, code 0) |
 
 Les commandes d'exploitation (`--reprise`, `--lancer-maintenant`, `--acquitter`, `--debloquer`, `--trancher-incertain`) exigent `--utilisateur`, qui est tracé dans la base et dans le journal ; le front-end y passe le compte Active Directory authentifié. Un **refus** (règle en cours, commentaire manquant…) répond `ok: false`, `code_retour: 2` et la raison dans `message`.
 
@@ -93,7 +93,7 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
 
 ```json
 {"version_contrat": 1, "ok": true, "code_retour": 0, "environnement": "production", "genere_le": 1793609412,
- "orphelines": [],
+ "suspendu": false, "motif_suspension": null, "orphelines": [],
  "regles": [{"id": "export_clients", "description": "...", "actif": true, "mode": "archivage",
              "planification": "toutes les 5 min de 05:00 a 19:00, lun-ven",
              "statut": "WARNING", "en_cours": false, "attente": null, "motif": "archivage differe : 12 fichier(s)",

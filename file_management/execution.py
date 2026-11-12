@@ -115,6 +115,8 @@ class ExecutionRegle(object):
         self.horodate = bool(regle.horodater and regle.mode in MODES_HORODATAGE)
         self.est_exclu = None
         self.dossiers_interdits = []
+        self.temoins = []                         # fichiers temoins vus au demarrage (fichier_declencheur)
+        self.lot_tronque = False                  # une limite a laisse des fichiers pour le lancement suivant
 
     # ------------------------------------------------------------------ #
     # Utilitaires
@@ -176,6 +178,8 @@ class ExecutionRegle(object):
             self._intentions_interrompues()
             self._controles_prealables()
             self._actions_en_attente()
+            if self._declencheur_absent():
+                return self._finir()
             if self.regle.mode in MODES_MESURE:
                 self._mesurer()
             elif self.regle.mode == "suppression":
@@ -187,6 +191,8 @@ class ExecutionRegle(object):
                 if a_livrer:
                     self._livrer_tout(a_livrer)
                     self._apres_lot()
+                    self._deposer_temoin_cible()
+            self._consommer_declencheurs()
         except ArretRegle as a:
             self.bilan.motif = a.message
             self.bilan.situation_finale = a.situation
@@ -197,6 +203,125 @@ class ExecutionRegle(object):
         if bilan.statut == "ERREUR":
             self._sur_erreur(bilan)
         return bilan
+
+    # ----- fichier declencheur (temoin de fin de depot) -------------------- #
+    def _declencheur_absent(self):
+        """Regle a `fichier_declencheur` : tant que le temoin n'est pas dans la source, rien n'est fait et
+        la regle sort en ATTENTE (comme un seuil non atteint : les regles qui en dependent patientent).
+        Memorise les temoins presents, que `_consommer_declencheurs` supprimera apres le lot."""
+        masque = self.regle.fichier_declencheur
+        if not masque:
+            return False
+        try:
+            temoins = self._essayer(lambda: selection.trouver_declencheurs(self.source, masque),
+                                    lambda e: "source_inaccessible")
+        except EchecSituation as e:
+            self._arreter(e)
+        if not temoins:
+            self.bilan.attente = True
+            self.bilan.motif = "en attente du fichier declencheur '%s'" % masque
+            self._log("declencheur_absent", "INFO", declencheur=masque, message=self.bilan.motif)
+            return True
+        self.temoins = temoins
+        self._log("declencheur_present", "INFO", declencheur=masque,
+                  fichiers=[os.path.basename(t) for t in temoins])
+        return False
+
+    def _consommer_declencheurs(self):
+        """Supprime les temoins vus au demarrage, si le lot est entierement traite sans erreur : un lot
+        tronque par une limite ou en erreur garde son temoin, la suite sera traitee au lancement suivant.
+        Un echec de suppression est un avertissement (le temoin sera revu, les fichiers livres ne le sont
+        pas deux fois)."""
+        if (not self.temoins or not self.regle.consommer_declencheur or not self.mode_ecrit
+                or self.lot_tronque or self.rang >= RANG["ERREUR"] or self.bilan.erreur is not None):
+            return
+        for chemin in self.temoins:
+            try:
+                os.remove(chemin)
+            except OSError as e:
+                self._log("declencheur_non_supprime", "WARNING", fichier=chemin, message=str(e))
+                self._noter_niveau("WARNING")
+                continue
+            self._log("declencheur_consomme", "INFO", fichier=chemin)
+        self.temoins = []
+
+    # ----- temoin de la cible (le destinataire sait que le lot est complet) -- #
+    def _chemin_temoin_cible(self):
+        nom = self.regle.temoin_cible
+        if not nom or not self.mode_ecrit or self.regle.mode not in MODES_TRANSFERT:
+            return None
+        return os.path.join(self.cible, nom)
+
+    def _retirer_temoin_cible(self):
+        """Avant de livrer un nouveau lot, retire le temoin du lot precedent que le destinataire n'a pas
+        encore consomme : il ne doit pas croire complet un lot en cours d'ecriture."""
+        chemin = self._chemin_temoin_cible()
+        if chemin is None or not os.path.lexists(chemin):
+            return
+        try:
+            os.remove(chemin)
+        except OSError as e:
+            self._log("temoin_cible_non_retire", "WARNING", fichier=chemin, message=str(e))
+            self._noter_niveau("WARNING")
+            return
+        self._log("temoin_cible_retire", "INFO", fichier=chemin)
+
+    def _deposer_temoin_cible(self):
+        """Depose le temoin a la racine de la cible quand le lot est livre sans erreur (un lot tronque par
+        une limite compte : c'est un lot complet pour le destinataire). Ecrit sous un nom temporaire puis
+        renomme : le destinataire ne voit jamais un temoin a moitie ecrit. Un echec arrete la regle."""
+        chemin = self._chemin_temoin_cible()
+        if (chemin is None or self.bilan.compteurs["livres"] < 1 or self.rang >= RANG["ERREUR"]
+                or self.bilan.erreur is not None):
+            return
+
+        def ecrire():
+            temporaire = chemin + selection.SUFFIXE_TEMPORAIRE
+            try:
+                with open(temporaire, "wb") as f:
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temporaire, chemin)
+            except OSError:
+                try:
+                    os.remove(temporaire)                # pas de temporaire orphelin dans la cible
+                except OSError:
+                    pass
+                raise
+        try:
+            self._essayer(ecrire, lambda e: "cible_inaccessible")
+        except EchecSituation as e:
+            self._arreter(e, fichier=chemin)
+        self._log("temoin_cible_depose", "INFO", fichier=chemin, livres=self.bilan.compteurs["livres"])
+
+    # ----- limites d'un lot ------------------------------------------------- #
+    def _limiter(self, fichiers):
+        """Applique `limite_fichiers` puis `limite_octets` (liste deja ordonnee). Le premier fichier est
+        toujours pris, meme plus gros que la limite : sinon il bloquerait le flux pour toujours. Le
+        reste attend le lancement suivant."""
+        sel = self.regle.selection
+        if sel.limite_fichiers is not None and len(fichiers) > sel.limite_fichiers:
+            self._log("limite_atteinte", "INFO", limite=sel.limite_fichiers,
+                      restants=len(fichiers) - sel.limite_fichiers)
+            fichiers = fichiers[:sel.limite_fichiers]
+            self.lot_tronque = True
+        if sel.limite_octets is not None:
+            gardes, cumul = [], 0
+            for c in fichiers:
+                if gardes and cumul + c.taille > sel.limite_octets:
+                    break
+                gardes.append(c)
+                cumul += c.taille
+            if len(gardes) < len(fichiers):
+                self._log("limite_octets_atteinte", "INFO", limite_octets=sel.limite_octets, octets=cumul,
+                          retenus=len(gardes), restants=len(fichiers) - len(gardes))
+                fichiers = gardes
+                self.lot_tronque = True
+            elif len(gardes) == 1 and gardes[0].taille > sel.limite_octets:
+                self._log("limite_octets_depassee", "INFO", limite_octets=sel.limite_octets,
+                          fichier=gardes[0].chemin, taille=gardes[0].taille,
+                          message="fichier plus gros que la limite : il est pris seul")
+        return fichiers
 
     def _synchroniser(self):
         """Mode synchro : lance avant_lot puis avant_fichier (s'ils existent), puis rend son statut.
@@ -556,7 +681,8 @@ class ExecutionRegle(object):
         interdits = [self.dossier_temporaire] if self.dossier_temporaire else []
 
         def operation():
-            res = selection.lister(self.source, regle.selection, self.maintenant(), self.est_exclu, interdits)
+            res = selection.lister(self.source, regle.selection, self.maintenant(), self.est_exclu, interdits,
+                                   declencheur=regle.fichier_declencheur)
             if res.erreurs and not res.candidats:
                 raise res.erreurs[0][1]
             return res
@@ -594,11 +720,7 @@ class ExecutionRegle(object):
         regle, b = self.regle, self.bilan
         res = self._lister_brut()
         a_supprimer = res.candidats
-        sel = regle.selection
-        if sel.limite_fichiers is not None and len(a_supprimer) > sel.limite_fichiers:
-            self._log("limite_atteinte", "INFO", limite=sel.limite_fichiers,
-                      restants=len(a_supprimer) - sel.limite_fichiers)
-            a_supprimer = a_supprimer[:sel.limite_fichiers]
+        a_supprimer = self._limiter(a_supprimer)
         for c in a_supprimer:
             champs = {"fichier": c.chemin}
             if self.simulation:
@@ -625,7 +747,8 @@ class ExecutionRegle(object):
 
         def operation():
             res = selection.lister(self.source, regle.selection, self.maintenant(), self.est_exclu,
-                                   interdits, ignorer_horodates=self.horodate)
+                                   interdits, ignorer_horodates=self.horodate,
+                                   declencheur=regle.fichier_declencheur)
             self._derniere_selection = res
             if res.erreurs and not res.candidats:
                 raise res.erreurs[0][1]
@@ -708,11 +831,9 @@ class ExecutionRegle(object):
 
     # ----- 7 + 8 : ordre, limite, espace ---------------------------------- #
     def _livrer_tout(self, a_livrer):
-        sel = self.regle.selection
-        if sel.limite_fichiers is not None and len(a_livrer) > sel.limite_fichiers:
-            self._log("limite_atteinte", "INFO", limite=sel.limite_fichiers, restants=len(a_livrer) - sel.limite_fichiers)
-            a_livrer = a_livrer[:sel.limite_fichiers]
+        a_livrer = self._limiter(a_livrer)
         self._controler_espace(a_livrer)
+        self._retirer_temoin_cible()
         for c in a_livrer:
             self._livrer(c)
 

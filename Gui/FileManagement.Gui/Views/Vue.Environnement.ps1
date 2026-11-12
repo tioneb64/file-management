@@ -148,6 +148,11 @@ function Set-CopieLignesVue {
         $Vue.FiltreStatut.SelectedIndex = $(if ($position -ge 0) { $position } else { 0 })
 
         $tous = New-Object System.Collections.Generic.List[string]
+        $enteteVue = $Vue.Env.Parametrage.Entete
+        if ($null -ne $enteteVue -and [bool](Get-CopieValeur $enteteVue 'suspendu' $false)) {
+            $motifVue = "$(Get-CopieValeur $enteteVue 'motif_suspension' '')".Trim()
+            $tous.Add('ENVIRONNEMENT SUSPENDU : aucune règle n''est lancée' + $(if ($motifVue) { " ($motifVue)" } else { '' }) + '. Décochez « Suspendre l''environnement » dans Modifier l''environnement pour reprendre.')
+        }
         foreach ($m in $Vue.Messages) { $tous.Add($m) }
         foreach ($m in $Message) { $tous.Add($m) }
         $Vue.BandeauTexte.Text = ($tous -join "`n")
