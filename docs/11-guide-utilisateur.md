@@ -39,7 +39,7 @@ Le bouton **Actualiser** de la fenêtre relit tout le dossier de paramétrage et
 
 Une ligne par règle : identifiant, description, mode, chemins source → cible, planification en clair, actif, **statut**, dernier lancement et prochain créneau.
 
-Filtres en haut de la liste : recherche libre (identifiant, description, chemins), **statut** (tous les statuts du §3.2, même ceux qu'aucune règle n'a pour le moment : on peut chercher `ERREUR` ou `WARNING`), **mode** (`copie`, `deplacement`, `archivage`, `suppression`, `count`, `size`) et **Règles** : toutes, actives seulement ou inactives seulement. Les chemins affichés sont les **chemins complets** (racine comprise, §13).
+Filtres en haut de la liste : recherche libre (identifiant, description, chemins), **statut** (tous les statuts du §3.2, même ceux qu'aucune règle n'a pour le moment : on peut chercher `ERREUR` ou `WARNING`), **mode** (`copie`, `deplacement`, `archivage`, `suppression`, `count`, `size`, `synchro`) et **Règles** : toutes, actives seulement ou inactives seulement. Les chemins affichés sont les **chemins complets** (racine comprise, §13).
 
 Couleurs : ligne **grise** = règle inactive ; ligne **rouge** = dernière exécution en erreur, règle arrêtée ou bloquée ; ligne **bleu ciel** = règle sélectionnée. Le compteur indique « N règle(s) affichée(s) sur M ».
 
@@ -242,10 +242,11 @@ Au-dessus des onglets, la barre **Environnements** n'est visible que pour un adm
 
 **Dossiers de la base, des journaux et du travail.** Dès que le fichier d'un environnement est écrit (création, copie, modification de ces chemins, bouton « Créer la base… »), l'interface contrôle les trois dossiers là où tourne le moteur. S'il en manque, **une seule question** les liste et propose de les créer (Oui / Non), en rappelant le compte dont les droits sont contrôlés. Oui : ils sont créés (tracé dans le journal), puis la base. Non : le fichier reste créé, la base ne l'est pas, et le message le dit. Un dossier qu'on ne peut pas créer (lecteur introuvable, droits) est signalé en clair. Cette règle vaut pour **tout chemin saisi dans l'outil** : dossier de paramétrage, dossiers d'un environnement, répertoires d'une règle (§5.4) et simulation (§14).
 
-## 13 bis. Les modes `suppression`, `count` et `size`
+## 13 bis. Les modes `suppression`, `count`, `size` et `synchro`
 
 - **`suppression`** : supprime **définitivement** les fichiers sélectionnés (par exemple ceux de plus de 365 jours : critère d'âge de la sélection). Pas de dossier cible. L'enregistrement affiche un avertissement ; sans critère d'âge ni de date, tous les fichiers du masque sont supprimés à chaque lancement. Commencez toujours par **Simuler la règle** (§14).
 - **`count`** / **`size`** : comptent (nombre) ou mesurent (octets) les fichiers sélectionnés et écrivent le résultat dans le journal, sans rien toucher. Avec un `seuil_minimum` et / ou `seuil_maximum`, la règle sort en succès dans les bornes et en **`ATTENTE`** sinon. **Déclencheur** : un flux dépose 5 fichiers ; une règle `count` (minimum 5) attend qu'ils soient là ; la règle de déplacement qui en dépend (condition `succes`) ne part qu'ensuite.
+- **`synchro`** : une règle **sans dossier ni heure** qui ne fait que rendre un statut, succès ou erreur, quand les règles dont elle dépend sont terminées. Dans le formulaire, choisissez le mode : les dossiers et les seuils se grisent, la planification passe à « apres_dependances » et il faut remplir **Se lance après** (onglet *Dépendances*). Si vous déclarez un programme **avant le lot** et / ou **avant le fichier** (onglet *Programmes*), il est lancé avant de rendre le statut ; s'il y en a deux, `avant_lot` passe en premier. Le programme doit répondre **0** pour un succès ; tout autre code, y compris 1, est une erreur. Un programme **après** le fichier ou le lot n'a pas de sens ici : il n'est **jamais exécuté** et l'enregistrement vous en avertit.
 
 ## 13 ter. Horodater les fichiers traités
 

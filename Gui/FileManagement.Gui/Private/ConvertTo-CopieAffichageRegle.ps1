@@ -63,7 +63,7 @@ function ConvertTo-CopieLigneRegle {
     $chemins = Get-CopieCheminsRegle -Regle $Regle -Entete $Entete
     $mode = "$(Get-CopieValeur $Regle 'mode' '')"
     $transfert = (@(Get-CopieModesRegle | Where-Object { $_.Nom -eq $mode -and -not $_.Transfert }).Count -eq 0)
-    $affichageChemins = $(if ($transfert) { '{0}  {1}  {2}' -f $chemins.Source, [char]0x2192, $chemins.Cible } else { $chemins.Source })
+    $affichageChemins = $(if ($mode -eq 'synchro') { '(aucun dossier)' } elseif ($transfert) { '{0}  {1}  {2}' -f $chemins.Source, [char]0x2192, $chemins.Cible } else { $chemins.Source })
     $enCours = [bool](Get-CopieValeur $Etat 'en_cours' $false)
     $attente = "$(Get-CopieValeur $Etat 'attente' '')"
     # Aspect de la ligne dans la grille : inactive (grise) prime sur erreur (rouge).

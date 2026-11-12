@@ -51,9 +51,9 @@ Les durées sont des **entiers**, l'unité figure dans le nom du champ (`_sec`, 
 
 | Champ | Type | Oblig. | Défaut | Description |
 |---|---|---|---|---|
-| `source` | chemin | oui | — | Dossier à lire |
-| `cible` | chemin | si `mode` = `copie`, `deplacement` ou `archivage` | — | Dossier de dépôt. Créé s'il n'existe pas et si `creer_dossiers`. Sans objet (ignoré, **R16**) pour `suppression`, `count`, `size` |
-| `mode` | texte | oui | — | `copie` : l'original reste en place ; `deplacement` : l'original est supprimé après copie vérifiée ; `archivage` : l'original est déplacé dans `archive` après copie vérifiée ; `suppression` : **supprime définitivement** les fichiers sélectionnés (avertissement **R15**) ; `count` / `size` : comptent / mesurent les fichiers sélectionnés et les comparent aux seuils, sans rien toucher |
+| `source` | chemin | oui, sauf `synchro` | — | Dossier à lire. **Refusé** avec `synchro` (**R17**) |
+| `cible` | chemin | si `mode` = `copie`, `deplacement` ou `archivage` | — | Dossier de dépôt. Créé s'il n'existe pas et si `creer_dossiers`. Sans objet (ignoré, **R16**) pour `suppression`, `count`, `size` ; **refusé** avec `synchro` (**R17**) |
+| `mode` | texte | oui | — | `copie` : l'original reste en place ; `deplacement` : l'original est supprimé après copie vérifiée ; `archivage` : l'original est déplacé dans `archive` après copie vérifiée ; `suppression` : **supprime définitivement** les fichiers sélectionnés (avertissement **R15**) ; `count` / `size` : comptent / mesurent les fichiers sélectionnés et les comparent aux seuils, sans rien toucher ; `synchro` : aucun dossier, retourne seulement un statut (§3.2 quater) |
 | `seuil_minimum`, `seuil_maximum` | entier ou `null` | non | `null` | Modes `count` (nombre de fichiers) et `size` (octets) seulement. En dessous du minimum ou au-dessus du maximum, la règle sort en **ATTENTE** (§3.2 bis). Ignorés avec un autre mode (**R16**) ; minimum > maximum : refus (**R07**) |
 | `archive` | chemin ou `null` | si `mode = archivage` | `null` | Absolu (`C:\archive`) ou relatif (`.\archive`, calculé depuis la **racine** de `source`). Variables de date acceptées (§5.2) |
 | `creer_dossiers` | booléen | non | `true` | Créer `cible` et `archive` s'ils n'existent pas, au lancement. La **source** n'est jamais créée au lancement (un administrateur peut la créer sur demande depuis l'interface) |
@@ -65,6 +65,17 @@ Les durées sont des **entiers**, l'unité figure dans le nom du champ (`_sec`, 
 - **`suppression`** : supprime définitivement les fichiers sélectionnés (masque, âge, date). Exemple : `"selection": {"masque": "*.log", "age_minimum_sec": 31536000}` supprime les journaux de plus de 365 jours. Sans critère d'âge ni de date, **tous** les fichiers du masque sont supprimés à chaque lancement : le diagnostic **R15** le précise. L'interface avertit à l'enregistrement et la simulation annonce « supprimera DÉFINITIVEMENT ». Pas de cible ni d'archive.
 - **`count`** et **`size`** : comptent (nombre de fichiers) ou mesurent (octets) les fichiers sélectionnés, inscrivent le résultat au journal et le comparent à `seuil_minimum` / `seuil_maximum`. Aucun fichier n'est touché. Résultat dans les bornes : **succès**. Hors bornes : statut d'exécution **`ATTENTE`**, ni succès ni erreur (bilan `SUCCES`, code retour 0).
 - **Déclencheur.** Un flux SSIS dépose 5 fichiers : une règle `count` (`seuil_minimum: 5`) sort en `ATTENTE` tant qu'il en manque ; la règle de déplacement qui en dépend (`apres` avec `condition: succes`) **patiente** (statut `EN_ATTENTE`) au lieu d'être bloquée, et part dès que le `count` sort en succès. Une règle en `ATTENTE` ne compte pas comme un succès pour les dépendances.
+
+### 3.2 quater Mode `synchro`
+
+Une règle qui **ne fait qu'une chose : retourner un statut** (`SUCCES` ou `ERREUR`) une fois ses dépendances satisfaites. Elle sert de point de synchronisation : les règles qui en dépendent (`apres` + `condition`) partent quand elle réussit, et peuvent lancer un programme externe juste avant.
+
+- **Aucun dossier** : `source`, `cible`, `archive` et `dossier_temporaire` sont **refusés** (**R17**). Les champs de fichiers (`selection`, `horodater`, seuils, renommages, anti-doublon, rétentions autres que celle par défaut) sont ignorés avec un avertissement (**R16**) s'ils ont une valeur autre que celle par défaut.
+- **Aucune heure** : la planification est obligatoire et ne peut être que `apres_dependances` (**P01** sinon), ce qui impose une liste `apres` (**D06** sinon). Pas d'heure de début ni de fin.
+- **Programmes** : si `programmes.avant_lot` et / ou `programmes.avant_fichier` existent, le moteur les lance **dans cet ordre** (`avant_lot` puis `avant_fichier`, quel que soit l'ordre d'écriture dans le fichier) avant de rendre son statut. Un seul des deux suffit. Les variables `{source}`, `{cible}`, `{archive}`, `{fichier}`, `{nom}`, `{fichier_cible}`, `{liste}`, `{liste_json}` n'existent pas ici (**G01**) : seules `{environnement}`, `{regle}` et `{date}` sont admises.
+- **Programmes `apres_fichier` et `apres_lot`** : rien ne s'exécute après le statut ; ils sont acceptés mais **jamais lancés**, et le diagnostic **R18** en prévient. `sur_erreur` (notification) et `reprise` restent actifs.
+- **Statut** : `SUCCES` si les programmes présents ont tous répondu **0** (ou s'il n'y en a pas) ; `ERREUR` sinon. Contrairement aux autres modes, le code **1** n'est pas « rien à faire » : la règle ne peut dire que oui ou non, il est donc une erreur. Une durée maximale dépassée ou un lancement impossible sont aussi des erreurs. Les situations `programme_avant_lot` / `programme_avant_fichier` (tentatives, délai, niveau) s'appliquent ; la suite `fichier_suivant` n'a pas de sens ici et vaut `arreter_regle`.
+- **Journal** : événements `programme_appele` (un par programme) puis `regle_terminee`. Aucun fichier n'est lu, créé ni supprimé.
 
 ### 3.2 ter Horodater les fichiers traités (`horodater`)
 
@@ -308,7 +319,9 @@ Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier
 | R08 | refus | `retention_historique_jours` doit être supérieure à la fenêtre de sélection, quand il y en a une (`modifie_depuis = J-N`, ou `age_maximum_sec`) |
 | R14 | refus | `source`, `cible` ou `dossier_temporaire` partiel alors que l'en-tête n'a pas de racine pour le compléter |
 | R15 | avert. | Mode `suppression` : suppression définitive des fichiers sélectionnés (précise s'il n'y a ni âge ni date) |
-| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode, `horodater` avec un mode autre que `copie` / `archivage` |
+| R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode, `horodater` avec un mode autre que `copie` / `archivage`, champs de fichiers avec `synchro` |
+| R17 | refus | Mode `synchro` : `source`, `cible`, `archive` ou `dossier_temporaire` renseigné |
+| R18 | avert. | Mode `synchro` : programme `apres_fichier` ou `apres_lot` déclaré, jamais exécuté |
 | R13 | refus | `retention_archive_jours` sans mode `archivage`, ou avec une archive sans date (`{AAAA}` absent) : la date du dossier est la seule date d'archivage fiable (un déplacement conserve la date de modification d'origine) |
 | R09 | avert. | `duree_max_sec` inférieure à la somme des attentes prévues dans `situations` |
 | R10 | avert. | Deux règles avec la même source, cible et masque |

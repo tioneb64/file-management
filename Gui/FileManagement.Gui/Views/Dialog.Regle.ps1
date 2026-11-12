@@ -163,7 +163,7 @@ function Read-CopieControleChamp {
         }
         default {
             $t = $c.Text.Trim()
-            if ($t -eq '') { if ($spec.Obligatoire) { return (& $ko 'obligatoire') } else { return (& $ok $Entree.Vide) } }
+            if ($t -eq '') { if ($spec.Obligatoire -and $c.IsEnabled) { return (& $ko 'obligatoire') } else { return (& $ok $Entree.Vide) } }
             return (& $ok $t)
         }
     }
@@ -261,6 +261,30 @@ function Update-CopieHorodatageDisponible {
     $permis = "$($mode.Controle.SelectedItem)" -in 'copie', 'archivage'
     $horodatage.Controle.IsEnabled = $permis
     if (-not $permis) { $horodatage.Controle.IsChecked = $false }
+}
+
+function Update-CopieModeSynchro {
+    <#
+    .SYNOPSIS
+        Mode synchro : grise et vide les dossiers et les seuils, impose la planification « apres_dependances ».
+    .PARAMETER Fenetre
+        Fenêtre du formulaire (son Tag porte les champs et la planification). Pour un autre mode, tout redevient saisissable.
+    #>
+    [CmdletBinding()]
+    param([System.Windows.Window] $Fenetre)
+    $champs = @($Fenetre.Tag.Champs)
+    $mode = $champs | Where-Object { $_.Spec.Chemin -eq 'mode' } | Select-Object -First 1
+    if ($null -eq $mode) { return }
+    $synchro = "$($mode.Controle.SelectedItem)" -eq 'synchro'
+    foreach ($e in @($champs | Where-Object { $_.Spec.Chemin -in 'source', 'cible', 'archive', 'dossier_temporaire', 'seuil_minimum', 'seuil_maximum' })) {
+        $e.Controle.IsEnabled = -not $synchro
+        if ($synchro) { $e.Controle.Text = '' }
+    }
+    $pl = $Fenetre.Tag.Planif
+    if ($null -ne $pl) {
+        if ($synchro) { $pl.Type.SelectedItem = 'apres_dependances' }
+        $pl.Type.IsEnabled = -not $synchro
+    }
 }
 
 function New-CopieOngletSituations {
@@ -533,8 +557,16 @@ function New-CopieFormulaireRegle {
     }
     Update-CopiePlanificationVisible -Fenetre $fenetre
     $champMode = $champs | Where-Object { $_.Spec.Chemin -eq 'mode' } | Select-Object -First 1
-    if ($null -ne $champMode) { $champMode.Controle.Add_SelectionChanged({ param($s) Update-CopieHorodatageDisponible -Fenetre ([System.Windows.Window]::GetWindow($s)) }) }
+    if ($null -ne $champMode) {
+        $champMode.Controle.Add_SelectionChanged({
+                param($s)
+                $f = [System.Windows.Window]::GetWindow($s)
+                Update-CopieHorodatageDisponible -Fenetre $f
+                Update-CopieModeSynchro -Fenetre $f
+            })
+    }
     Update-CopieHorodatageDisponible -Fenetre $fenetre
+    Update-CopieModeSynchro -Fenetre $fenetre
     $fenetre.FindName('BtnOk').Add_Click({ param($s) Confirm-CopieFormulaire -Fenetre ([System.Windows.Window]::GetWindow($s)) })
     $fenetre
 }

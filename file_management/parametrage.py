@@ -27,9 +27,17 @@ RE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 RE_HEURE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 RE_MODIFIE_DEPUIS = re.compile(r"^(TOUT|J|J-(\d+))$")
 
-MODES = ("copie", "deplacement", "archivage", "suppression", "count", "size")
+MODES = ("copie", "deplacement", "archivage", "suppression", "count", "size", "synchro")
 MODES_TRANSFERT = ("copie", "deplacement", "archivage")     # ces modes ont une cible
 MODES_MESURE = ("count", "size")                            # ces modes comptent, sans rien toucher
+MODE_SYNCHRO = "synchro"           # aucun dossier : retourne seulement un statut (apres des dependances)
+# Champs sans objet pour le mode synchro : les dossiers sont refuses, le reste est ignore (R16).
+CHAMPS_DOSSIERS_SYNCHRO = ("source", "cible", "archive", "dossier_temporaire")
+CHAMPS_FICHIERS_SYNCHRO = ("creer_dossiers", "horodater", "selection", "seuil_minimum", "seuil_maximum",
+                           "identite", "retention_historique_jours", "retention_journaux_jours",
+                           "retention_archive_jours", "si_cible_absente", "si_existe_cible",
+                           "si_existe_archive", "renommage_cible", "renommage_archive")
+POINTS_SANS_OBJET_SYNCHRO = ("apres_fichier", "apres_lot")  # rien ne s'execute apres : on previent
 MODES_HORODATAGE = ("copie", "archivage")                   # seuls modes ou `horodater` a un sens
 NIVEAUX = ("INFO", "WARNING", "ERREUR")
 ORDRES = ("nom", "date_modification")
@@ -55,6 +63,8 @@ _LISTE = ("liste", "liste_json")
 VARIABLES_PAR_POINT = {"avant_lot": _COMMUNES + _LISTE, "avant_fichier": _COMMUNES + _FICHIER,
                        "apres_fichier": _COMMUNES + _FICHIER, "apres_lot": _COMMUNES + _LISTE,
                        "sur_erreur": _COMMUNES + _LISTE, "reprise": _COMMUNES}
+# Mode synchro : ni dossier ni fichier, donc seulement l'environnement, la regle et la date
+VARIABLES_SYNCHRO = ("environnement", "regle", "date")
 
 # situation -> (tentatives, delai_sec, niveau_final, suites autorisees, suite par defaut)
 # Valeurs de secours : docs/01-parametrage.md, section 6.
@@ -562,11 +572,12 @@ def _lire_programme(nom, valeur, ligne, regle, rapport):
                          "est attendu (pas une chaine)" % nom)
         commande = None
     else:
+        autorisees = VARIABLES_SYNCHRO if regle.mode == MODE_SYNCHRO else VARIABLES_PAR_POINT[nom]
         for element in commande:
-            for variable in variables_inconnues(element, VARIABLES_PAR_POINT[nom]):
+            for variable in variables_inconnues(element, autorisees):
                 lecteur.signaler("G01", "programmes.%s.commande : variable {%s} inconnue ou sans objet a ce "
                                  "point d'appel (autorisees : %s)"
-                                 % (nom, variable, ", ".join(VARIABLES_PAR_POINT[nom])))
+                                 % (nom, variable, ", ".join(autorisees)))
     timeout = valeur.get("timeout_sec")
     if "timeout_sec" not in valeur:
         lecteur.signaler("G01", "programmes.%s.timeout_sec est obligatoire" % nom)
@@ -598,9 +609,10 @@ def lire_regle(objet, ligne, rapport, entete=None):
                          "64 caracteres maximum)" % r.id)
     r.description = lecteur.valeur("description", "texte", "")
     r.actif = lecteur.valeur("actif", "booleen", True)
-    r.source = lecteur.valeur("source", "texte", None, obligatoire=True)
-    r.cible = lecteur.valeur("cible", "texte_ou_null", None)
     r.mode = lecteur.choix("mode", MODES, None, obligatoire=True)
+    synchro = r.mode == MODE_SYNCHRO
+    r.source = lecteur.valeur("source", "texte_ou_null" if synchro else "texte", None, obligatoire=not synchro)
+    r.cible = lecteur.valeur("cible", "texte_ou_null", None)
     transfert = r.mode is None or r.mode in MODES_TRANSFERT      # mode inconnu : on ne dit rien de plus
     if r.cible is None and transfert and "cible" not in objet:
         lecteur.signaler("R01", "champ obligatoire absent : cible")
@@ -608,7 +620,7 @@ def lire_regle(objet, ligne, rapport, entete=None):
         lecteur.signaler("E06", "cible : un texte attendu")
     for nom in ("source", "cible"):
         if getattr(r, nom) is not None and not getattr(r, nom).strip():
-            if nom == "source" or transfert:
+            if (nom == "source" and not synchro) or transfert:
                 lecteur.signaler("R01", "champ obligatoire vide : %s" % nom)
             setattr(r, nom, None)
     r.archive = lecteur.valeur("archive", "texte_ou_null", None)
@@ -617,6 +629,8 @@ def lire_regle(objet, ligne, rapport, entete=None):
     r.dossier_temporaire = lecteur.valeur("dossier_temporaire", "texte_ou_null", None)
     r.seuil_minimum = lecteur.entier("seuil_minimum", None, minimum=0, nullable=True)
     r.seuil_maximum = lecteur.entier("seuil_maximum", None, minimum=0, nullable=True)
+    if synchro:
+        _controler_synchro(lecteur, objet, r)
 
     # Chemins partiels : places sous la racine des sources / des cibles (ou de l'environnement)
     if entete is not None:
@@ -637,7 +651,7 @@ def lire_regle(objet, ligne, rapport, entete=None):
     elif r.archive and r.mode in ("copie", "deplacement") + ("suppression",) + MODES_MESURE:
         lecteur.signaler("R05", "'archive' est renseigne mais le mode est '%s' : il sera ignore"
                          % r.mode)
-    if r.horodater and r.mode is not None and r.mode not in MODES_HORODATAGE:
+    if r.horodater and r.mode is not None and r.mode not in MODES_HORODATAGE and not synchro:
         lecteur.signaler("R16", "'horodater' n'a de sens que pour les modes copie et archivage : "
                          "il sera ignore (mode '%s')" % r.mode)
     if r.mode in ("suppression",) + MODES_MESURE and r.cible:
@@ -653,7 +667,7 @@ def lire_regle(objet, ligne, rapport, entete=None):
         if r.seuil_minimum is not None and r.seuil_maximum is not None and r.seuil_minimum > r.seuil_maximum:
             lecteur.signaler("R07", "seuil_minimum (%d) doit etre inferieur ou egal a seuil_maximum (%d)"
                              % (r.seuil_minimum, r.seuil_maximum))
-    elif r.seuil_minimum is not None or r.seuil_maximum is not None:
+    elif (r.seuil_minimum is not None or r.seuil_maximum is not None) and not synchro:
         lecteur.signaler("R16", "seuil_minimum / seuil_maximum n'ont de sens que pour les modes count et size : "
                          "ils seront ignores")
     if r.archive:
@@ -680,6 +694,10 @@ def lire_regle(objet, ligne, rapport, entete=None):
     planif = lecteur.valeur("planification", "objet", None, obligatoire=True)
     if planif is not None:
         r.planification = _lire_planification(planif, ligne, r, rapport)
+        if synchro and r.planification.type in TYPES_PLANIFICATION \
+                and r.planification.type != "apres_dependances":
+            lecteur.signaler("P01", "mode synchro : pas d'heure de debut ni de fin, seule la planification "
+                             "'apres_dependances' est admise (et la regle a besoin d'une liste 'apres')")
 
     r.apres = lecteur.valeur("apres", "liste_texte", [])
     r.condition_explicite = lecteur.a("condition")
@@ -700,9 +718,40 @@ def lire_regle(objet, ligne, rapport, entete=None):
                              regle=r.id, ligne=ligne)
         else:
             r.programmes[nom] = _lire_programme(nom, valeur, ligne, r, rapport)
+    if synchro:
+        inutiles = _fichiers_ignores_synchro(r)
+        if inutiles:
+            lecteur.signaler("R16", "mode synchro : champ(s) sans effet, ignore(s) : %s" % ", ".join(inutiles))
+        for nom in POINTS_SANS_OBJET_SYNCHRO:
+            if prog.get(nom) is not None:
+                lecteur.signaler("R18", "programmes.%s ne sera jamais execute : le mode synchro lance seulement "
+                                 "avant_lot puis avant_fichier, puis rend son statut" % nom)
 
     lecteur.inconnus()
     return r
+
+
+def _controler_synchro(lecteur, objet, r):
+    """Mode synchro : aucun dossier (refus), aucun champ de fichiers (ignores, avertissement)."""
+    dossiers = [n for n in CHAMPS_DOSSIERS_SYNCHRO if isinstance(objet.get(n), str) and objet[n].strip()]
+    if dossiers:
+        lecteur.signaler("R17", "mode synchro : aucun dossier n'est admis (%s), la regle retourne seulement "
+                         "un statut" % ", ".join(dossiers))
+    r.source = r.cible = r.archive = r.dossier_temporaire = None
+
+
+def _fichiers_ignores_synchro(r):
+    """Champs de fichiers dont la valeur n'est pas celle par defaut : le formulaire de l'interface
+    envoie tous les champs avec leurs valeurs par defaut, qui ne doivent pas faire d'avertissement."""
+    defaut = Regle(0)
+    inutiles = []
+    for nom in CHAMPS_FICHIERS_SYNCHRO:
+        if nom == "selection":
+            if vars(r.selection) != vars(defaut.selection):
+                inutiles.append(nom)
+        elif getattr(r, nom) != getattr(defaut, nom):
+            inutiles.append(nom)
+    return inutiles
 
 
 # --------------------------------------------------------------------------- #

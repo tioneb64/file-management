@@ -125,6 +125,11 @@ class Controleur(object):
 
     # ----- A01 a A04 et A07 ------------------------------------------------ #
     def regle(self, regle):
+        if regle.mode == "synchro":                 # aucun dossier : seuls les executables comptent
+            for point, programme in regle.programmes.items():
+                if programme is not None and executable_present(programme.commande) is False:
+                    self.signaler("A04", "programme %s introuvable : %s" % (point, programme.commande[0]), regle)
+            return
         source = os.path.normpath(os.path.expandvars(regle.source))
         cible = os.path.normpath(os.path.expandvars(regle.cible)) if regle.cible else None
 
@@ -226,6 +231,8 @@ def controler_dossiers_regle(regle, entete, octets=0, maintenant=None):
     existence, droits de lecture et d'ecriture, espace disponible pour les `octets` a livrer plus la
     marge, et possibilite de creer un dossier absent. Meme logique que le lancement reel."""
     maintenant = maintenant or datetime.datetime.now()
+    if regle.mode == "synchro":
+        return []                       # aucun dossier a controler
     source = os.path.normpath(os.path.expandvars(regle.source))
     besoin = octets + entete.marge_espace_mo * MO
     resultat = [_controle_dossier("source", source, regle.mode not in ("copie", "count", "size"),

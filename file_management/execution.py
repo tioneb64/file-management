@@ -12,7 +12,7 @@ import time
 
 from file_management import base as modele_base
 from file_management import chemins, processus, programmes, selection, transfert
-from file_management.parametrage import MODES_HORODATAGE, MODES_MESURE, MODES_TRANSFERT
+from file_management.parametrage import MODE_SYNCHRO, MODES_HORODATAGE, MODES_MESURE, MODES_TRANSFERT
 from file_management.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
 
@@ -170,6 +170,9 @@ class ExecutionRegle(object):
         try:
             self._preparer_chemins()
             self._appel_reprise()
+            if self.regle.mode == MODE_SYNCHRO:
+                self._synchroniser()
+                return self._finir()
             self._intentions_interrompues()
             self._controles_prealables()
             self._actions_en_attente()
@@ -187,10 +190,28 @@ class ExecutionRegle(object):
         except ArretRegle as a:
             self.bilan.motif = a.message
             self.bilan.situation_finale = a.situation
+        return self._finir()
+
+    def _finir(self):
         bilan = self._conclure()
         if bilan.statut == "ERREUR":
             self._sur_erreur(bilan)
         return bilan
+
+    def _synchroniser(self):
+        """Mode synchro : lance avant_lot puis avant_fichier (s'ils existent), puis rend son statut.
+        Aucun fichier n'est lu ni touche ; les points apres_* n'ont pas de sens et ne sont pas appeles.
+        Seul le code retour 0 est un succes : un programme qui repond 1 (« rien a faire ») ou autre
+        chose est une erreur, la regle ne peut dire que oui ou non."""
+        appeles = 0
+        for point in ("avant_lot", "avant_fichier"):
+            try:
+                if self._programme(point, codes=(0,)) is not None:
+                    appeles += 1
+            except EchecSituation as e:
+                self._arreter(e)
+        self.bilan.motif = ("synchronisation : %d programme(s) execute(s)" % appeles) if appeles \
+            else "synchronisation : aucun programme a lancer"
 
     # ------------------------------------------------------------------ #
     # Programmes externes (docs/02, section 9)
@@ -204,15 +225,15 @@ class ExecutionRegle(object):
     def _variables_programme(self, point, c, destination, statut, chemin_liste, chemin_json):
         r = self.regle
         archive = self.archive_dir or ""
-        valeurs = {"environnement": self.entete.environnement, "regle": r.id, "source": self.source,
-                   "cible": self.cible, "archive": archive, "date": self.debut.strftime("%Y-%m-%d"),
+        valeurs = {"environnement": self.entete.environnement, "regle": r.id, "source": self.source or "",
+                   "cible": self.cible or "", "archive": archive, "date": self.debut.strftime("%Y-%m-%d"),
                    "fichier": c.chemin if c else "", "nom": c.nom if c else "",
                    "fichier_cible": destination or "", "liste": chemin_liste or "",
                    "liste_json": chemin_json or ""}
         environnement = {
             "COPIE_ENVIRONNEMENT": valeurs["environnement"], "COPIE_REGLE": r.id,
             "COPIE_EXECUTION_ID": str(self.execution_id if self.execution_id is not None else ""),
-            "COPIE_SOURCE": self.source, "COPIE_CIBLE": self.cible, "COPIE_ARCHIVE": archive,
+            "COPIE_SOURCE": valeurs["source"], "COPIE_CIBLE": valeurs["cible"], "COPIE_ARCHIVE": archive,
             "COPIE_MODE": r.mode, "COPIE_FICHIER": valeurs["fichier"],
             "COPIE_FICHIER_CIBLE": valeurs["fichier_cible"], "COPIE_LISTE": valeurs["liste"],
             "COPIE_LISTE_JSON": valeurs["liste_json"],
@@ -221,11 +242,11 @@ class ExecutionRegle(object):
             "COPIE_STATUT": statut or ""}
         return valeurs, environnement
 
-    def _programme(self, point, c=None, destination=None, liste=None, statut=None, **champs):
+    def _programme(self, point, c=None, destination=None, liste=None, statut=None, codes=None, **champs):
         """Appelle le programme du point d'appel `point`, avec les tentatives de la situation
         `programme_<point>`. Renvoie son code retour (0 ou 1), ou None s'il n'y a pas de
         programme. Leve EchecSituation pour tout autre code, une duree depassee ou un lancement
-        impossible."""
+        impossible. `codes` : codes retour acceptes (par defaut ceux du point d'appel)."""
         programme = self.regle.programmes.get(point)
         if programme is None:
             return None
@@ -238,13 +259,13 @@ class ExecutionRegle(object):
 
         def operation():
             res = programmes.executer(programme, point, valeurs, environnement, travail)
-            ok = res.accepte(point)
+            ok = res.accepte(point, codes)
             self._log("programme_appele", "INFO" if ok else "WARNING", point=point, commande=res.argv,
                       code=res.code, duree_ms=res.duree_ms, depasse=res.depasse or None,
                       sortie=res.sortie, **champs)
             if ok:
                 return res.code
-            raise ErreurProgramme("programme %s : %s" % (point, res.explication(point)))
+            raise ErreurProgramme("programme %s : %s" % (point, res.explication(point, codes)))
         try:
             return self._essayer(operation, lambda e: "programme_" + point, **champs)
         finally:
@@ -302,6 +323,9 @@ class ExecutionRegle(object):
     def _preparer_chemins(self):
         regle = self.regle
         self.cible = os.path.normpath(os.path.expandvars(regle.cible)) if regle.cible else None
+        if regle.mode == MODE_SYNCHRO:
+            self.source = None                  # aucun dossier : rien a preparer
+            return
         self.source = os.path.normpath(os.path.expandvars(regle.source))
         if regle.mode == "archivage":
             self.archive_dir = chemins.resoudre_archive(regle.archive, self.source, self.debut)

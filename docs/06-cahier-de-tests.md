@@ -797,8 +797,11 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10G-A08 | `tests/test_parametrage.py` | **Code d'environnement** : déduit du nom (`production` → `prod`…), explicite prioritaire, `null` = à déduire, **E08** (hors liste, nom non déductible sans code) | OK | 2026-11-12 |
 | J10G-A09 | `Gui/Tests/Environnements.Tests.ps1` | Champ « Code plateforme » : déduction comme le moteur, contrôle de la saisie, écriture dans l'en-tête et relecture, présence dans le formulaire, **renommage vers un nom non déductible : le code de l'ancien nom est conservé** | OK | 2026-11-12 |
 | J10G-A10 | `Gui/Tests/Garde.Tests.ps1` | **Journal de l'interface** au format de la plateforme : `timestamp`, `level` (`ERREUR` → `ERROR`), `service`, `context.object` = `interface`, `error` pour ERROR, une session = une trace, code d'environnement hors liste → `prod` | OK | 2026-11-12 |
+| J10G-A11 | `tests/test_synchro.py` | **Mode synchro**, paramétrage : minimal valide, dossiers refusés (R17), heures refusées (P01), planification obligatoire, apres_fichier / apres_lot (R18), variables de fichier refusées (G01), champs de fichiers ignorés (R16) seulement hors valeurs par défaut, `apres` obligatoire (D06) | OK | 2026-11-12 |
+| J10G-A12 | `tests/test_synchro.py` | **Mode synchro**, exécution : sans programme = succès sans rien toucher, avant_lot seul, avant_fichier seul, **les deux dans l'ordre**, environnement du programme sans dossier, **code 1 = erreur**, échec d'avant_lot n'appelle pas avant_fichier, durée dépassée / lancement impossible, `apres_*` jamais appelés, `sur_erreur` appelé, simulation, règle dépendante prête ou non | OK | 2026-11-12 |
+| J10G-A13 | `Gui/Tests/Formulaire.Tests.ps1`, `Racines.Tests.ps1` | Formulaire en mode synchro (dossiers et seuils grisés et vidés, planification imposée, aucune erreur de saisie, retour aux autres modes), grille « (aucun dossier) », sept modes | OK | 2026-11-12 |
 
-Suite complète : 733 tests Python OK ; Pester 213 réussis, 0 échec, 4 ignorés (droits administrateur, voir le CHANGELOG).
+Suite complète : 758 tests Python OK ; Pester 215 réussis, 0 échec, 4 ignorés (droits administrateur, voir le CHANGELOG).
 
 ### Manuels
 
@@ -808,6 +811,7 @@ Suite complète : 733 tests Python OK ; Pester 213 réussis, 0 échec, 4 ignoré
 | J10G-M02 | Copie d'un environnement | Copier un environnement en changeant seulement la racine | Les chemins partiels des règles suivent la nouvelle racine | |
 | J10G-M03 | Couleurs et filtres | Rendre une règle inactive, en provoquer une en erreur, filtrer sur `ERREUR`, `count`, « Inactives » | Ligne grise / rouge / bleu ciel ; filtres corrects | |
 | J10G-M04 | Déclencheur `count` | Règle `count` (minimum 5) sur un dossier de 4 fichiers, règle de déplacement dépendante (`succes`) ; ajouter le 5e fichier | `ATTENTE` puis succès ; le déplacement patiente puis part | |
+| J10G-M07 | Mode synchro | Règle `synchro` après une règle `count`, avec un programme `avant_lot` puis un `avant_fichier` qui écrivent chacun une ligne dans un fichier ; lancer ; essayer ensuite un `apres_lot` | Les deux lignes dans l'ordre ; statut `SUCCES` ; l'enregistrement avertit pour `apres_lot` qui n'est jamais exécuté ; un programme qui sort avec le code 1 donne `ERREUR` | |
 | J10G-M06 | Horodater (copie) | Cocher « Horodater les fichiers traités » sur une règle `copie`, déposer `a.csv`, lancer deux fois | La cible contient `a.csv` ; la source contient `a_traite_AAAAMMJJ_hhmmss.csv` ; le 2e lancement ne copie rien | |
 | J10G-M07 | Horodater (archivage) et case grisée | Même essai en mode `archivage` ; puis passer le mode à `deplacement` dans le formulaire | L'archive contient le nom marqué ; la case se grise et se décoche | |
 | J10G-M08 | Code plateforme à la création d'un environnement | Créer « essai » sans code, puis avec le code `test` ; renommer « production » en « prod2 » | Sans code : message demandant le code ; avec : fichier écrit avec `code_environnement` ; renommage : le code `prod` est conservé dans l'en-tête | |

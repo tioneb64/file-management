@@ -30,15 +30,17 @@ class ResultatProgramme(object):
         self.erreur = None          # lancement impossible
         self.argv = []              # commande reellement lancee (variables remplacees)
 
-    def accepte(self, point):
-        return not self.depasse and self.erreur is None and self.code in CODES_ACCEPTES.get(point, ())
+    def accepte(self, point, codes=None):
+        codes = CODES_ACCEPTES.get(point, ()) if codes is None else codes
+        return not self.depasse and self.erreur is None and self.code in codes
 
-    def explication(self, point):
+    def explication(self, point, codes=None):
         if self.erreur:
             return self.erreur
         if self.depasse:
             return "duree maximale depassee"
-        return "code retour %s (attendu : %s)" % (self.code, " ou ".join(str(c) for c in CODES_ACCEPTES.get(point, ())))
+        codes = CODES_ACCEPTES.get(point, ()) if codes is None else codes
+        return "code retour %s (attendu : %s)" % (self.code, " ou ".join(str(c) for c in codes))
 
 
 def decoder_sortie(octets):

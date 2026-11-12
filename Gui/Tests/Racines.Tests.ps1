@@ -152,6 +152,12 @@ Describe 'Ligne de la grille : chemins complets, modes et aspect' {
             }
         }
     }
+    It 'affiche « (aucun dossier) » pour une règle synchro' {
+        InModuleScope FileManagement.Gui {
+            $r = '{"id":"s","mode":"synchro","apres":["a"],"planification":{"type":"apres_dependances"}}' | ConvertFrom-Json
+            (ConvertTo-CopieLigneRegle -Regle $r -Etat $null -Entete $null).Chemins | Should -Be '(aucun dossier)'
+        }
+    }
     It 'donne à la ligne son aspect : inactive (grise), en erreur (rouge), sinon normal ; l''inactive prime' {
         InModuleScope FileManagement.Gui {
             $actif = '{"id":"r","mode":"copie","source":"S","cible":"C"}' | ConvertFrom-Json
@@ -185,11 +191,11 @@ Describe 'Ligne de la grille : chemins complets, modes et aspect' {
 }
 
 Describe 'Modes d''une règle' {
-    It 'liste les six modes, dont suppression, count et size, sans cible' {
+    It 'liste les sept modes, dont suppression, count, size et synchro, sans cible' {
         InModuleScope FileManagement.Gui {
             $modes = @(Get-CopieModesRegle)
-            ($modes | ForEach-Object Nom) -join ',' | Should -Be 'copie,deplacement,archivage,suppression,count,size'
-            @($modes | Where-Object { -not $_.Transfert } | ForEach-Object Nom) -join ',' | Should -Be 'suppression,count,size'
+            ($modes | ForEach-Object Nom) -join ',' | Should -Be 'copie,deplacement,archivage,suppression,count,size,synchro'
+            @($modes | Where-Object { -not $_.Transfert } | ForEach-Object Nom) -join ',' | Should -Be 'suppression,count,size,synchro'
         }
     }
     It 'le formulaire ne demande pas de cible pour suppression, count et size' {

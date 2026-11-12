@@ -36,6 +36,8 @@ CODES = {
     "R14": (REFUS, "chemin de la regle complet une fois place sous la racine"),
     "R15": (AVERTISSEMENT, "mode suppression : suppression definitive des fichiers selectionnes"),
     "R16": (AVERTISSEMENT, "champ sans effet pour ce mode"),
+    "R17": (REFUS, "mode synchro : aucun dossier (source, cible, archive, dossier_temporaire)"),
+    "R18": (AVERTISSEMENT, "mode synchro : programme apres_fichier / apres_lot jamais execute"),
     "P01": (REFUS, "planification invalide"),
     "P02": (AVERTISSEMENT, "frequence inferieure a la periode du declencheur"),
     "D01": (REFUS, "dependance vers une regle inexistante"),

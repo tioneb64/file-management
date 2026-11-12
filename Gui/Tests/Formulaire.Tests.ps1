@@ -144,6 +144,33 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
             (Read-CopieFormulaire -Etat $f.Tag).Regle.horodater | Should -BeFalse
         }
     }
+    It 'mode synchro : dossiers et seuils grisés et vides, planification imposée, aucune erreur de saisie' {
+        $o = & $Script:Construire $null 'ajout'
+        InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
+            param($f)
+            $t = $f.Tag
+            $champ = { param($nom) $t.Champs | Where-Object { $_.Spec.Chemin -eq $nom } }
+            (& $champ 'id').Controle.Text = 'sync'
+            (& $champ 'source').Controle.Text = 'S'
+            (& $champ 'cible').Controle.Text = 'C'
+            (& $champ 'mode').Controle.SelectedItem = 'synchro'
+            foreach ($nom in 'source', 'cible', 'archive', 'dossier_temporaire', 'seuil_minimum', 'seuil_maximum') {
+                (& $champ $nom).Controle.IsEnabled | Should -BeFalse -Because $nom
+                (& $champ $nom).Controle.Text | Should -Be '' -Because $nom
+            }
+            $t.Planif.Type.SelectedItem | Should -Be 'apres_dependances'
+            $t.Planif.Type.IsEnabled | Should -BeFalse
+            $lecture = Read-CopieFormulaire -Etat $t
+            $lecture.Erreurs.Count | Should -Be 0 -Because ($lecture.Erreurs -join '|')
+            $lecture.Regle.mode | Should -Be 'synchro'
+            $lecture.Regle.planification.type | Should -Be 'apres_dependances'
+            # un autre mode : tout redevient saisissable (et la source obligatoire)
+            (& $champ 'mode').Controle.SelectedItem = 'copie'
+            (& $champ 'source').Controle.IsEnabled | Should -BeTrue
+            $t.Planif.Type.IsEnabled | Should -BeTrue
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match 'Dossier source'
+        }
+    }
     It 'montre seulement les champs du type de planification choisi' {
         $o = & $Script:Construire $null 'ajout'
         InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {

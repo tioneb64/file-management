@@ -205,6 +205,7 @@ Voir [03-base-de-donnees §4](03-base-de-donnees.md). En résumé : avant toute 
 | `archivage` | Déplacement de l'original dans le dossier d'archive (§7), après la même vérification. Avec `horodater`, le nom archivé porte l'heure de l'archivage. |
 | `suppression` | Pas de livraison : les fichiers sélectionnés sont **supprimés définitivement** (journal : un événement par fichier, motif = âge / date). Pas de cible, ni de contrôle d'espace. |
 | `count`, `size` | Pas de livraison : le nombre ou le volume des fichiers sélectionnés est inscrit au journal et comparé à `seuil_minimum` / `seuil_maximum`. Hors bornes : statut **`ATTENTE`** (persisté en base seulement ; le bilan reste `SUCCES`, code 0). |
+| `synchro` | Ni dossier, ni fichier, ni contrôle préalable : l'exécution lance `avant_lot` puis `avant_fichier` (s'ils sont déclarés) et rend `SUCCES` ou `ERREUR`. **Seul le code 0 est un succès** (le 1, « rien à faire » ailleurs, est une erreur ici). Les points `apres_*` ne sont jamais appelés ; `sur_erreur` l'est si la règle échoue. Voir docs/01 §3.2 quater. |
 
 **Dépendances et `ATTENTE`.** Pour `condition: succes`, l'évaluateur de dépendances ne compte pas `ATTENTE` parmi les statuts réussis : la règle dépendante est mise en attente (`EN_ATTENTE`, message « en attente : … ») et non bloquée. Elle repart au lancement suivant dès que l'amont sort en succès.
 

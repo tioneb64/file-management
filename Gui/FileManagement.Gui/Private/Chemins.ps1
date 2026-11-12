@@ -118,5 +118,6 @@ function Get-CopieModesRegle {
         [pscustomobject]@{ Nom = 'suppression'; Transfert = $false; Resume = 'SUPPRIME DÉFINITIVEMENT les fichiers sélectionnés (sans cible)' }
         [pscustomobject]@{ Nom = 'count'; Transfert = $false; Resume = 'compte les fichiers sélectionnés et les compare aux seuils, sans rien toucher' }
         [pscustomobject]@{ Nom = 'size'; Transfert = $false; Resume = 'mesure le volume des fichiers sélectionnés et le compare aux seuils, sans rien toucher' }
+        [pscustomobject]@{ Nom = 'synchro'; Transfert = $false; Resume = 'aucun dossier : lance avant_lot puis avant_fichier après ses dépendances et rend un statut' }
     )
 }
