@@ -17,8 +17,9 @@
     $ctx.Fenetre.Cursor = [System.Windows.Input.Cursors]::Wait
     try {
         $courant = $null
-        if ($tabs.SelectedItem -and $tabs.SelectedItem.Tag) { $courant = $tabs.SelectedItem.Tag.Env.Nom }
-        if ($Selection) { $courant = $Selection }
+        $surOutils = ($tabs.SelectedItem -and $tabs.SelectedItem.Tag -and $tabs.SelectedItem.Tag.Type -eq 'Outils')
+        if ($tabs.SelectedItem -and $tabs.SelectedItem.Tag -and -not $surOutils) { $courant = $tabs.SelectedItem.Tag.Env.Nom }
+        if ($Selection) { $courant = $Selection; $surOutils = $false }
         $tabs.Items.Clear()
         $Script:Vues.Clear()
         $session.Statut.Text = 'Lecture du dossier de paramétrage...'
@@ -32,8 +33,12 @@
         foreach ($env in $environnements) {
             $null = $tabs.Items.Add((New-CopieVueEnvironnement -Contexte $ctx -Environnement $env))
         }
+        # L'onglet « Outils » (réglage du moteur, commun à tous les environnements) suit les environnements.
+        if ($environnements.Count -gt 0) { $null = $tabs.Items.Add((New-CopieVueOutils -Contexte $ctx)) }
         for ($i = 0; $i -lt $tabs.Items.Count; $i++) {
-            if ($tabs.Items[$i].Tag.Env.Nom -eq $courant) { $tabs.SelectedIndex = $i }
+            $vueOnglet = $tabs.Items[$i].Tag
+            if ($surOutils -and $vueOnglet.Type -eq 'Outils') { $tabs.SelectedIndex = $i }
+            elseif (-not $surOutils -and $vueOnglet.Type -ne 'Outils' -and $vueOnglet.Env.Nom -eq $courant) { $tabs.SelectedIndex = $i }
         }
         if ($tabs.SelectedIndex -lt 0 -and $tabs.Items.Count -gt 0) { $tabs.SelectedIndex = 0 }
         if ($environnements.Count -eq 0) {

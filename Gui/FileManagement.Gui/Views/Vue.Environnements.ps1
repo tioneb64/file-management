@@ -532,7 +532,7 @@ function Update-CopieBarreEnvironnements {
     $admin = ($ctx.Profil -eq 'Admin')
     $session.Barre.Visibility = $(if ($admin) { 'Visible' } else { 'Collapsed' })
     $vue = $null
-    if ($session.Tabs.SelectedItem -and $session.Tabs.SelectedItem.Tag) { $vue = $session.Tabs.SelectedItem.Tag }
+    if ($session.Tabs.SelectedItem -and $session.Tabs.SelectedItem.Tag -and $session.Tabs.SelectedItem.Tag.Type -ne 'Outils') { $vue = $session.Tabs.SelectedItem.Tag }
     $pret = ($null -ne $vue -and -not $vue.Occupe)
     $session.BtnNouveau.IsEnabled = $admin
     $session.BtnModifier.IsEnabled = ($admin -and $pret -and $vue.Env.Modifiable)

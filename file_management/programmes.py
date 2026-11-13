@@ -10,7 +10,7 @@ import subprocess
 import time
 from datetime import datetime
 
-from file_management import processus
+from file_management import outils, processus
 from file_management.chemins import remplacer_variables
 
 POINTS = ("avant_lot", "avant_fichier", "apres_fichier", "apres_lot", "sur_erreur", "reprise")
@@ -72,11 +72,20 @@ def _reprendre(popen):
     return ntdll.NtResumeProcess(wintypes.HANDLE(int(popen._handle))) == 0
 
 
-def executer(programme, point, valeurs, environnement, dossier_travail):
+def executer(programme, point, valeurs, environnement, dossier_travail, index_outils=None):
     """Lance `programme` (commande + timeout_sec). `valeurs` : variables des elements de la
-    commande ; `environnement` : variables COPIE_* ajoutees. Renvoie un ResultatProgramme."""
+    commande ; `environnement` : variables COPIE_* ajoutees ; `index_outils` : index des outils
+    (file_management.outils.Index) si la commande commence par {outil:nom}. Renvoie un ResultatProgramme."""
     resultat = ResultatProgramme()
-    argv = [remplacer_variables(element, valeurs) for element in programme.commande]
+    commande = list(programme.commande)
+    if getattr(programme, "outil", None) is not None:
+        debut, message = outils.resoudre(programme.outil, index_outils)
+        if debut is None:
+            resultat.argv = commande
+            resultat.erreur = "lancement impossible : " + message
+            return resultat
+        commande = debut + commande[1:]
+    argv = [remplacer_variables(element, valeurs) for element in commande]
     resultat.argv = argv
     env = dict(os.environ)
     env.setdefault("PYTHONUTF8", "1")               # un programme Python ecrit en UTF-8, pas en page ANSI

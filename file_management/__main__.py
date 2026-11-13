@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-from file_management import __version__, acces, base, lancement, modele, purge
+from file_management import __version__, acces, base, lancement, modele, outils, purge
 from file_management.controles import verifier_fichier
 from file_management.diagnostic import VERSION_CONTRAT
 
@@ -98,6 +98,8 @@ def _verifier(args, parametrage, rapport):
             finally:
                 if historique is not None:
                     historique.fermer()
+        if not args.syntaxe_seule and rapport.ok:
+            outils.controler_programmes(parametrage, rapport, verifier_fichiers=True)    # fichiers des outils presents
         if not args.syntaxe_seule and rapport.ok:
             from file_management.acces import verifier_acces
             verifier_acces(parametrage, rapport)
@@ -276,6 +278,34 @@ def _lancer_regle(args, parametrage):
         return _repondre(args, code, bilan.motif or "", regle=regle.id, statut=bilan.statut_final or bilan.statut,
                          compteurs=bilan.compteurs, simulation=bool(args.simulation), **extra)
     return code
+
+
+def _scanner_outils(args):
+    """Parcourt le dossier des outils et renvoie la liste (et le texte exact de l'index outils.json que l'interface
+    enregistre). Lecture seule : aucune ecriture, aucune base, aucun journal du moteur."""
+    configure = (args.dossier_outils or "").strip()
+    try:
+        scan = outils.scanner(configure or outils.dossier_par_defaut())
+    except outils.ErreurOutils as e:
+        return _repondre(args, CODE_CONFIG, str(e))
+    message = "%d outil(s) retenu(s), %d script(s) non retenu(s) dans %s" % (len(scan.outils), len(scan.non_retenus),
+                                                                         scan.dossier)
+    if scan.bibliotheques:
+        message += " (%d module(s) de bibliotheque ignore(s))" % len(scan.bibliotheques)
+    if args.format == "json":
+        details = scan.en_dict()
+        details.update(dossier_configure=configure, contenu_index=outils.contenu_index(scan, configure, args.utilisateur))
+        return _repondre(args, CODE_AVERTISSEMENT if scan.erreurs else CODE_OK, message, **details)
+    print(message)
+    for o in scan.outils:
+        print("  {outil:%s}  %s  %s" % (o.variable, o.fichier, o.description))
+    for b in scan.bibliotheques:
+        print("  bibliotheque : %s : %s" % (b["fichier"], b["description"]))
+    for n in scan.non_retenus:
+        print("  non retenu : %s : %s" % (n["fichier"], n["cause"]))
+    for e in scan.erreurs:
+        print("  ATTENTION : %s : %s" % (e["chemin"], e["message"]))
+    return CODE_AVERTISSEMENT if scan.erreurs else CODE_OK
 
 
 def _controler_regle(args, parametrage):
@@ -469,6 +499,9 @@ def _arguments(argv=None):
                           help="decide du sort d'une livraison de resultat inconnu (avec --decision)")
     commande.add_argument("--purger", action="store_true",
                           help="journaux et archives plus anciens que leur retention (liste ; --appliquer pour supprimer)")
+    commande.add_argument("--scanner-outils", action="store_true",
+                          help="parcourt le dossier des outils (--dossier-outils, defaut : outils/ du moteur) et liste les "
+                               "outils indexables et les scripts non retenus (aucune ecriture ; pas de --config)")
     commande.add_argument("--modele-regle", action="store_true",
                           help="valeurs de secours d'une regle et listes de valeurs permises (sans --config)")
     commande.add_argument("--migrer-ancien", metavar="COPIES.CONF",
@@ -486,6 +519,7 @@ def _arguments(argv=None):
     commande.add_argument("--executer-regle", metavar="ID",
                           help="INTERNE : execution d'une regle par un fils de l'orchestrateur")
     p.add_argument("--execution-id", type=int, metavar="N", help="INTERNE : avec --executer-regle")
+    p.add_argument("--dossier-outils", metavar="DOSSIER", help="avec --scanner-outils : dossier des outils")
     p.add_argument("--environnement", help="avec --migrer-ancien : nom de l'environnement (= nom du fichier)")
     p.add_argument("--base", help="avec --migrer-ancien : chemin de la base SQLite (disque local)")
     p.add_argument("--sortie", help="avec --migrer-ancien : fichier de parametrage a ecrire (defaut : <environnement>.jsonl)")
@@ -523,7 +557,7 @@ def _main(argv=None):
                               or args.renommer_environnement
                               or args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
                               or args.trancher_incertain or args.executer_regle or args.migrer_ancien
-                              or args.importer_historique or args.purger or args.modele_regle
+                              or args.importer_historique or args.purger or args.modele_regle or args.scanner_outils
                               or args.creer_dossiers_regle or args.controler_regle)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
@@ -537,7 +571,9 @@ def _main(argv=None):
         p.error("--precedent s'utilise avec --verifier")
     if args.executer_regle and args.execution_id is None:
         p.error("--executer-regle exige --execution-id")
-    if not args.config and not (args.migrer_ancien or args.modele_regle):
+    if args.dossier_outils is not None and not args.scanner_outils:
+        p.error("--dossier-outils s'utilise avec --scanner-outils")
+    if not args.config and not (args.migrer_ancien or args.modele_regle or args.scanner_outils):
         p.error("--config est obligatoire")
     if args.frequence_sec < 1:
         p.error("--frequence-sec doit etre superieur a 0")
@@ -550,6 +586,8 @@ def _main(argv=None):
         os.environ["COPIE_SANS_CONSOLE"] = "1"      # les fils ne doivent pas polluer la sortie JSON
     if args.modele_regle:
         return _modele_regle(args)
+    if args.scanner_outils:
+        return _scanner_outils(args)
     if args.migrer_ancien:
         return _migrer_ancien(args)
     parametrage, rapport = verifier_fichier(args.config, args.periode_declencheur_sec)

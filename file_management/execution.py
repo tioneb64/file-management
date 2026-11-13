@@ -11,7 +11,7 @@ import socket
 import time
 
 from file_management import base as modele_base
-from file_management import chemins, processus, programmes, selection, transfert
+from file_management import chemins, outils, processus, programmes, selection, transfert
 from file_management.parametrage import MODE_SYNCHRO, MODES_HORODATAGE, MODES_MESURE, MODES_TRANSFERT
 from file_management.transfert import (CibleExiste, ErreurCible, ErreurSource, ErreurTransfert,
                              ErreurVerification, FichierInstable, SourceDisparue, SourceModifiee)
@@ -364,8 +364,23 @@ class ExecutionRegle(object):
             "COPIE_LISTE_JSON": valeurs["liste_json"],
             "COPIE_REPRISE": "1" if self.declencheur == "reprise" else "0",
             "COPIE_SIMULATION": "1" if self.simulation else "0", "COPIE_POINT_APPEL": point,
-            "COPIE_STATUT": statut or ""}
+            "COPIE_STATUT": statut or "",
+            # pour les outils de outils/ : meme dossier de journaux et meme code d'environnement que le moteur
+            "COPIE_DOSSIER_LOGS": self.entete.dossier_logs or "",
+            "COPIE_CODE_ENVIRONNEMENT": self.entete.code_environnement or "",
+            "COPIE_DOSSIER_TRAVAIL": self._dossier_travail(),
+            # dossier du moteur (journal_si.py) : les outils peuvent etre ailleurs que sous le moteur
+            "COPIE_RACINE_MOTEUR": outils.racine_moteur()}
         return valeurs, environnement
+
+    def _index_outils(self):
+        """Index des outils (outils.json du dossier de parametrage), ou None s'il est absent ou illisible."""
+        if not self.entete.dossier_parametrage:
+            return None
+        try:
+            return outils.index_de(self.entete.dossier_parametrage)
+        except outils.ErreurOutils:
+            return None
 
     def _programme(self, point, c=None, destination=None, liste=None, statut=None, codes=None, **champs):
         """Appelle le programme du point d'appel `point`, avec les tentatives de la situation
@@ -383,7 +398,7 @@ class ExecutionRegle(object):
         valeurs, environnement = self._variables_programme(point, c, destination, statut, *fichiers_liste)
 
         def operation():
-            res = programmes.executer(programme, point, valeurs, environnement, travail)
+            res = programmes.executer(programme, point, valeurs, environnement, travail, self._index_outils())
             ok = res.accepte(point, codes)
             self._log("programme_appele", "INFO" if ok else "WARNING", point=point, commande=res.argv,
                       code=res.code, duree_ms=res.duree_ms, depasse=res.depasse or None,
@@ -438,7 +453,8 @@ class ExecutionRegle(object):
             valeurs, environnement = self._variables_programme("sur_erreur", None, None, bilan.statut, *liste)
             environnement["COPIE_SITUATION"] = (bilan.erreur or {}).get("situation") or bilan.situation_finale or ""
             environnement["COPIE_MESSAGE"] = bilan.motif or ""
-            res = programmes.executer(programme, "sur_erreur", valeurs, environnement, self._dossier_travail())
+            res = programmes.executer(programme, "sur_erreur", valeurs, environnement, self._dossier_travail(),
+                                      self._index_outils())
             self._log("programme_appele", "INFO" if res.code == 0 and not res.depasse and not res.erreur else "WARNING",
                       point="sur_erreur", commande=res.argv, code=res.code, duree_ms=res.duree_ms,
                       depasse=res.depasse or None, sortie=res.sortie or res.erreur)

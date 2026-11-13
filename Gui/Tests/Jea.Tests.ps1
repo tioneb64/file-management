@@ -76,6 +76,18 @@ Describe 'Grammaire du point d''accès' {
         $l.Erreur | Should -Be ''
         $l.Arguments | Should -Not -Contain '--config'
     }
+    It '--scanner-outils : écriture, sans fichier de paramétrage obligatoire, dossier libre et utilisateur automatique' {
+        $s = & $Script:Ligne @('--scanner-outils') '' 'DOM\ben'
+        $s.Erreur | Should -Be ''
+        $s.Droit | Should -Be 'ecriture'
+        $s.Arguments | Should -Not -Contain '--config'
+        $s.Arguments | Should -Contain '--utilisateur=DOM\ben'
+        $d = & $Script:Ligne @('--scanner-outils', '--dossier-outils', 'D:\Outils partages\scripts') '' 'DOM\ben'
+        $d.Erreur | Should -Be ''
+        $d.Arguments | Should -Contain '--dossier-outils=D:\Outils partages\scripts'
+        (& $Script:Ligne @('--scanner-outils', '--dossier-outils', 'a|b') '' 'DOM\ben').Erreur | Should -Not -BeNullOrEmpty
+        (& $Script:Ligne @('--etat', '--dossier-outils', 'D:\x') $Script:Fichier '').Erreur | Should -Match 'non permise'
+    }
     It 'refuse les commandes hors contrat et celles qui ne servent pas au front-end' {
         foreach ($c in '--sauvegarder-base', '--executer-regle', '--migrer-ancien', '--importer-historique', '--simulation', '-c', 'import os', '') {
             (& $Script:Ligne @($c) $Script:Fichier 'u').Erreur | Should -Not -BeNullOrEmpty -Because $c

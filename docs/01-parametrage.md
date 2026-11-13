@@ -211,6 +211,7 @@ Chaque situation anormale a sa réaction. Le champ `situations` est un objet don
 ```
 
 - `commande` : **tableau** de textes. Le premier élément est l'exécutable. Aucun shell n'est utilisé.
+- **Outil de la boîte à outils** : le premier élément peut être `{outil:nom}` (par exemple `["{outil:zip_creer}", "--sortie", "{cible}\\lot.zip", "--liste", "{liste}"]` : `{liste}` est le fichier qui contient la liste, il se donne à `--liste`, pas en argument). Le moteur le remplace par l'interpréteur Python et le chemin du script, d'après l'index `outils.json` du dossier de paramétrage (créé par le scan de l'onglet « Outils », [13-boite-a-outils §9 à §11](13-boite-a-outils.md)). Hors du premier élément, ou avec un nom mal formé, inconnu de l'index ou dont un paramètre obligatoire manque : refus G01.
 - Variables remplacées dans chaque élément : `{environnement}` `{regle}` `{source}` `{cible}` `{archive}` `{date}` à tous les points d'appel ; `{fichier}` `{nom}` `{fichier_cible}` seulement pour `avant_fichier` et `apres_fichier` ; `{liste}` `{liste_json}` seulement pour `avant_lot`, `apres_lot` et `sur_erreur`. Une variable sans objet à un point d'appel est refusée (G01).
 - Les mêmes informations sont transmises en variables d'environnement (`COPIE_REGLE`, `COPIE_FICHIER`, `COPIE_LISTE`, `COPIE_REPRISE`, `COPIE_SIMULATION`, …).
 - Comportement, codes retour : §9 de [02-moteur](02-moteur.md).
@@ -351,7 +352,7 @@ Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier
 | D04 | avert. | La règle dépendante démarre **avant** celle dont elle dépend (`debut` ou `heure`) : elle lirait le résultat de la veille |
 | D05 | avert. | La règle dépendante est plus fréquente que sa dépendance |
 | D06 | refus | `condition` inconnue ; `condition` ou `apres_dependances` sans `apres` |
-| G01 | refus | `commande` : tableau non vide de textes, variables connues, `timeout_sec` > 0 |
+| G01 | refus | `commande` : tableau non vide de textes, variables connues, `timeout_sec` > 0 ; `{outil:nom}` en premier élément seulement, outil connu de l'index, paramètres obligatoires donnés |
 
 ### 7.2 Comparaison avec la version précédente (front-end)
 
@@ -393,7 +394,7 @@ Le résultat est disponible en texte et en JSON (`--format json`) :
 
 - **Fenêtre de sélection (R08)** : `J` = 1 jour, `J-N` = N + 1 jours (de minuit il y a N jours à maintenant), `age_maximum_sec` arrondi au jour supérieur. `retention_historique_jours` doit être **strictement supérieure** à la plus grande des deux fenêtres.
 - **D06** : une liste `apres` vide avec `condition` égale à `["succes"]` est acceptée (c'est ce qu'écrit le front-end par défaut) ; elle est refusée si `condition` est autre chose que `["succes"]`.
-- **G01** couvre tout le contenu d'un programme : `commande` qui n'est pas un tableau non vide de textes non vides (par exemple une simple chaîne), variable inconnue, `timeout_sec` absent, non entier ou ≤ 0. Les champs inconnus d'un programme restent en E06.
+- **G01** couvre tout le contenu d'un programme : `commande` qui n'est pas un tableau non vide de textes non vides (par exemple une simple chaîne), variable inconnue, `timeout_sec` absent, non entier ou ≤ 0 ; pour `{outil:nom}` : variable hors du premier élément ou mal formée (la syntaxe est lue avec le paramétrage), outil absent de l'index, index absent ou illisible, option obligatoire de l'outil non donnée (contrôles croisés faits par `--verifier`, y compris `--syntaxe-seule` ; la présence du **fichier** de l'outil n'est contrôlée que par `--verifier` sans `--syntaxe-seule`). Les champs inconnus d'un programme restent en E06.
 - **Types (E06)** : un booléen n'est pas accepté comme entier, `60.0` n'est pas un entier, un champ présent deux fois sur une ligne est refusé, `NaN` et `Infinity` sont refusés.
 - **Champ absent dans `planification`** : `type` absent est un R01 ; les autres champs requis d'un type sont des P01.
 - **E05** détecte les chemins `\\serveur\...` et `//serveur/...`. Un lecteur réseau mappé (`Z:`) ne peut pas être reconnu sans interroger Windows : il est refusé par `--initialiser-base` et à l'ouverture de la base (jalon J2), et sera aussi signalé par le contrôle d'accès A05.

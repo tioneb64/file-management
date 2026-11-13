@@ -1,6 +1,7 @@
 """Controles qui comparent plusieurs regles entre elles (docs/01-parametrage.md, section 7.1)."""
 import os
 
+from file_management import outils
 from file_management.diagnostic import Rapport
 from file_management.parametrage import CONDITIONS, charger
 
@@ -29,6 +30,7 @@ def controler_regles(p, rapport, periode_declencheur_sec=None):
         _controler_regle_seule(r, rapport, periode_declencheur_sec)
     _controler_dependances(regles, par_id, rapport)
     _controler_doublons(regles, par_id, rapport)
+    outils.controler_programmes(p, rapport)
 
 
 def _controler_ids(regles, rapport):

@@ -17,6 +17,7 @@ $Script:Types = @{
     utilisateur = '^[^\x00-\x1F]{1,256}$'
     texte       = '^[^\x00-\x08\x0B\x0C\x0E-\x1F]{1,2000}$'  # commentaire (retours à la ligne permis)
     chemin      = '^[^\x00-\x1F<>|?*]{1,520}$'
+    cheminlibre = '^[^\x00-\x1F<>|?*]{1,520}$'                # chemin choisi par l'administrateur (dossier des outils) : non limité au dossier de paramétrage
 }
 
 # Grammaire : commande -> droit, type de la valeur de la commande (vide : aucune), besoin du fichier de
@@ -25,6 +26,8 @@ $Script:Grammaire = @{
     '--etat'               = @{ Droit = 'lecture'; Valeur = ''; Fichier = $true; Options = @{ '--regle' = 'id' } }
     '--verifier'           = @{ Droit = 'lecture'; Valeur = ''; Fichier = $true; Options = @{ '--syntaxe-seule' = 'interrupteur'; '--precedent' = 'chemin' } }
     '--modele-regle'       = @{ Droit = 'lecture'; Valeur = ''; Fichier = $false; Options = @{} }
+    # Parcourt un dossier choisi par l'administrateur (hors dossier de paramétrage) : droit d'écriture, donc compte tracé.
+    '--scanner-outils'     = @{ Droit = 'ecriture'; Valeur = ''; Fichier = $false; Options = @{ '--dossier-outils' = 'cheminlibre'; '--utilisateur' = 'utilisateur' } }
     '--reprise'            = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--lancer-maintenant'  = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--acquitter'          = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }

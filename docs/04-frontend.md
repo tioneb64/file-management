@@ -115,6 +115,16 @@ Réalisation (étape C) :
 - « Actualiser l'état » relit le fichier et l'état des règles ; il n'y a toujours aucune interrogation automatique (§6).
 - **Livraisons incertaines** : une livraison dont le programme s'est arrêté pendant la copie est « de résultat inconnu » et bloque la règle ([02-moteur](02-moteur.md)). Le bouton « Trancher… » (actif quand la règle sélectionnée en a) ouvre la liste (source, cible, clé) fournie par `--etat` (champ `incertains`) ; l'administrateur vérifie dans le dossier cible, choisit « bien arrivé » (`livre`) ou « à relivrer » (`a_relivrer`) et saisit un commentaire obligatoire, puis le front-end appelle `--trancher-incertain`. Une livraison à la fois ; après « à relivrer », la règle repart à la prochaine reprise.
 
+### 4.4 Onglet « Outils » (boîte à outils)
+
+Dernier onglet de la fenêtre, après ceux des environnements ; il concerne **le moteur**, pas un environnement. Le détail d'usage est dans [13-boite-a-outils §11](13-boite-a-outils.md) et le [guide utilisateur](11-guide-utilisateur.md).
+
+- **Dossier des outils** : vide = dossier `outils` à la racine du moteur ; sinon le dossier saisi (ou choisi avec « Parcourir… », moteur local seulement).
+- **« Enregistrer et scanner »** (administrateurs) : appelle `--scanner-outils [--dossier-outils D] --utilisateur U` (lecture du dossier côté moteur, rien n'est écrit par le moteur), puis l'interface écrit `outils.json` dans le dossier de paramétrage **de façon atomique**, seulement si au moins un outil est retenu (un dossier faux ne détruit pas le bon index). Une fenêtre de résultat liste les outils retenus et les scripts non retenus avec leur cause, et les mêmes lignes vont dans le journal de l'interface (`outils_scan`, `outil_retenu`, `outil_non_retenu`, `outils_index`).
+- **Liste et détail** : variable `{outil:nom}`, sous-dossier, fichier, description, paramètres (obligatoires ou non) et début de commande à copier. Consultation pour tous les comptes.
+- **JEA** : `--scanner-outils` est une commande de la grammaire (droit d'écriture, `--dossier-outils` en chemin libre, sans caractère de contrôle ni `< > | ? *`, `--utilisateur` ajouté automatiquement) ; le fichier d'index lui-même est écrit par l'interface avec le compte de l'administrateur, comme le fichier de paramétrage.
+- Code : `Gui\FileManagement.Gui\Private\Outils.ps1` (lecture de l'index, lignes de résultat), `Views\Vue.Outils.ps1` (onglet), `Gui\Xaml\Outils.xaml`.
+
 ## 5. Enregistrement du paramétrage
 
 1. Au chargement, le front-end mémorise la date de modification et l'empreinte du fichier.

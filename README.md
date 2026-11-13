@@ -26,6 +26,7 @@ Aucune perte (l'original n'est touché qu'après copie vérifiée par taille et 
 | Configurer Jenkins | [docs/08-jenkins.md](docs/08-jenkins.md) |
 | Migrer depuis l'ancien script | [docs/09-migration-et-recette.md](docs/09-migration-et-recette.md) |
 | Intégrer un autre outil au moteur (JSON) | [docs/07-contrat-moteur-frontend.md](docs/07-contrat-moteur-frontend.md) |
+| Appeler des outils unitaires (compression, recherche, conversion…) depuis une règle (`{outil:nom}`), régler leur dossier, écrire un nouvel outil | [docs/13-boite-a-outils.md](docs/13-boite-a-outils.md), catalogue : [outils/README.md](outils/README.md) |
 | Rejouer les tests, suivre l'avancement | [docs/06-cahier-de-tests.md](docs/06-cahier-de-tests.md), [tests/README.md](tests/README.md), [CHANGELOG.md](CHANGELOG.md) |
 
 Vue d'ensemble, architecture et décisions : [docs/00-vue-ensemble.md](docs/00-vue-ensemble.md).

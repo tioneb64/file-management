@@ -8,6 +8,7 @@ import os
 import re
 
 from file_management.diagnostic import Rapport
+from file_management.outils import RE_NOM_OUTIL, variable_outil
 
 VERSION_FORMAT = 1
 
@@ -116,6 +117,7 @@ class Entete(object):
         self.marge_espace_mo = 64
         self.suspendu = False                     # maintenance : aucune regle n'est lancee
         self.motif_suspension = None
+        self.dossier_parametrage = None           # dossier du fichier lu (la, outils.json : index des outils)
 
 
 class Selection(object):
@@ -162,9 +164,10 @@ class Situation(object):
 
 
 class Programme(object):
-    def __init__(self, commande, timeout_sec):
+    def __init__(self, commande, timeout_sec, outil=None):
         self.commande = commande
         self.timeout_sec = timeout_sec
+        self.outil = outil              # variable d'outil ({outil:nom}) du premier element, ou None
 
 
 class Regle(object):
@@ -354,6 +357,7 @@ def lire_entete(objet, ligne, chemin_fichier, rapport):
         return None
 
     e = Entete()
+    e.dossier_parametrage = os.path.dirname(os.path.abspath(chemin_fichier))
     lecteur = Lecteur(objet, rapport, ligne, contexte="")
     lecteur.valeur("version", "entier", VERSION_FORMAT)
     e.environnement = lecteur.valeur("environnement", "texte", "")
@@ -574,6 +578,7 @@ def _lire_programme(nom, valeur, ligne, regle, rapport):
     # Les contenus de 'commande' et 'timeout_sec' relevent de G01, pas de E06
     lecteur.lus.update(("commande", "timeout_sec"))
     commande = valeur.get("commande")
+    outil = None
     if "commande" not in valeur:
         lecteur.signaler("G01", "programmes.%s.commande est obligatoire" % nom)
     elif not (isinstance(commande, list) and commande
@@ -583,7 +588,22 @@ def _lire_programme(nom, valeur, ligne, regle, rapport):
         commande = None
     else:
         autorisees = VARIABLES_SYNCHRO if regle.mode == MODE_SYNCHRO else VARIABLES_PAR_POINT[nom]
-        for element in commande:
+        premier = commande[0]
+        if premier.startswith("{outil:"):
+            outil = variable_outil(premier)
+            if outil is None:
+                lecteur.signaler("G01", "programmes.%s.commande : {outil:...} doit etre seul dans le premier element "
+                                 "(%s)" % (nom, premier))
+            elif not RE_NOM_OUTIL.match(outil):
+                lecteur.signaler("G01", "programmes.%s.commande : nom d'outil invalide dans %s (minuscules, chiffres "
+                                 "et _)" % (nom, premier))
+        for position, element in enumerate(commande):
+            if "{outil:" in element and not (position == 0 and premier.startswith("{outil:")):
+                lecteur.signaler("G01", "programmes.%s.commande : {outil:...} n'est permis que comme premier "
+                                 "element de la commande (%s)" % (nom, element))
+                continue
+            if position == 0 and premier.startswith("{outil:"):
+                continue
             for variable in variables_inconnues(element, autorisees):
                 lecteur.signaler("G01", "programmes.%s.commande : variable {%s} inconnue ou sans objet a ce "
                                  "point d'appel (autorisees : %s)"
@@ -597,7 +617,7 @@ def _lire_programme(nom, valeur, ligne, regle, rapport):
     lecteur.inconnus()
     if commande is None or timeout is None:
         return None
-    return Programme(tuple(commande), timeout)
+    return Programme(tuple(commande), timeout, outil)
 
 
 def lire_regle(objet, ligne, rapport, entete=None):

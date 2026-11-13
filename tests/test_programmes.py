@@ -571,6 +571,33 @@ class TestSimulationDesProgrammes(CasProgramme):
         self.assertFalse(os.path.exists(self.dst))               # rien n'est livre pour autant
 
 
+class TestVariablesPourLesOutils(CasProgramme):
+    """COPIE_DOSSIER_LOGS, COPIE_CODE_ENVIRONNEMENT et COPIE_DOSSIER_TRAVAIL : ce qu'il faut a un programme de
+    outils/ pour ecrire dans le meme journal que la regle."""
+
+    def test_dossier_de_journaux_code_d_environnement_et_dossier_de_travail(self):
+        self.source("a.csv")
+        self.entete.dossier_logs = self.chemin("logs")
+        self.entete.code_environnement = "pprod"
+        bilan = self.lancer(self.regle(programmes={"avant_lot": self.programme(), "apres_fichier": self.programme()}))
+        self.assertEqual(bilan.statut, "SUCCES")
+        for appel in self.lus():
+            env = appel["env"]
+            self.assertEqual(os.path.normcase(env["COPIE_DOSSIER_LOGS"]), os.path.normcase(self.chemin("logs")))
+            self.assertEqual(env["COPIE_CODE_ENVIRONNEMENT"], "pprod")
+            self.assertEqual(os.path.normcase(env["COPIE_DOSSIER_TRAVAIL"]), os.path.normcase(self.chemin("travail")))
+            self.assertEqual(os.path.normcase(appel["cwd"]), os.path.normcase(env["COPIE_DOSSIER_TRAVAIL"]))
+
+    def test_valeurs_vides_quand_l_entete_ne_les_donne_pas(self):
+        self.source("a.csv")
+        self.entete.dossier_logs = None
+        self.entete.code_environnement = None
+        self.lancer(self.regle(programmes={"avant_lot": self.programme()}))
+        (appel,) = self.lus()
+        self.assertEqual((appel["env"]["COPIE_DOSSIER_LOGS"], appel["env"]["COPIE_CODE_ENVIRONNEMENT"]), ("", ""))
+        self.assertNotEqual(appel["env"]["COPIE_DOSSIER_TRAVAIL"], "")
+
+
 class TestJournalDesProgrammes(CasProgramme):
     def test_evenement_programme_appele(self):
         self.source("a.csv")

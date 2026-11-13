@@ -265,6 +265,18 @@ Les fichiers marqués ne sont plus repris par la règle (ils sont considérés c
 - **Suspendre l'environnement** (boîte « Environnement », administrateurs) : pour une maintenance. Tant que la case est cochée, **aucune règle n'est lancée** et Jenkins reste vert (code 0). Un bandeau le rappelle sur l'onglet. Pensez à la décocher : la plateforme d'observabilité peut vous alerter d'une suspension qui dure (`exemples\loki\regles_alerte.yaml`).
 - **Une règle longue n'est pas lancée deux fois** : si Jenkins relance pendant qu'elle tourne encore, le second lancement l'ignore (aucun fichier `.lock` n'est posé dans vos dossiers).
 
+## 13 quinquies. Les outils (onglet « Outils »)
+
+Les **outils** sont de petits scripts (compresser, chercher, renommer, valider, envoyer un courriel…) que les règles peuvent appeler comme programmes (`avant_lot`, `apres_fichier`…). L'onglet **Outils**, le dernier de la fenêtre, les liste : il concerne le moteur, pas un environnement.
+
+- **Dossier des outils** : laissez vide pour utiliser le dossier `outils` livré avec le moteur, ou indiquez un autre dossier (« Parcourir… »). Le réglage est commun à tous les environnements.
+- **« Enregistrer et scanner »** (administrateurs) : l'application parcourt le dossier et ses sous-dossiers, retient chaque script qui a un **en-tête d'outil** (commentaires `# outil:`, `# description:`, `# parametre:` en haut du fichier) et enregistre la liste. Une fenêtre résume le résultat : outils retenus, scripts **non retenus avec la cause** (« pas d'en-tête » : script ordinaire, sans gravité ; en-tête invalide ; nom déjà pris ; fichier illisible). Rien n'est enregistré si aucun outil n'est trouvé : un mauvais dossier ne remplace pas la bonne liste.
+- **À refaire** après avoir ajouté, retiré ou déplacé un outil.
+- **La liste** donne la variable de chaque outil (`{outil:zip_creer}`), son dossier, son fichier, sa description et ses paramètres obligatoires ; la recherche filtre. En choisissant un outil, vous voyez tous ses paramètres et un **début de commande** à copier dans le formulaire d'une règle (onglet des programmes) : la variable doit être le **premier élément** de la commande.
+- Si une règle utilise un outil que la liste ne connaît pas, le contrôle du paramétrage la refuse en citant les outils connus ; il faut alors scanner (ou corriger le nom).
+
+Écrire un nouvel outil : [13-boite-a-outils §7](13-boite-a-outils.md).
+
 ## 14. Simuler une règle
 
 Sélectionnez une règle puis **Simuler la règle…** (tous les comptes) : le moteur dit ce qu'il ferait **maintenant**, sans rien copier, déplacer ni enregistrer. Il faut que la base de l'environnement existe et que la règle soit active.

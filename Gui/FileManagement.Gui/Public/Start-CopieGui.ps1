@@ -119,12 +119,12 @@
     Update-CopieEnvironnements
 
     # Dossier vide : un administrateur se voit proposer tout de suite de créer le premier environnement.
-    if ($profil -eq 'Admin' -and $tabs.Items.Count -eq 0 -and $Script:Session.BtnEtatVideCreer.Visibility -eq 'Visible' -and -not $SansAffichage) {
+    if ($profil -eq 'Admin' -and @($tabs.Items | Where-Object { $_.Tag.Type -ne 'Outils' }).Count -eq 0 -and $Script:Session.BtnEtatVideCreer.Visibility -eq 'Visible' -and -not $SansAffichage) {
         $Script:PremiereProposition = $false
         $fenetre.Add_ContentRendered({
                 if (-not $Script:PremiereProposition) {
                     $Script:PremiereProposition = $true
-                    if ($Script:Session.Tabs.Items.Count -eq 0) { Invoke-CopieNouvelEnvironnement -Contexte $Script:Session.Contexte }
+                    if (@($Script:Session.Tabs.Items | Where-Object { $_.Tag.Type -ne 'Outils' }).Count -eq 0) { Invoke-CopieNouvelEnvironnement -Contexte $Script:Session.Contexte }
                 }
             })
     }

@@ -102,7 +102,8 @@ Describe 'Start-CopieGui' -Skip:(-not ($Script:Sta -and $Script:PythonDisponible
     AfterAll { if ($Script:Fenetre) { $Script:Fenetre.Close() } }
     It 'crée un onglet par fichier et affiche le profil administrateur' {
         $tabs = $Script:Fenetre.FindName('Tabs')
-        $tabs.Items.Count | Should -Be 3
+        $tabs.Items.Count | Should -Be 4                    # 3 environnements + l'onglet « Outils »
+        ($tabs.Items | ForEach-Object Header) | Should -Contain 'Outils'
         $Script:Fenetre.FindName('ModeText').Text | Should -Be 'ADMINISTRATEUR'
         ($tabs.Items | ForEach-Object Header) | Should -Contain 'autre (lecture seule)'
     }
