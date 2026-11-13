@@ -273,7 +273,7 @@ function Save-CopieParametrage {
         [System.IO.File]::WriteAllText($temporaire, (($lignes -join "`n") + "`n"), $utf8)
 
         $reponse = Invoke-CopieMoteur -Config $Config -Fichier $temporaire -Argument @(
-            '--verifier', '--syntaxe-seule', '--precedent', $Fichier,
+            '--verifier', '--syntaxe-seule', '--precedent', $Fichier, '--dossier-parametrage', $dossier,
             '--periode-declencheur-sec', "$($Config.Parametrage.PeriodeDeclencheurSec)")
         if ($null -eq $reponse.Json) {
             return (& $resultat $false 'moteur' ('Vérification impossible : ' + $reponse.Erreur) @() @() $null $null)

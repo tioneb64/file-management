@@ -181,8 +181,8 @@ function Get-CopieChampsRegle {
             )
         }
         [pscustomobject]@{ Titre = 'Sélection'; Champs = @(
-                (champ 'selection.masque' 'Masque(s)' 'texte' $null $false 'Exemple : *.csv')
-                (champ 'selection.exclure' 'Exclure' 'texte' $null $false 'Masque(s) à écarter.')
+                (champ 'selection.masque' 'Masque(s)' 'texte' $null $false 'Un ou plusieurs, séparés par un point-virgule. Exemples : *.csv  ou  file1.txt;file2.txt;file3.txt')
+                (champ 'selection.exclure' 'Exclure' 'texte' $null $false 'Masque(s) à écarter, séparés par un point-virgule (exemple : ~*;*.tmp).')
                 (champ 'selection.recursif' 'Parcourir les sous-dossiers' 'bool')
                 (champ 'selection.modifie_depuis' 'Modifié depuis' 'texte' $null $false 'TOUT, J (aujourd''hui) ou J-N (les N derniers jours).')
                 (champ 'selection.age_minimum_sec' 'Âge minimum du fichier' 'duree' $null $false 'Évite de prendre un fichier encore en cours d''écriture.')

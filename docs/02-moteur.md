@@ -13,7 +13,7 @@ python file_management.py --config D:\Parametrage\production.jsonl [options]
 | *(aucune commande)* | **Lancement** : orchestrateur, évalue et exécute les règles à lancer |
 | `--regle ID` (répétable) | Limite le lancement aux règles indiquées |
 | `--simulation` | Affiche ce qui serait fait : aucune copie, aucune écriture en base (ouverte en lecture seule), planification ignorée, programmes non appelés (sauf `--simulation-programmes`, qui leur transmet `COPIE_SIMULATION=1`) |
-| `--verifier [--syntaxe-seule] [--precedent FICHIER] [--periode-declencheur-sec N]` | Validation du paramétrage et des accès (A01 à A07, avec le compte qui exécute la commande), comparaison avec la version précédente (V01 à V04). Voir le §7 de [01-parametrage](01-parametrage.md). `--periode-declencheur-sec` permet le contrôle P02 |
+| `--verifier [--syntaxe-seule] [--precedent FICHIER] [--dossier-parametrage DOSSIER] [--periode-declencheur-sec N]` | Validation du paramétrage et des accès (A01 à A07, avec le compte qui exécute la commande), comparaison avec la version précédente (V01 à V04). Voir le §7 de [01-parametrage](01-parametrage.md). `--periode-declencheur-sec` permet le contrôle P02 |
 | `--initialiser-base` | Crée la base d'un nouvel environnement. **La base n'est jamais créée automatiquement** |
 | `--etat [--regle ID] [--format json]` | État des règles (lecture de la base) |
 | `--reprise ID --utilisateur U [--commentaire C]` | Pose le flag de reprise (§10) |

@@ -348,7 +348,7 @@ def controler_programmes(parametrage, rapport, verifier_fichiers=False):
     obligatoires donnes, et (verifier_fichiers) fichier de l'outil present. L'index n'est lu que si une
     commande utilise {outil:...}."""
     index, erreur, charge = None, None, False
-    dossier = os.path.dirname(os.path.abspath(parametrage.chemin))
+    dossier = getattr(parametrage, "dossier_index", None) or os.path.dirname(os.path.abspath(parametrage.chemin))
     for r in parametrage.regles:
         for point, programme in r.programmes.items():
             variable = getattr(programme, "outil", None)

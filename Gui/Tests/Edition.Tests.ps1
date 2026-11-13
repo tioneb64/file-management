@@ -125,6 +125,21 @@ Describe 'Edition (moteur réel)' -Skip:(-not $Script:PythonDisponible) {
             $existante.selection.PSObject.Properties['ordre'] | Should -BeNullOrEmpty
         }
     }
+    It 'enregistre une règle qui appelle {outil:nom} : l''index des outils est celui du dossier de paramétrage, pas celui du brouillon' {
+        $env = & $Script:Initialiser 'outil'
+        $index = '{"version":1,"dossier_outils":"","dossier_resolu":"","scanne_le":"2026-01-01T00:00:00","scanne_par":"t","outils":[{"variable":"x","fichier":"d\\x.py","description":"essai","parametres":[]}]}'
+        [System.IO.File]::WriteAllText((Join-Path $env.Dossier 'outils.json'), $index, $Script:Utf8)
+        $p = & $Script:Lire $env.Fichier
+        $nouvelle = & $Script:Nouvelle 'c' @{ programmes = ('{"avant_lot":{"commande":["{outil:x}"],"timeout_sec":60}}' | ConvertFrom-Json) }
+        $res = & $Script:Enregistrer $env (@($p.Regles) + $nouvelle)
+        $res.Etape | Should -Be 'ok' -Because ($res | ConvertTo-Json -Depth 4)
+        $res.Enregistre | Should -BeTrue
+        # sans l'index dans le dossier de paramétrage, le même enregistrement est refusé avec le motif G01
+        Remove-Item -LiteralPath (Join-Path $env.Dossier 'outils.json')
+        $refuse = & $Script:Enregistrer $env (@((& $Script:Lire $env.Fichier).Regles) + (& $Script:Nouvelle 'd' @{ programmes = ('{"avant_lot":{"commande":["{outil:x}"],"timeout_sec":60}}' | ConvertFrom-Json) }))
+        $refuse.Enregistre | Should -BeFalse
+        ($refuse | ConvertTo-Json -Depth 6) | Should -Match 'aucun index des outils'
+    }
     It 'enregistre : fichier remplacé, version et fiche créées, brouillons supprimés, UTF-8 sans BOM' {
         $env = & $Script:Initialiser 'prod'
         $avant = [System.IO.File]::ReadAllBytes($env.Fichier)

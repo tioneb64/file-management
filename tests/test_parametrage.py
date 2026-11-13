@@ -279,6 +279,12 @@ class TestRegle(CasParametrage):
         self.assertAucun([regle(source="D:\\a", cible="D:\\a\\sous")])           # non recursif
         self.assertAucun([regle(source="D:\\a", cible="D:\\ab", selection={"recursif": True})])
 
+    def test_r19_plusieurs_noms_separes_par_un_point_virgule(self):
+        self.assertAucun([regle(selection={"masque": "file1.txt;file2.txt; file3.txt", "exclure": "~*;*.tmp"})])
+        self.assertCodes([regle(selection={"masque": "file1.txt; file2.txt, file3.txt"})], ["R19"])
+        self.assertCodes([regle(selection={"exclure": "~*,*.tmp"})], ["R19"])
+        self.assertCodes([regle(selection={"masque": "a,b", "exclure": "c,d"})], ["R19", "R19"])
+
     def test_r03_variables_d_environnement(self):
         os.environ["COPIE_TEST_RACINE"] = "D:\\a"
         self.addCleanup(os.environ.pop, "COPIE_TEST_RACINE", None)

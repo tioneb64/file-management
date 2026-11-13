@@ -40,6 +40,7 @@ Describe 'Grammaire du point d''accès' {
         $l.Arguments | Should -Contain '--format=json'
         $l.Arguments | Should -Contain ('--config=' + $Script:Fichier)
         (& $Script:Ligne @('--verifier', '--syntaxe-seule', '--precedent', (Join-Path $Script:Dossier 'versions\x.jsonl')) $Script:Fichier '').Erreur | Should -Be ''
+        (& $Script:Ligne @('--verifier', '--syntaxe-seule', '--dossier-parametrage', $Script:Dossier) $Script:Fichier '').Erreur | Should -Be ''
         (& $Script:Ligne @('--purger', '--regle', 'r1', '--appliquer') $Script:Fichier 'DOM\ben').Droit | Should -Be 'ecriture'
         (& $Script:Ligne @('--trancher-incertain', '00ff', '--decision', 'livre', '--commentaire', 'vérifié') $Script:Fichier 'DOM\ben').Erreur | Should -Be ''
     }
@@ -129,6 +130,8 @@ Describe 'Grammaire du point d''accès' {
         (& $Script:Ligne @('--etat') ($Script:Fichier.ToUpper()) '').Erreur | Should -Be ''
         (& $Script:Ligne @('--etat') '' '').Erreur | Should -Match 'obligatoire'
         (& $Script:Ligne @('--verifier', '--precedent', 'C:\Windows\win.ini') $Script:Fichier '').Erreur | Should -Match 'hors du dossier'
+        (& $Script:Ligne @('--verifier', '--dossier-parametrage', 'C:\Windows') $Script:Fichier '').Erreur | Should -Match 'hors du dossier'
+        (& $Script:Ligne @('--verifier', '--dossier-parametrage', (Join-Path $Script:Dossier 'versions')) $Script:Fichier '').Erreur | Should -Match 'hors du dossier'
     }
 }
 

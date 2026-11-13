@@ -47,7 +47,7 @@ Colonne « Droits » : **lecture** = tout compte, **écriture** = administrateur
 
 | Commande | Droits | Effet | Champs propres de la réponse |
 |---|---|---|---|
-| `--verifier [--syntaxe-seule] [--precedent FICHIER] [--periode-declencheur-sec N]` | lecture | Valide le fichier ; sans `--syntaxe-seule`, contrôle aussi les accès (A01 à A07) **avec le compte qui exécute la commande** ; avec `--precedent`, compare avec l'ancienne version (V01 à V04) | §4.1 |
+| `--verifier [--syntaxe-seule] [--precedent FICHIER] [--dossier-parametrage DOSSIER] [--periode-declencheur-sec N]` | lecture | Valide le fichier ; sans `--syntaxe-seule`, contrôle aussi les accès (A01 à A07) **avec le compte qui exécute la commande** ; avec `--precedent`, compare avec l'ancienne version (V01 à V04) | §4.1 |
 | `--etat [--regle ID]` | lecture | État de chaque règle (lecture seule de la base) | §4.2 |
 | `--modele-regle` | lecture | Valeurs de secours d'une règle et listes de valeurs permises, pour le formulaire du front-end. Ne demande pas `--config` et ne lit aucun fichier ni aucune base | `commande`, `version_format`, `regle` (règle complète, valeurs de secours), `listes` (valeurs permises de chaque champ à liste fermée, variables par point d'appel), `situations` (tentatives, délai, niveau, suites permises et suite par défaut) |
 | `--initialiser-base` | écriture | Crée la base de l'environnement | `base`, `environnement` |
@@ -126,7 +126,7 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
 ## 5. Enregistrement d'une modification (séquence recommandée)
 
 1. Écrire le nouveau fichier dans un temporaire du dossier de paramétrage.
-2. `--config <temporaire> --verifier --syntaxe-seule --precedent <fichier actuel> --format json` : **refus** → annuler et afficher ; **avertissements** (dont `V02`, `V03`, `V04`) → demander confirmation.
+2. `--config <temporaire> --verifier --syntaxe-seule --precedent <fichier actuel> --dossier-parametrage <dossier> --format json` (`--dossier-parametrage` : le brouillon est dans un sous-dossier ; l'index `outils.json` des `{outil:nom}` est lu dans le dossier de paramétrage, pas à côté du brouillon) : **refus** → annuler et afficher ; **avertissements** (dont `V02`, `V03`, `V04`) → demander confirmation.
 3. Copier l'ancienne version dans `versions\`, remplacer le fichier par renommage atomique.
 4. Proposer `--verifier` complet **sur le serveur d'exécution** : seul lui voit les accès du compte de service.
 

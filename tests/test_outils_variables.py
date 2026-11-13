@@ -560,6 +560,26 @@ class TestParametrageDesVariablesOutil(CasOutilsVariables):
         self.assertFalse(rapport.ok)
         self.assertIn("variable {fichier} inconnue ou sans objet", rapport.en_texte())
 
+    def test_brouillon_verifie_avec_le_dossier_du_parametrage(self):
+        """L'interface verifie un brouillon range dans un sous-dossier (.brouillons\<guid>) : l'index des outils
+        est celui du dossier de parametrage, donne par --dossier-parametrage."""
+        self.ecrire_outil("t/x.py", variable="x")
+        self.indexer(self.chemin("t"))
+        reel = self.fichier({"avant_lot": self.commande("{outil:x}")})
+        brouillon = os.path.join(self.param, ".brouillons", "abc", "production.jsonl")
+        os.makedirs(os.path.dirname(brouillon))
+        shutil.copy(reel, brouillon)
+        self.assertFalse(verifier_fichier(brouillon)[1].ok)                                # index cherche a cote du brouillon
+        self.assertIn("aucun index des outils", verifier_fichier(brouillon)[1].en_texte())
+        self.assertTrue(verifier_fichier(brouillon, None, self.param)[1].ok)
+        sortie = io.StringIO()
+        with contextlib.redirect_stdout(sortie):
+            code = principal.main(["--config", brouillon, "--verifier", "--syntaxe-seule", "--format", "json",
+                                   "--dossier-parametrage", self.param])
+        self.assertEqual(code, 0, sortie.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            principal.main(["--config", reel, "--dossier-parametrage", self.param])    # sans --verifier : refuse
+
     def test_verification_complete_controle_aussi_le_fichier_de_l_outil(self):
         self.ecrire_outil("t/x.py", variable="x")
         self.indexer(self.chemin("t"))

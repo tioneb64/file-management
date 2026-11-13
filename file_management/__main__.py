@@ -1,7 +1,7 @@
 """Point d'entree provisoire de la v2 : python -m file_management --config FICHIER [commande] [--format json]
 
 Sans commande : lancement (les regles dues, en parallele, apres evaluation de leurs dependances).
-Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER], --initialiser-base,
+Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER] [--dossier-parametrage DOSSIER], --initialiser-base,
 --sauvegarder-base DOSSIER, --etat, --reprise ID, --lancer-maintenant ID, --acquitter ID,
 --debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --modele-regle, --lancer-regle ID (une seule regle, planification
 ignoree). Avec --format json, TOUTES les commandes ecrivent un seul objet JSON UTF-8 sur la
@@ -539,6 +539,9 @@ def _arguments(argv=None):
     p.add_argument("--commentaire", help="commentaire trace avec la commande")
     p.add_argument("--syntaxe-seule", action="store_true",
                    help="avec --verifier : controles du fichier seul, sans acceder aux dossiers")
+    p.add_argument("--dossier-parametrage", metavar="DOSSIER",
+                   help="avec --verifier : dossier du parametrage (celui de outils.json) quand le fichier verifie "
+                        "est un brouillon place dans un autre dossier")
     p.add_argument("--precedent", metavar="FICHIER",
                    help="avec --verifier : compare avec la version precedente du parametrage (V01 a V04)")
     p.add_argument("--periode-declencheur-sec", type=int, metavar="N",
@@ -569,6 +572,8 @@ def _main(argv=None):
         p.error("--appliquer s'utilise avec --purger")
     if args.precedent and not args.verifier:
         p.error("--precedent s'utilise avec --verifier")
+    if args.dossier_parametrage and not args.verifier:
+        p.error("--dossier-parametrage s'utilise avec --verifier")
     if args.executer_regle and args.execution_id is None:
         p.error("--executer-regle exige --execution-id")
     if args.dossier_outils is not None and not args.scanner_outils:
@@ -590,7 +595,7 @@ def _main(argv=None):
         return _scanner_outils(args)
     if args.migrer_ancien:
         return _migrer_ancien(args)
-    parametrage, rapport = verifier_fichier(args.config, args.periode_declencheur_sec)
+    parametrage, rapport = verifier_fichier(args.config, args.periode_declencheur_sec, args.dossier_parametrage)
     if args.verifier:
         return _verifier(args, parametrage, rapport)
     if not rapport.ok:

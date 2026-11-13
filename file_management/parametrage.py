@@ -221,6 +221,7 @@ class Parametrage(object):
         self.chemin = chemin
         self.entete = None
         self.regles = []
+        self.dossier_index = None        # dossier de outils.json si ce n'est pas celui du fichier (brouillon verifie)
 
 
 # --------------------------------------------------------------------------- #
@@ -466,6 +467,10 @@ def _lire_selection(objet, ligne, regle, rapport):
     lecteur = Lecteur(objet, rapport, ligne, regle.id, "selection")
     s.masque = lecteur.valeur("masque", "texte", "*")
     s.exclure = lecteur.valeur("exclure", "texte", "")
+    for champ, valeur in (("masque", s.masque), ("exclure", s.exclure)):
+        if "," in valeur:
+            lecteur.signaler("R19", "%s : la virgule n'est pas un separateur (elle fait partie du nom) ; pour plusieurs "
+                             "fichiers ou motifs, les separer par un point-virgule (exemple : file1.txt;file2.txt)" % champ)
     s.recursif = lecteur.valeur("recursif", "booleen", False)
     depuis = lecteur.valeur("modifie_depuis", "texte", "TOUT").strip().upper()
     if RE_MODIFIE_DEPUIS.match(depuis):

@@ -111,7 +111,7 @@ Case à cocher de la règle (modes `copie` et `archivage`). Le nom reçoit la ma
 
 | Champ | Type | Défaut | Description |
 |---|---|---|---|
-| `masque` | texte | `*` | Un ou plusieurs motifs séparés par `;` (`FACT_*.xml;FACT_*.pdf`) |
+| `masque` | texte | `*` | Un ou plusieurs motifs séparés par `;` (`FACT_*.xml;FACT_*.pdf`, ou des noms exacts : `file1.txt;file2.txt;file3.txt`) ; la virgule n'est **pas** un séparateur (avertissement **R19**) |
 | `exclure` | texte | `""` | Motifs à exclure, même syntaxe |
 | `recursif` | booléen | `false` | Parcourt les sous-dossiers et reproduit l'arborescence |
 | `modifie_depuis` | texte | `TOUT` | `TOUT`, `J` (depuis aujourd'hui 00h00), `J-N` (depuis il y a N jours, 00h00). Heure locale du serveur d'exécution |
@@ -338,6 +338,7 @@ Ces contrôles sont réalisés **par le moteur** (`file_management.py --verifier
 | R16 | avert. | Champ sans effet pour le mode : `cible` avec `suppression` / `count` / `size`, seuils avec un autre mode, `horodater` avec un mode autre que `copie` / `archivage`, `temoin_cible` avec un mode sans cible, champs de fichiers avec `synchro` (y compris `fichier_declencheur` et `temoin_cible`) |
 | R17 | refus | Mode `synchro` : `source`, `cible`, `archive` ou `dossier_temporaire` renseigné |
 | R18 | avert. | Mode `synchro` : programme `apres_fichier` ou `apres_lot` déclaré, jamais exécuté |
+| R19 | avert. | `selection.masque` ou `selection.exclure` contient une virgule : le séparateur est le point-virgule (`file1.txt;file2.txt`), la virgule ferait partie du nom |
 | S01 | info | Environnement suspendu (`suspendu` = `true`) : aucune règle n'est lancée |
 | R13 | refus | `retention_archive_jours` sans mode `archivage`, ou avec une archive sans date (`{AAAA}` absent) : la date du dossier est la seule date d'archivage fiable (un déplacement conserve la date de modification d'origine) |
 | R09 | avert. | `duree_max_sec` inférieure à la somme des attentes prévues dans `situations` |

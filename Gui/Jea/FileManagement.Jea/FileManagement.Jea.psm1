@@ -17,6 +17,7 @@ $Script:Types = @{
     utilisateur = '^[^\x00-\x1F]{1,256}$'
     texte       = '^[^\x00-\x08\x0B\x0C\x0E-\x1F]{1,2000}$'  # commentaire (retours à la ligne permis)
     chemin      = '^[^\x00-\x1F<>|?*]{1,520}$'
+    dossierparam = '^[^\x00-\x1F<>|?*]{1,520}$'               # le dossier de paramétrage lui-même (index des outils d'un brouillon), jamais un autre
     cheminlibre = '^[^\x00-\x1F<>|?*]{1,520}$'                # chemin choisi par l'administrateur (dossier des outils) : non limité au dossier de paramétrage
 }
 
@@ -24,7 +25,7 @@ $Script:Types = @{
 # paramétrage, options permises (nom -> type de valeur, ou 'interrupteur').
 $Script:Grammaire = @{
     '--etat'               = @{ Droit = 'lecture'; Valeur = ''; Fichier = $true; Options = @{ '--regle' = 'id' } }
-    '--verifier'           = @{ Droit = 'lecture'; Valeur = ''; Fichier = $true; Options = @{ '--syntaxe-seule' = 'interrupteur'; '--precedent' = 'chemin' } }
+    '--verifier'           = @{ Droit = 'lecture'; Valeur = ''; Fichier = $true; Options = @{ '--syntaxe-seule' = 'interrupteur'; '--precedent' = 'chemin'; '--dossier-parametrage' = 'dossierparam' } }
     '--modele-regle'       = @{ Droit = 'lecture'; Valeur = ''; Fichier = $false; Options = @{} }
     # Parcourt un dossier choisi par l'administrateur (hors dossier de paramétrage) : droit d'écriture, donc compte tracé.
     '--scanner-outils'     = @{ Droit = 'ecriture'; Valeur = ''; Fichier = $false; Options = @{ '--dossier-outils' = 'cheminlibre'; '--utilisateur' = 'utilisateur' } }
@@ -143,6 +144,10 @@ function ConvertTo-CopieJeaLigne {
         if ($nom -eq '--utilisateur') { $aUtilisateur = $true; $valeur = $(if ($Utilisateur) { $Utilisateur } else { $valeur }) }
         if ($valeur -notmatch $Script:Types[$type]) { return (& $refus ("valeur incorrecte pour {0}" -f $nom)) }
         if ($type -eq 'chemin' -and -not (Test-CopieJeaChemin -Chemin $valeur -Dossier $Config.DossierParametrage)) { return (& $refus ('fichier hors du dossier autorisé : {0}' -f $nom)) }
+        if ($type -eq 'dossierparam') {
+            try { $egal = [System.IO.Path]::GetFullPath($valeur).TrimEnd('\') -ieq [System.IO.Path]::GetFullPath($Config.DossierParametrage).TrimEnd('\') } catch { $egal = $false }
+            if (-not $egal) { return (& $refus ('dossier hors du dossier autorisé : {0}' -f $nom)) }
+        }
         $lignes.Add($nom + '=' + $valeur)
         $i += 2
     }

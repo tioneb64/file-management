@@ -38,6 +38,7 @@ CODES = {
     "R16": (AVERTISSEMENT, "champ sans effet pour ce mode"),
     "R17": (REFUS, "mode synchro : aucun dossier (source, cible, archive, dossier_temporaire)"),
     "R18": (AVERTISSEMENT, "mode synchro : programme apres_fichier / apres_lot jamais execute"),
+    "R19": (AVERTISSEMENT, "masque ou exclusion avec une virgule : le separateur est le point-virgule"),
     "S01": (INFORMATION, "environnement suspendu : aucune regle n'est lancee"),
     "P01": (REFUS, "planification invalide"),
     "P02": (AVERTISSEMENT, "frequence inferieure a la periode du declencheur"),

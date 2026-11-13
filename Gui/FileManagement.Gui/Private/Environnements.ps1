@@ -256,7 +256,8 @@ function Confirm-CopieBrouillonEnvironnement {
     $null = New-Item -ItemType Directory -Path $brouillons -Force
     [System.IO.File]::WriteAllText($brouillon, (($lignes -join "`n") + "`n"), $utf8)
     $reponse = Invoke-CopieMoteur -Config $Config -Fichier $brouillon -Argument @(
-        '--verifier', '--syntaxe-seule', '--periode-declencheur-sec', "$($Config.Parametrage.PeriodeDeclencheurSec)")
+        '--verifier', '--syntaxe-seule', '--dossier-parametrage', $Dossier,
+        '--periode-declencheur-sec', "$($Config.Parametrage.PeriodeDeclencheurSec)")
     $sortie = @{ Ok = $false; Resultat = $null; Brouillon = $brouillon; Dossier = $brouillons; Avertissements = @() }
     if ($null -eq $reponse.Json) {
         $sortie.Resultat = New-CopieResultatEnvironnement -Ok $false -Etape 'moteur' -Message ('Vérification impossible : ' + $reponse.Erreur)

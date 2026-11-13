@@ -228,10 +228,12 @@ def _controler_doublons(regles, par_id, rapport):
                                      regle=b.id, ligne=b.ligne)
 
 
-def verifier_fichier(chemin, periode_declencheur_sec=None):
-    """Lecture + controles croises : renvoie (Parametrage ou None, Rapport)."""
+def verifier_fichier(chemin, periode_declencheur_sec=None, dossier_parametrage=None):
+    """Lecture + controles croises : renvoie (Parametrage ou None, Rapport). `dossier_parametrage` : dossier
+    de outils.json quand le fichier verifie est un brouillon place ailleurs que dans le dossier de parametrage."""
     rapport = Rapport()
     p, rapport = charger(chemin, rapport)
     if p is not None:
+        p.dossier_index = dossier_parametrage
         controler_regles(p, rapport, periode_declencheur_sec)
     return p, rapport
