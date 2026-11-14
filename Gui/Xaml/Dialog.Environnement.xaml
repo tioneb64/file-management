@@ -86,9 +86,10 @@
       <TextBox Grid.Row="11" Grid.Column="1" x:Name="MargeEspaceMo" Margin="0,0,0,8"/>
       <TextBlock Grid.Row="11" Grid.Column="2" Text="vide : 64" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>
       <TextBlock Grid.Row="12" Grid.Column="0" Text="Suspension" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
-      <CheckBox Grid.Row="12" Grid.Column="1" x:Name="Suspendu" Margin="0,0,0,8" VerticalAlignment="Center"
-                Content="Suspendre l'environnement : aucune règle n'est lancée (maintenance)"
-                ToolTip="Les lancements planifiés, manuels et les reprises sont ignorés tant que la case est cochée ; les exécutions déjà en cours ne sont pas interrompues. Le code retour reste 0 : Jenkins ne passe pas au rouge."/>
+      <CheckBox Grid.Row="12" Grid.Column="1" Grid.ColumnSpan="2" x:Name="Suspendu" Margin="0,0,0,8" VerticalAlignment="Center"
+                ToolTip="Les lancements planifiés, manuels et les reprises sont ignorés tant que la case est cochée ; les exécutions déjà en cours ne sont pas interrompues. Le code retour reste 0 : Jenkins ne passe pas au rouge.">
+        <TextBlock TextWrapping="Wrap" Text="Suspendre l'environnement : aucune règle n'est lancée (maintenance)"/>
+      </CheckBox>
       <TextBlock Grid.Row="13" Grid.Column="0" Text="Motif de la suspension" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,8"/>
       <TextBox Grid.Row="13" Grid.Column="1" x:Name="MotifSuspension" Margin="0,0,0,8"/>
       <TextBlock Grid.Row="13" Grid.Column="2" Text="facultatif, écrit au journal" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,8"/>

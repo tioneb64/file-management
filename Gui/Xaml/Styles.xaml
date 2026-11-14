@@ -82,8 +82,21 @@
     <Setter Property="AlternatingRowBackground" Value="#F7F9FC"/>
     <Setter Property="Background" Value="White"/>
     <Setter Property="BorderBrush" Value="#D5DCE5"/>
-    <Setter Property="RowHeight" Value="26"/>
+    <!-- Hauteur minimale, pas fixe : une cellule qui passe à la ligne agrandit sa ligne au lieu d'être coupée. -->
+    <Setter Property="MinRowHeight" Value="26"/>
     <Setter Property="SelectionMode" Value="Single"/>
+  </Style>
+  <!-- Cellules de texte des DataGridTextColumn (ElementStyle) : une seule ligne avec points de suspension et info-bulle
+       (grille principale, lignes de hauteur constante), ou passage à la ligne (listes courtes, la ligne s'agrandit). -->
+  <Style x:Key="CelluleEllipse" TargetType="TextBlock">
+    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style x:Key="CelluleRetour" TargetType="TextBlock">
+    <Setter Property="TextWrapping" Value="Wrap"/>
+    <Setter Property="Margin" Value="0,2"/>
+    <Setter Property="VerticalAlignment" Value="Top"/>
   </Style>
   <Style TargetType="DataGridColumnHeader">
     <Setter Property="Background" Value="#EEF2F7"/>

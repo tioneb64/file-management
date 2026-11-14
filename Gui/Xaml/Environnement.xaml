@@ -126,10 +126,10 @@
       </DataGrid.CellStyle>
       <DataGrid.Columns>
         <DataGridTextColumn Header="Règle" Binding="{Binding Id}" Width="190"/>
-        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="200"/>
+        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="200" ElementStyle="{StaticResource CelluleEllipse}"/>
         <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="95"/>
-        <DataGridTextColumn Header="Source → cible" Binding="{Binding Chemins}" Width="*"/>
-        <DataGridTextColumn Header="Planification" Binding="{Binding Planification}" Width="230"/>
+        <DataGridTextColumn Header="Source → cible" Binding="{Binding Chemins}" Width="*" ElementStyle="{StaticResource CelluleEllipse}"/>
+        <DataGridTextColumn Header="Planification" Binding="{Binding Planification}" Width="230" ElementStyle="{StaticResource CelluleEllipse}"/>
         <DataGridTextColumn Header="Active" Binding="{Binding Actif}" Width="60"/>
         <DataGridTemplateColumn Header="Statut" Width="120">
           <DataGridTemplateColumn.CellTemplate>

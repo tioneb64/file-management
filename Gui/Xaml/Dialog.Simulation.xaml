@@ -19,25 +19,25 @@
     <TextBlock x:Name="Resume" DockPanel.Dock="Top" FontSize="15" FontWeight="SemiBold" Foreground="#1F3A5F" TextWrapping="Wrap" Margin="0,0,0,6"/>
     <TextBlock x:Name="Remarques" DockPanel.Dock="Top" Foreground="#6B4A00" TextWrapping="Wrap" Margin="0,0,0,8"/>
     <TextBlock DockPanel.Dock="Top" Text="Contrôles des répertoires" Style="{StaticResource FieldLabel}" Margin="0,0,0,4"/>
-    <DataGrid x:Name="GrilleControles" DockPanel.Dock="Top" Height="150" Margin="0,0,0,10">
+    <DataGrid x:Name="GrilleControles" DockPanel.Dock="Top" Height="230" Margin="0,0,0,10">
       <DataGrid.Columns>
         <DataGridTextColumn Header="Répertoire" Binding="{Binding Role}" Width="150"/>
-        <DataGridTextColumn Header="Chemin" Binding="{Binding Chemin}" Width="2*"/>
+        <DataGridTextColumn Header="Chemin" Binding="{Binding Chemin}" Width="2*" ElementStyle="{StaticResource CelluleRetour}"/>
         <DataGridTextColumn Header="Existe" Binding="{Binding Existe}" Width="60"/>
         <DataGridTextColumn Header="Lecture" Binding="{Binding Lecture}" Width="65"/>
-        <DataGridTextColumn Header="Écriture" Binding="{Binding Ecriture}" Width="150"/>
-        <DataGridTextColumn Header="Espace disque" Binding="{Binding Espace}" Width="230"/>
+        <DataGridTextColumn Header="Écriture" Binding="{Binding Ecriture}" Width="150" ElementStyle="{StaticResource CelluleRetour}"/>
+        <DataGridTextColumn Header="Espace disque" Binding="{Binding Espace}" Width="230" ElementStyle="{StaticResource CelluleRetour}"/>
         <DataGridTextColumn Header="Verdict" Binding="{Binding Verdict}" Width="80"/>
-        <DataGridTextColumn Header="Remarque" Binding="{Binding Remarque}" Width="*"/>
+        <DataGridTextColumn Header="Remarque" Binding="{Binding Remarque}" Width="*" ElementStyle="{StaticResource CelluleRetour}"/>
       </DataGrid.Columns>
     </DataGrid>
     <TextBlock DockPanel.Dock="Top" Text="Fichiers concernés" Style="{StaticResource FieldLabel}" Margin="0,0,0,4"/>
     <DataGrid x:Name="Grille">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Fichier source" Binding="{Binding Fichier}" Width="2*"/>
-        <DataGridTextColumn Header="Destination" Binding="{Binding Cible}" Width="2*"/>
+        <DataGridTextColumn Header="Fichier source" Binding="{Binding Fichier}" Width="2*" ElementStyle="{StaticResource CelluleRetour}"/>
+        <DataGridTextColumn Header="Destination" Binding="{Binding Cible}" Width="2*" ElementStyle="{StaticResource CelluleRetour}"/>
         <DataGridTextColumn Header="Taille" Binding="{Binding Taille}" Width="90"/>
-        <DataGridTextColumn Header="Archive" Binding="{Binding Archive}" Width="*"/>
+        <DataGridTextColumn Header="Archive" Binding="{Binding Archive}" Width="*" ElementStyle="{StaticResource CelluleRetour}"/>
       </DataGrid.Columns>
     </DataGrid>
   </DockPanel>
