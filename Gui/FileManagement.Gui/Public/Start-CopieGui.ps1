@@ -31,6 +31,11 @@
         Bloc appelé avec la question quand, en mode Local, Python ou le dossier du moteur configurés n'existent pas et
         que d'autres ont été trouvés (tests). Par défaut : une fenêtre Oui / Non.
 
+    .PARAMETER ConfirmerCreationJournal
+        Bloc appelé avec la question quand Journal.Dossier est renseigné mais n'existe pas (tests). Par défaut : une fenêtre
+        Oui / Non. Un dossier de journal absent n'est jamais créé sans accord ; refusé, le journal fichier est désactivé
+        pour la session.
+
     .EXAMPLE
         Start-CopieGui -DossierParametrage D:\Parametrage -Config .\Gestion-Copie.config.psd1
     #>
@@ -41,7 +46,8 @@
         [switch] $SansAffichage,
         [string[]] $GroupeUtilisateur,
         [scriptblock] $ConfirmerCreationDossier,
-        [scriptblock] $ConfirmerMoteurLocal
+        [scriptblock] $ConfirmerMoteurLocal,
+        [scriptblock] $ConfirmerCreationJournal
     )
 
     $configuration = Get-CopieConfig -Chemin $Config
@@ -67,11 +73,19 @@
             [System.Windows.MessageBox]::Show($question, 'Moteur de copie', 'YesNo', 'Question', 'Yes') -eq [System.Windows.MessageBoxResult]::Yes
         }
     }
+    if ($null -eq $ConfirmerCreationJournal) {
+        $ConfirmerCreationJournal = {
+            param($question)
+            Add-Type -AssemblyName PresentationFramework
+            [System.Windows.MessageBox]::Show($question, 'Journal de l''interface', 'YesNo', 'Question', 'No') -eq [System.Windows.MessageBoxResult]::Yes
+        }
+    }
     $moteurLocal = Resolve-CopieMoteurLocal -Config $configuration -Confirmer $ConfirmerMoteurLocal
     if (-not $moteurLocal.Ok -and -not $SansAffichage) {
         Add-Type -AssemblyName PresentationFramework
         [void][System.Windows.MessageBox]::Show(($moteurLocal.Message + "`n`nL'interface s'ouvre, mais aucune action qui passe par le moteur ne fonctionnera."), 'Moteur de copie', 'OK', 'Warning')
     }
+    $journalFichier = Resolve-CopieDossierJournal -Config $configuration -Confirmer $ConfirmerCreationJournal
     $dossier = Resolve-CopieDossierParametrage -Chemin $DossierParametrage -Profil $profil -GroupeAdmin $configuration.Acces.GroupesAdmin -Confirmer $ConfirmerCreationDossier
     if ($null -eq $dossier) { return }       # création refusée : rien à ouvrir
 
@@ -114,6 +128,7 @@
     $fenetre.FindName('BtnRefresh').Add_Click({ Update-CopieEnvironnements })
     $fenetre.FindName('BtnLogClear').Add_Click({ $Script:Session.Contexte.LogBox.Document.Blocks.Clear() })
 
+    if ($journalFichier.Message) { Write-CopieJournal -Contexte $ctx -Niveau 'WARNING' -Evenement 'journal_desactive' -Message $journalFichier.Message }
     Write-CopieJournal -Contexte $ctx -Evenement 'ouverture' -Message ('Ouverture par {0} : profil {1}, dossier {2}' -f $utilisateur, $profil, $dossier) `
         -Donnees @{ profil = $profil; dossier = $dossier }
     Update-CopieEnvironnements

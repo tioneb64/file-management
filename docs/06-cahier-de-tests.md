@@ -765,6 +765,7 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10F-A18 | **Création d'environnement** (moteur réel) : question refusée = fichier créé, base non créée, résultat explicite ; question acceptée = base créée dans le dossier créé | OK | |
 | J10F-A19 | **JEA** : `Invoke-CopieDossiersJea` contrôle en lecture, refuse la création hors groupe administrateur, refuse un fichier hors du dossier de paramétrage, crée pour un administrateur | OK | |
 | J10F-A20 | **Détection du moteur** : configuration correcte = aucune question ; chemins d'exemple = une question, correction pour la session ; refus = configuration inchangée et message ; rien trouvé = message sans question ; mode Distant ignoré | OK | |
+| J10F-A21 | `Garde.Tests.ps1` | **Dossier du journal de l'interface** : sans `Journal.Dossier` rien n'est demandé ; dossier existant = aucune question ; absent + accord = une seule question et dossier créé ; absent + refus, chemin qui désigne un fichier, chemin relatif ou création impossible = journal fichier désactivé avec la raison, rien de créé ; `Write-CopieJournal` ne crée jamais le dossier (panne signalée une fois) | OK | |
 
 ### 19.2 Tests manuels sur le serveur
 
@@ -780,6 +781,7 @@ Testé le 2026-11-11 sur Windows 10, Windows PowerShell 5.1, Pester 5.9.1 : 155 
 | J10F-M09 | **Dossiers d'un environnement** | Créer « preprod » avec une base, un dossier de journaux et un dossier de travail qui n'existent pas ; répondre Non, puis recommencer avec Oui | Une seule question qui nomme les trois dossiers ; Non : fichier créé, base non créée, message ; Oui : dossiers et base créés, lignes `dossier_cree` dans le journal de l'interface | |
 | J10F-M10 | **Python introuvable** | Lancer avec la configuration modèle (chemins d'exemple) sur un poste où Python est dans le PATH | Une question propose Python et le dépôt trouvés ; Oui : tout fonctionne pour la session ; le fichier de configuration est inchangé | |
 | J10F-M11 | **Dossiers par JEA** | Créer un environnement avec `ConfigurationJea`, dossiers absents, avec puis sans le groupe administrateur | Administrateur : question puis création avec le compte de service ; autre : création refusée, message clair | |
+| J10F-M12 | **Dossier du journal absent** | Renseigner `Journal.Dossier` avec un dossier qui n'existe pas, lancer l'interface ; répondre Non, relancer, répondre Oui | Une seule question avec le chemin ; Non : la barre d'état indique « journal fichier désactivé » et le panneau du bas dit pourquoi, rien n'est créé ; Oui : dossier créé, un fichier `GestionCopie_AAAA-MM-JJ.jsonl` apparaît | |
 | J10F-M08 | **Simulation par JEA** | Même simulation avec `ConfigurationJea` | Résultat identique ; la commande n'est pas refusée ; `--lancer-regle` sans `--simulation` refusé | |
 
 ## 19 bis. Jalon J10, étape G — Racines, modes `suppression` / `count` / `size`, filtres (2026-11-11)

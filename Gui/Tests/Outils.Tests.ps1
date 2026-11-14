@@ -271,6 +271,7 @@ Describe 'Scan des outils par le moteur' -Skip:(-not ($Script:Sta -and $Script:P
         Ecrire (Join-Path $Script:Outils 'commun\lib.py') "# bibliotheque: Aides communes.`nimport os`n"
         Ecrire (Join-Path $Script:Outils 'casse.py') (EnteteOutil 'Mauvais Nom')
         $Script:DossierJournal = Join-Path $TestDrive ('journal-' + [guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $Script:DossierJournal
         $Script:Cfg.Journal.Dossier = $Script:DossierJournal
         $Script:Fenetre = New-Object System.Windows.Window
         $Script:Ctx = @{ Dossier = $Script:Param; Profil = 'Admin'; Utilisateur = 'DOM\essai'; LogBox = $null; Fenetre = $Script:Fenetre; Config = $Script:Cfg }
@@ -357,7 +358,7 @@ Describe 'Scan des outils par le moteur' -Skip:(-not ($Script:Sta -and $Script:P
             $null = Invoke-CopieScanOutils -Vue $v -Dossier $o
         }
         $avant = [System.IO.File]::ReadAllText((Join-Path $Script:Param 'outils.json'))
-        Remove-Item -LiteralPath $Script:DossierJournal -Recurse -Force
+        Get-ChildItem -LiteralPath $Script:DossierJournal -Force | Remove-Item -Force                 # journal vide (le dossier, lui, doit rester)
         $vide = Join-Path $TestDrive 'vide'; $null = New-Item -ItemType Directory -Path $vide
         $r = InModuleScope FileManagement.Gui -Parameters @{ c = $Script:Ctx; o = $vide } {
             param($c, $o)

@@ -9,6 +9,7 @@
         de la plateforme d'observabilité (timestamp, level, message, trace, service, context ; error pour les
         niveaux ERROR et CRITICAL). Le code d'environnement vient de Journal.Environnement (défaut : prod).
         Une panne d'écriture du fichier n'empêche jamais l'interface de fonctionner : elle est signalée une fois.
+        Le dossier (Journal.Dossier) n'est pas créé ici : voir Resolve-CopieDossierJournal.
 
     .PARAMETER Contexte
         Contexte de la session : Config, Utilisateur, LogBox (RichTextBox ou $null).
@@ -50,7 +51,8 @@
     $dossier = $Contexte.Config.Journal.Dossier
     if (-not $dossier) { return }
     try {
-        if (-not (Test-Path -LiteralPath $dossier)) { $null = New-Item -ItemType Directory -Path $dossier -Force }
+        # le dossier n'est JAMAIS créé ici : Resolve-CopieDossierJournal pose la question au démarrage ;
+        # s'il a disparu depuis, l'écriture échoue et la panne est signalée une fois (ci-dessous)
         if (-not $Contexte.TraceId) {                      # une session de l'interface = une trace
             $Contexte.TraceId = -join (1..32 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
             $Contexte.SpanId = -join (1..16 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })

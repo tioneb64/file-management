@@ -58,6 +58,7 @@ Describe 'Garde-fou de l''interface' {
 Describe 'Journal de l''interface au format de la plateforme d''observabilité' {
     It 'écrit timestamp, level, message, trace, service et context ; error pour ERROR' {
         $dossier = Join-Path $TestDrive 'journal-gui'
+        $null = New-Item -ItemType Directory -Path $dossier
         InModuleScope FileManagement.Gui -Parameters @{ d = $dossier } {
             param($d)
             $ctx = @{ Config = @{ Journal = @{ Dossier = $d; Environnement = 'pprod' } }; Utilisateur = 'DOM\ben'; LogBox = $null }
@@ -89,6 +90,7 @@ Describe 'Journal de l''interface au format de la plateforme d''observabilité' 
     }
     It 'un code d''environnement hors liste retombe sur prod' {
         $dossier = Join-Path $TestDrive 'journal-gui2'
+        $null = New-Item -ItemType Directory -Path $dossier
         InModuleScope FileManagement.Gui -Parameters @{ d = $dossier } {
             param($d)
             Write-CopieJournal -Contexte @{ Config = @{ Journal = @{ Dossier = $d; Environnement = 'production' } }; Utilisateur = 'u'; LogBox = $null } -Message 'x'
@@ -108,6 +110,88 @@ Describe 'Appels de Invoke-CopieEnregistrement' {
     It 'le paramètre IdRegle refuse la chaîne vide : tout appel doit nommer ce qui change' {
         InModuleScope FileManagement.Gui {
             (Get-Command Invoke-CopieEnregistrement).Parameters['IdRegle'].Attributes.Where({ $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory | Should -BeTrue
+        }
+    }
+}
+
+Describe 'Dossier du journal de l''interface : jamais créé en silence' {
+    It 'sans Journal.Dossier : rien à faire, aucune question' {
+        InModuleScope FileManagement.Gui {
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = ''; Environnement = 'test' } }
+            $Script:N = 0
+            $r = Resolve-CopieDossierJournal -Config $c -Confirmer { $Script:N++; $true }
+            $r.Actif | Should -BeFalse
+            $r.Message | Should -BeNullOrEmpty
+            $Script:N | Should -Be 0
+        }
+    }
+    It 'dossier existant : actif, aucune question' {
+        $d = Join-Path $TestDrive 'existe'
+        $null = New-Item -ItemType Directory -Path $d
+        InModuleScope FileManagement.Gui -Parameters @{ d = $d } {
+            param($d)
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = $d; Environnement = 'test' } }
+            $Script:N = 0
+            $r = Resolve-CopieDossierJournal -Config $c -Confirmer { $Script:N++; $true }
+            $r.Actif | Should -BeTrue
+            $r.Cree | Should -BeFalse
+            $Script:N | Should -Be 0
+            $c.Journal.Dossier | Should -Be $d
+        }
+    }
+    It 'dossier absent et accord : une seule question, dossier créé, journal actif' {
+        $d = Join-Path $TestDrive 'absent-oui'
+        InModuleScope FileManagement.Gui -Parameters @{ d = $d } {
+            param($d)
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = $d; Environnement = 'test' } }
+            $Script:Questions = New-Object System.Collections.Generic.List[string]
+            $r = Resolve-CopieDossierJournal -Config $c -Confirmer { param($q) $Script:Questions.Add($q); $true }
+            $Script:Questions.Count | Should -Be 1
+            $Script:Questions[0] | Should -Match 'absent-oui'
+            $r.Actif | Should -BeTrue
+            $r.Cree | Should -BeTrue
+            Test-Path -LiteralPath $d -PathType Container | Should -BeTrue
+        }
+    }
+    It 'dossier absent et refus : rien n''est créé, journal fichier désactivé pour la session, raison donnée' {
+        $d = Join-Path $TestDrive 'absent-non'
+        InModuleScope FileManagement.Gui -Parameters @{ d = $d } {
+            param($d)
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = $d; Environnement = 'test' } }
+            $r = Resolve-CopieDossierJournal -Config $c -Confirmer { $false }
+            $r.Actif | Should -BeFalse
+            $r.Cree | Should -BeFalse
+            $r.Message | Should -Match 'désactivé'
+            $c.Journal.Dossier | Should -BeNullOrEmpty
+            Test-Path -LiteralPath $d | Should -BeFalse
+        }
+    }
+    It 'chemin qui désigne un fichier, chemin relatif, création impossible : journal fichier désactivé avec un message clair' {
+        $f = Join-Path $TestDrive 'un-fichier.txt'
+        Set-Content -LiteralPath $f -Value 'x'
+        InModuleScope FileManagement.Gui -Parameters @{ f = $f } {
+            param($f)
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = $f; Environnement = 'test' } }
+            (Resolve-CopieDossierJournal -Config $c -Confirmer { $true }).Message | Should -Match 'fichier'
+            $c.Journal.Dossier | Should -BeNullOrEmpty
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = 'journaux\gui'; Environnement = 'test' } }
+            (Resolve-CopieDossierJournal -Config $c -Confirmer { $true }).Message | Should -Match 'complet'
+            $c = [pscustomobject]@{ Journal = [pscustomobject]@{ Dossier = (Join-Path $f 'sous-dossier'); Environnement = 'test' } }
+            $r = Resolve-CopieDossierJournal -Config $c -Confirmer { $true }
+            $r.Actif | Should -BeFalse
+            $r.Message | Should -Match 'impossible'
+            $c.Journal.Dossier | Should -BeNullOrEmpty
+        }
+    }
+    It 'Write-CopieJournal ne crée jamais le dossier : la panne est signalée une seule fois' {
+        $d = Join-Path $TestDrive 'disparu'
+        InModuleScope FileManagement.Gui -Parameters @{ d = $d } {
+            param($d)
+            $ctx = @{ Config = @{ Journal = @{ Dossier = $d; Environnement = 'test' } }; Utilisateur = 'u'; LogBox = $null; PanneJournal = $false }
+            Write-CopieJournal -Contexte $ctx -Message 'a'
+            Write-CopieJournal -Contexte $ctx -Message 'b'
+            Test-Path -LiteralPath $d | Should -BeFalse
+            $ctx.PanneJournal | Should -BeTrue
         }
     }
 }

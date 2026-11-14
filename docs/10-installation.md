@@ -138,7 +138,7 @@ L'interface (dossier `Gui\`) tourne sur le serveur d'exécution **ou** sur le po
 | `Moteur.Python`, `Moteur.Racine` | Python 3.14 et dossier du dépôt **sur la machine qui exécute le moteur** (inutiles avec JEA). En mode Local, si l'un des deux est introuvable (par exemple les chemins d'exemple sur un poste de développement), l'interface cherche Python (PATH, lanceur `py`) et le dépôt, et propose de les utiliser **pour la session** ; le fichier n'est pas modifié |
 | `Moteur.ConfigurationJea` | Nom du point d'accès JEA (§8) ; vide : l'appel se fait avec le compte de l'administrateur |
 | `Parametrage.PeriodeDeclencheurSec` | Période du déclencheur Jenkins (300 pour « toutes les 5 minutes ») |
-| `Journal.Dossier` | Dossier du journal de l'interface (vide : pas de fichier) |
+| `Journal.Dossier` | Dossier du journal de l'interface (vide : pas de fichier). Absent au démarrage, l'interface propose de le créer ; refusé, le journal fichier est désactivé pour la session |
 | `Journal.Environnement` | Code d'environnement de la plateforme d'observabilité écrit dans ce journal (`dev`, `build`, `test`, `pprod`, `prod`, `run`, `int`). Défaut : `prod` |
 
 ### 7.3 Lancement
