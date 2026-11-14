@@ -87,6 +87,8 @@
       <Button x:Name="BtnSimuler" Content="Simuler la règle…" Style="{StaticResource BtnPrimary}" Margin="0,0,8,6" IsEnabled="False"
               ToolTip="Montre ce que la règle ferait maintenant (combien de fichiers, de quel répertoire vers quel répertoire), sans rien copier ni déplacer."/>
       <Button x:Name="BtnHistorique" Content="Historique…" Style="{StaticResource Btn}" Margin="0,0,8,6"/>
+      <Button x:Name="BtnJournaux" Content="Journaux…" Style="{StaticResource Btn}" Margin="0,0,8,6" IsEnabled="False"
+              ToolTip="Lit les journaux de la règle choisie (un par jour) : exécutions, avertissements, erreurs et détail de chaque événement, sans ouvrir le fichier JSON."/>
     </WrapPanel>
     </StackPanel>
 

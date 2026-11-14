@@ -872,6 +872,27 @@ Suite complète Python (2026-11-13) : 1182 tests OK, 3 ignorés (selon le poste)
 | BO-M11 | Scan par le point d'accès JEA | Mode distant avec JEA : scanner depuis l'onglet | Scan accepté (commande `--scanner-outils`), index écrit par l'interface ; une autre commande hors grammaire reste refusée | |
 | BO-M06 | Règle réelle avec outils | Dans une règle de recette, appeler `empreinte --generer` en `apres_fichier` et `archive_creer` en `apres_lot` ; ouvrir le journal de la règle | Les lignes des outils sont dans le même fichier que celles de la règle, avec la même trace, le même `execution_id`, `outil` et `point_appel` | |
 
+## 19 quater. Confort de l'interface : ordre de l'historique, journaux d'une règle (2026-11-14)
+
+### Automatiques
+
+| N° | Fichier | Vérifie | État | Date |
+|---|---|---|---|---|
+| J10H-A01 | `Gui/Tests/Analyse.Tests.ps1` | **Historique** : cinq versions écrites dans le désordre, rendues du plus récent au plus ancien ; dates décroissantes ; une fiche à la date fausse (une heure de trop) signalée et affichée avec la date du nom ; chaînage « état d'après » intact | OK | 2026-11-14 |
+| J10H-A02 | `tests/test_journaux.py` | **Moteur, `--journaux-regle`** : liste du plus récent au plus ancien (autre règle, `_orchestrateur` et `export_autre_…` écartés), contenu décomposé, exécutions et simulations regroupées, ancien format à plat, ligne illisible comptée, limite et budget de taille (derniers événements gardés), refus d'un chemin / d'un journal d'une autre règle / d'une option mal associée, journaux réellement écrits par `--lancer-regle` | OK | 2026-11-14 |
+| J10H-A03 | `Gui/Tests/Jea.Tests.ps1` | **JEA** : `--journaux-regle` en lecture, `--journal` limité à `<règle>_<AAAA-MM-JJ>.jsonl` (chemin, mauvaise extension, injection refusés), `--limite-evenements` entier | OK | 2026-11-14 |
+| J10H-A04 | `Gui/Tests/Journaux.Tests.ps1` | **Fenêtre des journaux** : liste (gravité, anomalies), événements (niveau en français, exécutions, simulations), filtres, choix des exécutions, détail décomposé (compteurs développés, tailles, erreur, valeurs vides), résumé ; fenêtre réelle (STA) : dernière exécution ouverte d'office, première anomalie sélectionnée, filtre | OK | 2026-11-14 |
+
+### Manuels
+
+| N° | Ce qu'on essaie | Comment | Résultat attendu |
+|---|---|---|---|
+| J10H-M01 | Ordre de l'historique | « Historique… » sur un environnement modifié plusieurs fois | La modification la plus récente est en haut, les dates descendent ; un clic sur « Date » inverse l'ordre |
+| J10H-M02 | Journaux d'une règle en erreur | Provoquer une erreur (source verrouillée ou absente), puis « Journaux… » sur la règle | Le journal du jour est en haut, ligne rouge ; la dernière exécution est choisie ; la première erreur est sélectionnée et son détail (type d'erreur, fichier) est lisible |
+| J10H-M03 | Journaux d'une règle sans erreur | « Journaux… » sur une règle qui réussit | Une ligne par jour, « aucune » anomalie ; événements « fichier livré… » ; compteurs en clair en fin d'exécution |
+| J10H-M04 | Règle sans journal | « Journaux… » sur une règle jamais lancée | Message « Aucun journal pour la règle … dans … » |
+| J10H-M05 | Mode distant / JEA | Mêmes essais depuis un poste administrateur et un poste lecteur | Mêmes écrans ; aucun accès au dossier des journaux nécessaire côté poste |
+
 ## 20. Jalons suivants
 
 Les sections suivantes seront ajoutées au fur et à mesure du développement, avec la même structure (tests automatiques, tests manuels sur le serveur) :

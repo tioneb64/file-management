@@ -162,6 +162,32 @@ Describe 'Historique des versions' {
         $h[1].AFiche | Should -BeFalse
         $h[1].Apres | Should -Be $h[0].Fichier
     }
+    It 'classe toujours les modifications de la plus récente à la plus ancienne, même avec une fiche à la date fausse' {
+        $dossier = Join-Path $TestDrive 'h2'
+        $versions = Join-Path $dossier 'versions'
+        $null = New-Item -ItemType Directory -Path $versions
+        $fichier = Join-Path $dossier 'prod.jsonl'
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($fichier, '{"version":1,"environnement":"prod"}' + "`n", $utf8)
+        $noms = 'prod_20261111_121040_DOM_ben', 'prod_20261111_123903_DOM_ben', 'prod_20261111_190937_DOM_ben', 'prod_20261112_080000_DOM_ben', 'prod_20261114_013151_DOM_ben'
+        foreach ($n in ($noms | Sort-Object { Get-Random })) {
+            [System.IO.File]::WriteAllText((Join-Path $versions ($n + '.jsonl')), '{"version":1,"environnement":"prod"}' + "`n", $utf8)
+            $local = [datetime]::ParseExact(($n -split '_')[1] + ($n -split '_')[2], 'yyyyMMddHHmmss', [System.Globalization.CultureInfo]::InvariantCulture)
+            $utc = $local.ToUniversalTime()
+            if ($n -like '*121040*') { $utc = $utc.AddHours(1) }            # fiche écrite à la main, une heure trop tard
+            $fiche = [ordered]@{ environnement = 'prod'; compte = 'DOM\ben'; date = $utc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"); commentaire = $n }
+            [System.IO.File]::WriteAllText((Join-Path $versions ($n + '.meta.json')), ($fiche | ConvertTo-Json), $utf8)
+        }
+        $cfg = [pscustomobject]@{ Parametrage = [pscustomobject]@{ DossierVersions = 'versions' } }
+        $h = @(InModuleScope FileManagement.Gui -Parameters @{ f = $fichier; c = $cfg } { param($f, $c) Get-CopieHistorique -Fichier $f -Config $c })
+        $h.Count | Should -Be 5
+        @($h | ForEach-Object { $_.Commentaire }) | Should -Be @($noms | Sort-Object -Descending)
+        for ($i = 0; $i -lt $h.Count - 1; $i++) { $h[$i].Date | Should -BeGreaterThan $h[$i + 1].Date }
+        $h[4].DateIncoherente | Should -BeTrue
+        $h[0].DateIncoherente | Should -BeFalse
+        $h[0].Apres | Should -Be $fichier
+        $h[4].Apres | Should -Be $h[3].Fichier
+    }
     It 'renvoie une liste vide quand il n''y a pas de dossier de versions' {
         $cfg = [pscustomobject]@{ Parametrage = [pscustomobject]@{ DossierVersions = 'versions' } }
         @(InModuleScope FileManagement.Gui -Parameters @{ f = (Join-Path $TestDrive 'rien\prod.jsonl'); c = $cfg } { param($f, $c) Get-CopieHistorique -Fichier $f -Config $c }).Count | Should -Be 0

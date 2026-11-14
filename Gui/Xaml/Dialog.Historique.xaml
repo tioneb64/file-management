@@ -26,7 +26,7 @@
       </Grid.ColumnDefinitions>
       <DataGrid x:Name="Versions" Grid.Column="0">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Date" Binding="{Binding DateTexte}" Width="140"/>
+          <DataGridTextColumn Header="Date" Binding="{Binding DateTexte}" SortMemberPath="Date" SortDirection="Descending" Width="140"/>
           <DataGridTextColumn Header="Compte" Binding="{Binding Compte}" Width="130"/>
           <DataGridTextColumn Header="Commentaire" Binding="{Binding Commentaire}" Width="*"/>
         </DataGrid.Columns>

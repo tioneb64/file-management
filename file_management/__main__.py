@@ -3,7 +3,8 @@
 Sans commande : lancement (les regles dues, en parallele, apres evaluation de leurs dependances).
 Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER] [--dossier-parametrage DOSSIER], --initialiser-base,
 --sauvegarder-base DOSSIER, --etat, --reprise ID, --lancer-maintenant ID, --acquitter ID,
---debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --modele-regle, --lancer-regle ID (une seule regle, planification
+--debloquer ID, --trancher-incertain CLE, --purger [--appliquer], --journaux-regle ID [--journal NOM]
+[--limite-evenements N], --modele-regle, --lancer-regle ID (une seule regle, planification
 ignoree). Avec --format json, TOUTES les commandes ecrivent un seul objet JSON UTF-8 sur la
 sortie standard (contrat : docs/07-contrat-moteur-frontend.md).
 Le lanceur file_management.py (v1) reste en place tant que la v2 n'est pas livree.
@@ -14,7 +15,7 @@ import json
 import os
 import sys
 
-from file_management import __version__, acces, base, lancement, modele, outils, purge
+from file_management import __version__, acces, base, journaux, lancement, modele, outils, purge
 from file_management.controles import verifier_fichier
 from file_management.diagnostic import VERSION_CONTRAT
 
@@ -318,6 +319,22 @@ def _controler_regle(args, parametrage):
                      controles=acces.controler_dossiers_regle(regle, parametrage.entete))
 
 
+def _journaux_regle(args, parametrage):
+    """Journaux d'une regle pour le front-end : sans --journal, la liste des fichiers (un par jour) avec leur
+    resume ; avec --journal, les evenements decomposes de ce fichier. Lecture seule, sans base."""
+    regle = next((r for r in parametrage.regles if r.id and r.id.lower() == args.journaux_regle.lower()), None)
+    if regle is None:
+        return _repondre(args, CODE_CONFIG, "regle inconnue : %s" % args.journaux_regle)
+    try:
+        if args.journal:
+            details = journaux.lire(parametrage, regle.id, args.journal, args.limite_evenements)
+        else:
+            details = journaux.lister(parametrage, regle.id)
+    except journaux.ErreurJournal as e:
+        return _repondre(args, CODE_CONFIG, str(e))
+    return _repondre(args, CODE_OK, "", regle=regle.id, **details)
+
+
 def _creer_dossiers_regle(args, parametrage):
     """Cree les dossiers manquants d'une regle (source, cible, temporaire, archive), a la demande d'un
     administrateur. Seuls les dossiers que les controles jugent creables avec les droits du compte sont crees.
@@ -511,6 +528,9 @@ def _arguments(argv=None):
     commande.add_argument("--controler-regle", metavar="ID",
                           help="controle les dossiers d'une regle (existence, droits de lecture et d'ecriture, "
                                "espace, creation possible) sans lire la base ni rien livrer")
+    commande.add_argument("--journaux-regle", metavar="ID",
+                          help="journaux d'une regle (lecture seule) : la liste des fichiers par jour, ou avec --journal "
+                               "les evenements decomposes d'un fichier")
     commande.add_argument("--creer-dossiers-regle", metavar="ID",
                           help="cree les dossiers cible, temporaire et archive manquants d'une regle "
                                "(jamais la source ; --utilisateur obligatoire)")
@@ -520,6 +540,10 @@ def _arguments(argv=None):
                           help="INTERNE : execution d'une regle par un fils de l'orchestrateur")
     p.add_argument("--execution-id", type=int, metavar="N", help="INTERNE : avec --executer-regle")
     p.add_argument("--dossier-outils", metavar="DOSSIER", help="avec --scanner-outils : dossier des outils")
+    p.add_argument("--journal", metavar="NOM", help="avec --journaux-regle : fichier <regle>_<AAAA-MM-JJ>.jsonl a lire")
+    p.add_argument("--limite-evenements", type=int, metavar="N",
+                   help="avec --journaux-regle --journal : nombre maximal d'evenements rendus (defaut : %d, les derniers)"
+                        % journaux.LIMITE_EVENEMENTS)
     p.add_argument("--environnement", help="avec --migrer-ancien : nom de l'environnement (= nom du fichier)")
     p.add_argument("--base", help="avec --migrer-ancien : chemin de la base SQLite (disque local)")
     p.add_argument("--sortie", help="avec --migrer-ancien : fichier de parametrage a ecrire (defaut : <environnement>.jsonl)")
@@ -561,7 +585,7 @@ def _main(argv=None):
                               or args.reprise or args.lancer_maintenant or args.acquitter or args.debloquer
                               or args.trancher_incertain or args.executer_regle or args.migrer_ancien
                               or args.importer_historique or args.purger or args.modele_regle or args.scanner_outils
-                              or args.creer_dossiers_regle or args.controler_regle)
+                              or args.creer_dossiers_regle or args.controler_regle or args.journaux_regle)
     if args.simulation and not (lancement_ou_regle or args.lancer_regle):
         p.error("--simulation s'utilise avec un lancement ou --lancer-regle")
     if args.simulation_programmes and not args.simulation:
@@ -574,6 +598,10 @@ def _main(argv=None):
         p.error("--precedent s'utilise avec --verifier")
     if args.dossier_parametrage and not args.verifier:
         p.error("--dossier-parametrage s'utilise avec --verifier")
+    if (args.journal or args.limite_evenements is not None) and not args.journaux_regle:
+        p.error("--journal et --limite-evenements s'utilisent avec --journaux-regle")
+    if args.limite_evenements is not None and (args.limite_evenements < 1 or not args.journal):
+        p.error("--limite-evenements doit etre superieur a 0 et s'utilise avec --journal")
     if args.executer_regle and args.execution_id is None:
         p.error("--executer-regle exige --execution-id")
     if args.dossier_outils is not None and not args.scanner_outils:
@@ -617,6 +645,8 @@ def _main(argv=None):
         return _purger(args, parametrage)
     if args.controler_regle:
         return _controler_regle(args, parametrage)
+    if args.journaux_regle:
+        return _journaux_regle(args, parametrage)
     if args.creer_dossiers_regle:
         return _creer_dossiers_regle(args, parametrage)
     if exploitation:

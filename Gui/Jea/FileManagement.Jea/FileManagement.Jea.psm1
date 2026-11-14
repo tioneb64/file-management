@@ -18,6 +18,8 @@ $Script:Types = @{
     texte       = '^[^\x00-\x08\x0B\x0C\x0E-\x1F]{1,2000}$'  # commentaire (retours à la ligne permis)
     chemin      = '^[^\x00-\x1F<>|?*]{1,520}$'
     dossierparam = '^[^\x00-\x1F<>|?*]{1,520}$'               # le dossier de paramétrage lui-même (index des outils d'un brouillon), jamais un autre
+    nomjournal  = '^[A-Za-z0-9_-]{1,80}_\d{4}-\d{2}-\d{2}\.jsonl$'     # nom d'un journal de règle (jamais un chemin)
+    entier      = '^[0-9]{1,6}$'
     cheminlibre = '^[^\x00-\x1F<>|?*]{1,520}$'                # chemin choisi par l'administrateur (dossier des outils) : non limité au dossier de paramétrage
 }
 
@@ -36,6 +38,7 @@ $Script:Grammaire = @{
     '--purger'             = @{ Droit = 'ecriture'; Valeur = ''; Fichier = $true; Options = @{ '--regle' = 'id'; '--appliquer' = 'interrupteur' } }
     '--lancer-regle'       = @{ Droit = 'lecture'; Valeur = 'id'; Fichier = $true; Exige = '--simulation'; Options = @{ '--simulation' = 'interrupteur' } }
     '--controler-regle'    = @{ Droit = 'lecture'; Valeur = 'id'; Fichier = $true; Options = @{} }
+    '--journaux-regle'     = @{ Droit = 'lecture'; Valeur = 'id'; Fichier = $true; Options = @{ '--journal' = 'nomjournal'; '--limite-evenements' = 'entier' } }
     '--creer-dossiers-regle' = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--initialiser-base'   = @{ Droit = 'ecriture'; Valeur = ''; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }
     '--renommer-environnement' = @{ Droit = 'ecriture'; Valeur = 'id'; Fichier = $true; Options = @{ '--utilisateur' = 'utilisateur'; '--commentaire' = 'texte' } }

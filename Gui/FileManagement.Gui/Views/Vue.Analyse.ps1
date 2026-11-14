@@ -125,6 +125,7 @@ function Update-CopieHistoriqueDiff {
     $notes = New-Object System.Collections.Generic.List[string]
     if ($liste.Count -eq 0) { $notes.Add('Aucune différence de contenu (le fichier a été réenregistré tel quel, ou seuls l''ordre ou la mise en forme ont changé).') }
     if ($v.Avertissements.Count -gt 0) { $notes.Add('Avertissements acceptés à l''enregistrement : ' + ($v.Avertissements -join ' ; ')) }
+    if ($v.DateIncoherente) { $notes.Add('La date de la fiche ne concorde pas avec le nom du fichier : la date affichée est celle du nom du fichier.') }
     if (-not $v.AFiche) { $notes.Add('Pas de fiche pour cette version (copiée à la main ?) : compte et date lus dans le nom du fichier, pas de commentaire.') }
     $remarque.Text = ($notes -join "`n")
 }

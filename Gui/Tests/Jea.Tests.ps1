@@ -72,6 +72,21 @@ Describe 'Grammaire du point d''accès' {
         $e.Droit | Should -Be 'ecriture'
         $e.Arguments | Should -Contain '--utilisateur=DOM\ben'
     }
+    It 'accepte la lecture des journaux d''une règle (liste, puis un fichier) et refuse tout chemin' {
+        $l = & $Script:Ligne @('--journaux-regle', 'r1') $Script:Fichier ''
+        $l.Erreur | Should -Be ''
+        $l.Droit | Should -Be 'lecture'
+        $l.Arguments | Should -Contain '--journaux-regle=r1'
+        $j = & $Script:Ligne @('--journaux-regle', 'r1', '--journal', 'r1_2026-11-14.jsonl', '--limite-evenements', '500') $Script:Fichier ''
+        $j.Erreur | Should -Be ''
+        $j.Arguments | Should -Contain '--journal=r1_2026-11-14.jsonl'
+        $j.Arguments | Should -Contain '--limite-evenements=500'
+        foreach ($mauvais in '..\r1_2026-11-14.jsonl', 'D:\logs\r1_2026-11-14.jsonl', 'r1_2026-11-14.txt', 'r1.jsonl', 'r1_2026-11-14.jsonl;calc') {
+            (& $Script:Ligne @('--journaux-regle', 'r1', '--journal', $mauvais) $Script:Fichier '').Erreur | Should -Match 'valeur incorrecte' -Because $mauvais
+        }
+        (& $Script:Ligne @('--journaux-regle', 'r1', '--limite-evenements', 'abc') $Script:Fichier '').Erreur | Should -Match 'valeur incorrecte'
+        (& $Script:Ligne @('--journaux-regle', 'r1', '--appliquer') $Script:Fichier '').Erreur | Should -Match 'non permise'
+    }
     It '--modele-regle n''a pas besoin de fichier' {
         $l = & $Script:Ligne @('--modele-regle') '' ''
         $l.Erreur | Should -Be ''

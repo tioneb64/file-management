@@ -121,6 +121,7 @@ function Update-CopieBoutons {
     $Vue.Verifier.IsEnabled = (-not $occupe)
     $Vue.Actualiser.IsEnabled = (-not $occupe)
     $Vue.Simuler.IsEnabled = ($lisible -and $choisie -and -not $occupe)
+    $Vue.Journaux.IsEnabled = ($lisible -and $choisie -and -not $occupe)
     Update-CopieBarreEnvironnements
 }
 

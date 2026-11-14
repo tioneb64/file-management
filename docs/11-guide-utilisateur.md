@@ -75,6 +75,7 @@ Couleurs : ligne **grise** = règle inactive ; ligne **rouge** = dernière exéc
 | Purger… | Administrateurs | Purge des journaux et archives (§6.6) |
 | Promouvoir… | Administrateurs | Copier une règle vers un autre environnement (§9) |
 | Historique… | Tous (si le dossier des versions est lisible) | Modifications passées, restauration (§10) |
+| Journaux… | Tous (règle sélectionnée) | Lire les journaux de la règle, jour par jour, sans ouvrir le JSON (§10 bis) |
 | Simuler la règle… | Tous (règle sélectionnée) | Ce que la règle ferait maintenant, avec contrôle des répertoires (§14) |
 | Nouvel environnement…, Modifier / renommer…, Copier vers un nouvel environnement…, Créer la base…, Supprimer… | Administrateurs (barre « Environnements », au-dessus des onglets) | Gestion des environnements (§13) |
 
@@ -201,9 +202,13 @@ Il faut être administrateur et pouvoir modifier l'environnement cible.
 
 ## 10. Historique et restauration
 
-**Historique…** liste les modifications faites par l'interface : date, compte, commentaire. Sélectionnez une ligne : la partie droite affiche **ce que cette modification a changé** (règle ajoutée, supprimée, modifiée champ par champ, en-tête), les avertissements acceptés à l'époque, et signale une version sans fiche (copiée à la main : compte et date lus dans le nom du fichier).
+**Historique…** liste les modifications faites par l'interface, **de la plus récente à la plus ancienne** : date, compte, commentaire. Sélectionnez une ligne : la partie droite affiche **ce que cette modification a changé** (règle ajoutée, supprimée, modifiée champ par champ, en-tête), les avertissements acceptés à l'époque, et signale une version sans fiche (copiée à la main : compte et date lus dans le nom du fichier).
 
 Pour **revenir en arrière** (administrateurs) : choisissez la modification à défaire puis **Revenir à l'état d'avant cette modification…**. L'interface indique le nombre de différences avec le fichier actuel : **les modifications faites depuis seront annulées**. Après confirmation, le commentaire est demandé et l'enregistrement suit le §5.2 (le moteur peut avertir qu'une règle disparaît : c'est normal). **Rien n'est effacé** : l'état avant restauration est lui-même conservé, la restauration est une ligne de l'historique et peut être défaite de la même façon.
+
+## 10 bis. Lire les journaux d'une règle
+
+**Journaux…** (à côté de « Simuler la règle… » et « Historique… ») ouvre les journaux de la règle sélectionnée, qu'elle soit en erreur ou non. À **gauche**, un journal par jour, le plus récent en premier : date, dernier statut, nombre d'erreurs et d'avertissements (ligne rouge ou orange s'il y en a). À **droite**, le contenu du journal choisi : l'exécution la plus récente est affichée d'office ; la liste déroulante permet de choisir une autre exécution (ou « Toutes ») et la case « Avertissements et erreurs seulement » ne garde que ce qui demande de l'attention. Cliquez sur une ligne : en bas, le **détail** est écrit en clair (heure, niveau, message, durée, fichier, destination, taille, compteurs, type d'erreur…). « Copier le détail » le met dans le presse-papiers pour un message ou un ticket. Les lignes « Simulation n » viennent de « Simuler la règle… ». Seuls les 1 500 derniers événements d'un journal très long sont lus ; le fichier complet reste dans le dossier des journaux de l'environnement.
 
 ## 11. Le journal de l'interface
 

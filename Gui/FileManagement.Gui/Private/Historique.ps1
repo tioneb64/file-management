@@ -34,6 +34,7 @@
         if (-not $m.Success) { continue }
         $date = [datetime]::MinValue
         $null = [datetime]::TryParseExact($m.Groups[1].Value + $m.Groups[2].Value, 'yyyyMMddHHmmss', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::None, [ref]$date)
+        $dateIncoherente = $false
         $compte = $m.Groups[3].Value
         $commentaire = ''
         $avertissements = @()
@@ -47,17 +48,25 @@
                 if ($meta.commentaire) { $commentaire = "$($meta.commentaire)" }
                 if ($meta.avertissements) { $avertissements = @($meta.avertissements | ForEach-Object { "$_" }) }
                 $utc = [datetime]::MinValue
-                if ($meta.date -and [datetime]::TryParse("$($meta.date)", [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$utc)) { $date = $utc.ToLocalTime() }
+                if ($meta.date -and [datetime]::TryParse("$($meta.date)", [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$utc)) {
+                    # La date de la fiche (UTC) sert à l'affichage tant qu'elle concorde avec le nom du fichier ; une fiche
+                    # écrite à la main avec une date fausse ne doit pas faire apparaître l'historique dans le désordre.
+                    if ($date -eq [datetime]::MinValue -or [math]::Abs(($utc.ToLocalTime() - $date).TotalMinutes) -le 5) { $date = $utc.ToLocalTime() }
+                    else { $dateIncoherente = $true }
+                }
             }
             catch { $commentaire = '(fiche illisible)' }
         }
         $versions.Add([pscustomobject]@{ PSTypeName = 'Copie.Version'; Fichier = $f.FullName; Apres = $null; Date = $date; Compte = $compte
-                Commentaire = $commentaire; Avertissements = $avertissements; AFiche = $afiche; Cle = $f.Name })
+                Commentaire = $commentaire; Avertissements = $avertissements; AFiche = $afiche; DateIncoherente = $dateIncoherente; Cle = $f.Name })
     }
-    $tries = @($versions | Sort-Object Cle)
-    for ($i = 0; $i -lt $tries.Count; $i++) { $tries[$i].Apres = $(if ($i -lt $tries.Count - 1) { $tries[$i + 1].Fichier } else { $Fichier }) }
-    $tries = @($tries | Sort-Object Cle -Descending)
-    $tries
+    # Ordre chronologique (le nom du fichier commence par l'horodatage : comparaison ordinale, sans règle de langue).
+    $liste = $versions.ToArray()
+    [array]::Sort($liste, [System.Comparison[object]] { param($a, $b) [string]::CompareOrdinal($a.Cle, $b.Cle) })
+    for ($i = 0; $i -lt $liste.Count; $i++) { $liste[$i].Apres = $(if ($i -lt $liste.Count - 1) { $liste[$i + 1].Fichier } else { $Fichier }) }
+    # Résultat : les plus récentes en premier.
+    [array]::Reverse($liste)
+    $liste
 }
 
 function Get-CopieFeuille {

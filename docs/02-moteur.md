@@ -14,6 +14,7 @@ python file_management.py --config D:\Parametrage\production.jsonl [options]
 | `--regle ID` (répétable) | Limite le lancement aux règles indiquées |
 | `--simulation` | Affiche ce qui serait fait : aucune copie, aucune écriture en base (ouverte en lecture seule), planification ignorée, programmes non appelés (sauf `--simulation-programmes`, qui leur transmet `COPIE_SIMULATION=1`) |
 | `--verifier [--syntaxe-seule] [--precedent FICHIER] [--dossier-parametrage DOSSIER] [--periode-declencheur-sec N]` | Validation du paramétrage et des accès (A01 à A07, avec le compte qui exécute la commande), comparaison avec la version précédente (V01 à V04). Voir le §7 de [01-parametrage](01-parametrage.md). `--periode-declencheur-sec` permet le contrôle P02 |
+| `--journaux-regle ID [--journal NOM] [--limite-evenements N]` | **Lecture seule** des journaux d'une règle pour le front-end (sans base). Sans `--journal` : les fichiers `<ID>_<AAAA-MM-JJ>.jsonl` du dossier de journaux (45 plus récents), avec leur résumé. Avec `--journal NOM` : les événements décomposés du fichier (voir §11.2 et [07](07-contrat-moteur-frontend.md)) |
 | `--initialiser-base` | Crée la base d'un nouvel environnement. **La base n'est jamais créée automatiquement** |
 | `--etat [--regle ID] [--format json]` | État des règles (lecture de la base) |
 | `--reprise ID --utilisateur U [--commentaire C]` | Pose le flag de reprise (§10) |
@@ -386,6 +387,7 @@ Le journal suit le **format de la plateforme d'observabilité** (documents `form
 
 - `<dossier_logs>\<regle>_<AAAA-MM-JJ>.jsonl` : un fichier par règle et par jour. `<dossier_logs>\_orchestrateur_<AAAA-MM-JJ>.jsonl` pour le lancement.
 - UTF-8, une ligne = un événement, écrite en **un seul appel d'écriture** en mode ajout. Plusieurs processus peuvent écrire dans le même fichier ; un test de charge (8 processus × 10 000 lignes, aucune ligne corrompue) fait partie des critères de sortie.
+- Lecture par le front-end : `file_management/journaux.py` (`--journaux-regle`). Il lit le format de la plateforme **et** l'ancien format à plat, ne parcourt que les fichiers `<règle>_<jour>.jsonl` de la règle demandée (un `--journal` qui n'est pas exactement l'un d'eux, ou qui contient un chemin, est refusé), regroupe les événements par exécution (`execution_id` ; une simulation n'en a pas : ses événements sont regroupés de `regle_demarree` à `regle_terminee`) et borne la réponse (1 500 événements, 1,4 million de caractères : les **derniers** sont gardés, `tronque` l'indique ; Windows PowerShell 5.1 ne lit pas un JSON de plus de 2 Mo).
 - La purge des anciens fichiers est un module séparé (`file_management/purge.py`, commande `--purger`), paramétré par règle (`retention_journaux_jours`, `retention_archive_jours`).
 
 **Purge (J12)** — opération destructive, donc prudente :

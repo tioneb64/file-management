@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Journaux d'une règle : à gauche un fichier par jour, à droite les événements du fichier choisi, puis le détail lisible de l'événement choisi. -->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Journaux de la règle" Height="760" Width="1260" MinHeight="460" MinWidth="820"
+        WindowStartupLocation="CenterOwner" Background="#F3F5F8" FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="False">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Styles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+      <!-- Lignes : rouge = erreur, orange = avertissement. -->
+      <Style x:Key="LigneGravite" TargetType="DataGridRow">
+        <Style.Triggers>
+          <DataTrigger Binding="{Binding Gravite}" Value="Erreur">
+            <Setter Property="Foreground" Value="#C0392B"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+          </DataTrigger>
+          <DataTrigger Binding="{Binding Gravite}" Value="Avertissement">
+            <Setter Property="Foreground" Value="#B26A00"/>
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
+      <Style x:Key="TexteRetour" TargetType="TextBlock">
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="2,2"/>
+      </Style>
+    </ResourceDictionary>
+  </Window.Resources>
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="BtnCopier" Content="Copier le détail" Style="{StaticResource Btn}" Margin="0,0,8,0" IsEnabled="False"
+              ToolTip="Copie dans le presse-papiers le détail de l'événement sélectionné (pour le coller dans un message ou un ticket)."/>
+      <Button x:Name="BtnFermer" Content="Fermer" IsCancel="True" IsDefault="True" Style="{StaticResource BtnPrimary}" Width="110"/>
+    </StackPanel>
+    <TextBlock x:Name="Resume" DockPanel.Dock="Top" FontWeight="SemiBold" Foreground="#1F3A5F" TextWrapping="Wrap" Margin="0,0,0,8"/>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="32*" MinWidth="260"/>
+        <ColumnDefinition Width="5"/>
+        <ColumnDefinition Width="68*" MinWidth="420"/>
+      </Grid.ColumnDefinitions>
+      <DockPanel Grid.Column="0">
+        <TextBlock DockPanel.Dock="Top" Text="Journaux (un par jour)" Style="{StaticResource FieldLabel}" Margin="0,0,0,4"/>
+        <DataGrid x:Name="Journaux" RowStyle="{StaticResource LigneGravite}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Date" Binding="{Binding Jour}" SortMemberPath="Nom" Width="130"/>
+            <DataGridTextColumn Header="Dernier statut" Binding="{Binding Statut}" Width="100"/>
+            <DataGridTextColumn Header="Anomalies" Binding="{Binding Anomalies}" Width="*"/>
+          </DataGrid.Columns>
+        </DataGrid>
+      </DockPanel>
+      <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#D5DCE5"/>
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="3*" MinHeight="120"/>
+          <RowDefinition Height="5"/>
+          <RowDefinition Height="2*" MinHeight="110"/>
+        </Grid.RowDefinitions>
+        <DockPanel Grid.Row="0" Margin="0,0,0,6">
+          <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal">
+            <TextBlock Text="Exécution :" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <ComboBox x:Name="Executions" Width="520" DisplayMemberPath="Libelle"
+                      ToolTip="Une exécution = un passage de la règle (du démarrage à la fin). « Simulation » = lancée avec « Simuler la règle »."/>
+            <CheckBox x:Name="Anomalies" Content="Avertissements et erreurs seulement" Margin="16,3,0,8"/>
+          </WrapPanel>
+          <TextBlock x:Name="ResumeJournal" Foreground="#44546A" TextWrapping="Wrap"/>
+        </DockPanel>
+        <DataGrid x:Name="Evenements" Grid.Row="1" RowStyle="{StaticResource LigneGravite}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Heure" Binding="{Binding Heure}" SortMemberPath="Numero" Width="70"/>
+            <DataGridTextColumn Header="Niveau" Binding="{Binding Niveau}" SortMemberPath="Numero" Width="100"/>
+            <DataGridTextColumn Header="Exécution" Binding="{Binding Execution}" SortMemberPath="Numero" Width="100"/>
+            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="2*"/>
+            <DataGridTextColumn Header="Détails" Binding="{Binding Detail}" Width="2*"/>
+          </DataGrid.Columns>
+        </DataGrid>
+        <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="#D5DCE5"/>
+        <DockPanel Grid.Row="3">
+          <TextBlock DockPanel.Dock="Top" Text="Détail de l'événement sélectionné" Style="{StaticResource FieldLabel}" Margin="0,0,0,4"/>
+          <DataGrid x:Name="Detail" RowHeight="NaN" MinRowHeight="24">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Rubrique" Binding="{Binding Rubrique}" Width="230" ElementStyle="{StaticResource TexteRetour}"/>
+              <DataGridTextColumn Header="Valeur" Binding="{Binding Valeur}" Width="*" ElementStyle="{StaticResource TexteRetour}"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</Window>
