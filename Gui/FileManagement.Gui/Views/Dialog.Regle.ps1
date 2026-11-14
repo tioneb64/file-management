@@ -371,7 +371,8 @@ function New-CopieOngletProgrammes {
         $carte = New-Object System.Windows.Controls.Border
         $carte.BorderBrush = [System.Windows.Media.Brushes]::LightGray; $carte.BorderThickness = 1; $carte.CornerRadius = 4; $carte.Padding = 8; $carte.Margin = '0,0,0,8'
         $boite = New-Object System.Windows.Controls.StackPanel
-        $active = New-Object System.Windows.Controls.CheckBox; $active.Content = ('Programme « {0} »' -f $nom); $active.FontWeight = 'SemiBold'
+        # Dans un libellé WPF, « _ » est la touche d'accès : doublé, il s'affiche (avant_lot, apres_fichier...).
+        $active = New-Object System.Windows.Controls.CheckBox; $active.Content = ('Programme « {0} »' -f $nom.Replace('_', '__')); $active.FontWeight = 'SemiBold'
         $active.IsChecked = ($null -ne $actuel)
         $variables = @($Modele.listes.variables_par_point.$nom | ForEach-Object { '{' + $_ + '}' }) -join ' '
         $cmd = New-Object System.Windows.Controls.TextBox; $cmd.AcceptsReturn = $true; $cmd.Height = 62; $cmd.VerticalScrollBarVisibility = 'Auto'; $cmd.Margin = '0,6,0,0'

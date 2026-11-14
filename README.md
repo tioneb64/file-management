@@ -51,7 +51,7 @@ Codes retour : `0` succès, `1` au moins une erreur pendant ce lancement, `2` co
 .\Gui\Lancer-GestionCopie.ps1 -DossierParametrage D:\Parametrage
 ```
 
-Les membres du groupe AD configuré (`Gui\Gestion-Copie.config.psd1`) modifient, les autres consultent. Voir le [guide d'utilisation](docs/11-guide-utilisateur.md). Pour l'essayer sur un poste de développement sans toucher à la production : `Gui\Outils\Initialiser-Essai.ps1`.
+Les membres du groupe AD configuré (`Gui\Gestion-Copie.config.psd1`) modifient, les autres consultent. Voir le [guide d'utilisation](docs/11-guide-utilisateur.md). Pour l'essayer sur un poste de développement sans toucher à la production : `Gui\Outils\Initialiser-Essai.ps1`. Les images du guide sont régénérées par `Gui\Outils\Generer-ImagesGuide.ps1` (voir le §22 du guide).
 
 ## Tests
 
