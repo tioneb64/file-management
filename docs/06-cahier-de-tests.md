@@ -440,6 +440,7 @@ $py = 'C:\Python314\python.exe'
 
 | ID | Objectif | Procédure | Attendu | Serveur |
 |---|---|---|---|---|
+| J8-A08 | `test_fins_hors_execution.py` | **Fins hors exécution** : `--debloquer` et durée maximale dépassée appellent `sur_erreur` (variables `COPIE_SITUATION`, `COPIE_MESSAGE`), un `sur_erreur` en échec n'empêche pas le déblocage, `alerter` n'appelle rien ; les livraisons incertaines sont visibles et tranchables dès le déblocage ; **reprise d'une règle en aval seule** sans relancer l'amont, mais toujours bloquée si l'amont est en erreur, et un lancement manuel attend toujours l'amont | OK | |
 | J8-M01 | **Accès avec le compte de service** | `--verifier --format json` sur la vraie configuration de recette, avec le compte de service Jenkins (`runas` ou job) | Aucun refus `A01` à `A05` ; les informations `A07` donnent l'espace réel ; noter tout refus avec son message | |
 | J8-M02 | Droits retirés | Retirer au compte de service : lecture de la source / écriture de la cible / écriture de l'archive / base | Respectivement `A01`, `A02`, `A03` (avertissement) et `A05` ; rétablir les droits ensuite | |
 | J8-M03 | Quota | Volume de la cible avec un quota pour le compte de service | `A07` indique l'espace du quota, pas l'espace du disque | |

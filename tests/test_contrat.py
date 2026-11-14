@@ -61,7 +61,7 @@ class TestDebloquer(CasDeblocage):
         long_.wait(timeout=10)
         self.assertTrue(r["processus_arrete"] and r["drapeau_libere"] and r["reprise_necessaire"])
         self.assertEqual(set(r), {"regle", "execution_id", "pid", "processus_arrete", "drapeau_libere",
-                                  "reprise_necessaire", "message"})
+                                  "reprise_necessaire", "livraisons_incertaines", "message"})
         etat = self.regle_base("r1")
         self.assertEqual((etat["en_cours"], etat["dernier_statut"], etat["derniere_erreur_situation"],
                           etat["arret_apres_erreur"]), (0, "ERREUR", "deblocage", 1))
@@ -292,7 +292,8 @@ class TestContratJson(CasProcessus):
             b.demarrer_execution(b.numero_regle("export"), "planifie", mort.pid, hote=nom_hote())
         r = self.json("--debloquer", "export", "--utilisateur", "benoit")
         self.assertEqual(set(r), CLES_COMMUNES | {"commande", "regle", "execution_id", "pid", "processus_arrete",
-                                                  "drapeau_libere", "reprise_necessaire"})
+                                                  "drapeau_libere", "reprise_necessaire",
+                                                  "livraisons_incertaines"})
         self.assertEqual((r["commande"], r["processus_arrete"], r["drapeau_libere"]), ("debloquer", False, True))
 
     def test_refus_toujours_en_json_sur_la_sortie_standard(self):

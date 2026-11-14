@@ -2,6 +2,8 @@
 
 Pour une regle R due et chacune des regles D de `apres`, avec `ref` = debut de la derniere
 execution de R (0 si jamais lancee) :
+(Une REPRISE de R relance un lancement deja decide : `ref` vaut alors 0, les conditions portent sur l'etat
+ACTUEL de D, sans attendre un nouveau passage de D ; D en erreur ou jamais lancee bloque toujours R.)
 
   * termine : D a termine au moins une execution apres `ref` ;
   * succes  : la derniere execution de D date d'apres `ref` et son statut est SUCCES, WARNING
@@ -37,11 +39,11 @@ def _condition_remplie(condition, d, ref, base):
     return False
 
 
-def evaluer(regle, ligne, lignes, base, bloquees=()):
+def evaluer(regle, ligne, lignes, base, bloquees=(), reprise=False):
     """`ligne` : ligne `regles` de R (dict) ou None ; `lignes` : {id en minuscules: ligne} de
     toutes les regles de la base ; `bloquees` : ids (minuscules) deja evalues BLOQUEE pendant ce
-    lancement."""
-    ref = (ligne or {}).get("dernier_lancement") or 0
+    lancement ; `reprise` : R est relancee par une reprise."""
+    ref = 0 if reprise else ((ligne or {}).get("dernier_lancement") or 0)
     attente, bloquante, bloquee_par = [], None, None
     for ident in regle.apres:
         d = lignes.get(ident.lower())

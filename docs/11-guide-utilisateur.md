@@ -953,6 +953,8 @@ Toutes ces actions sont réservées aux **administrateurs** et tracées avec **v
 
 À utiliser après avoir **corrigé la cause** d'une erreur : la règle repartira **au prochain lancement**, quelle que soit l'heure, et son programme « reprise » sera appelé en premier s'il existe. La confirmation liste les règles qui **dépendent** de celle-ci : elles repartiront d'elles-mêmes dès que leurs dépendances seront remplies. Le commentaire est facultatif mais recommandé.
 
+Une **Reprise sur une règle en aval** (celle qui a échoué après que son amont a réussi) la fait repartir **sans relancer l'amont** : ses conditions sont évaluées sur l'état actuel de l'amont. Si l'amont est entre-temps en erreur, la règle reste bloquée.
+
 Si la règle est réglée sur `apres_erreur = arreter` (défaut), la reprise est **la seule façon** de la relancer.
 
 ### 12.2 Lancer maintenant
@@ -965,7 +967,7 @@ Pour une règle en `ERREUR` que vous considérez comme **traitée à la main** (
 
 ### 12.4 Débloquer
 
-Une règle `EN_COURS` qui ne se termine pas (programme figé) : **Débloquer arrête l'exécution**, tue le processus et tous ses descendants, et libère la règle (elle passe en erreur). Selon son réglage `apres_erreur`, une **reprise** est ensuite nécessaire ; l'interface le signale.
+Une règle `EN_COURS` qui ne se termine pas (programme figé) : **Débloquer arrête l'exécution**, tue le processus et tous ses descendants, et libère la règle (elle passe en erreur). Selon son réglage `apres_erreur`, une **reprise** est ensuite nécessaire ; l'interface le signale. Le programme **« en cas d'erreur »** (`sur_erreur`) de la règle est appelé comme pour toute erreur : une alerte part, avec la situation `deblocage`. S'il y avait une copie en cours, les **livraisons incertaines** apparaissent tout de suite (onglet État) : tranchez-les avant la reprise (§12.5). Le même appel a lieu quand le moteur arrête une règle qui dépasse sa durée maximale.
 
 > À n'utiliser que si l'exécution est **réellement figée** : une copie interrompue en pleine écriture devient une **livraison incertaine** (§12.5). Avant de débloquer, regardez la durée maximale de la règle : le moteur l'arrêtera de toute façon.
 

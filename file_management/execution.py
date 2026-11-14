@@ -478,6 +478,25 @@ class ExecutionRegle(object):
 
     # ----- 6.3 : livraisons interrompues ----------------------------------- #
     def _intentions_interrompues(self):
+        deja, nouveaux = self.trier_intentions()
+        for chemin_source, chemin_cible in ([(i[1], i[2]) for i in deja]
+                                            + [(i["chemin_source"], i["chemin_cible"]) for i in nouveaux]):
+            self._log("livraison_incertaine", "ERREUR", fichier=chemin_source, cible=chemin_cible,
+                      message="resultat inconnu apres un arret brutal : decision d'exploitation requise")
+        if deja or nouveaux:
+            total = len(deja) + len(nouveaux)
+            self.bilan.compteurs["erreurs"] += total
+            self._noter_niveau("ERREUR")
+            message = ("%d livraison(s) de resultat inconnu apres un arret brutal : verifier la cible "
+                       "puis indiquer si les fichiers sont a relivrer ou livres" % total)
+            self.bilan.erreur = {"situation": "livraison_incertaine", "message": message}
+            raise ArretRegle("livraison_incertaine", message)
+
+    def trier_intentions(self):
+        """Examine les intentions de livraison laissees par une execution morte en pleine copie : copie
+        retrouvee intacte -> livraison confirmee ; copie a refaire sans risque -> oubliee ; sinon
+        INCERTAINE (decision d'exploitation requise). Renvoie (deja_incertaines, nouvelles_incertaines).
+        Appele au demarrage d'une regle ET au deblocage, pour que l'incertitude soit visible tout de suite."""
         deja = self.base.incertains(self.no)
         nouveaux = []
         for it in self.base.intentions(self.no):
@@ -496,18 +515,7 @@ class ExecutionRegle(object):
                 nouveaux.append(it)
                 if self.mode_ecrit:
                     self.base.marquer_incertain(it["cle"])
-        for chemin_source, chemin_cible in ([(i[1], i[2]) for i in deja]
-                                            + [(i["chemin_source"], i["chemin_cible"]) for i in nouveaux]):
-            self._log("livraison_incertaine", "ERREUR", fichier=chemin_source, cible=chemin_cible,
-                      message="resultat inconnu apres un arret brutal : decision d'exploitation requise")
-        if deja or nouveaux:
-            total = len(deja) + len(nouveaux)
-            self.bilan.compteurs["erreurs"] += total
-            self._noter_niveau("ERREUR")
-            message = ("%d livraison(s) de resultat inconnu apres un arret brutal : verifier la cible "
-                       "puis indiquer si les fichiers sont a relivrer ou livres" % total)
-            self.bilan.erreur = {"situation": "livraison_incertaine", "message": message}
-            raise ArretRegle("livraison_incertaine", message)
+        return deja, nouveaux
 
     def _livraison_verifiee(self, it):
         try:
@@ -1215,3 +1223,63 @@ def lancer_regle(regle, entete, base, journal, declencheur="manuel", simulation=
                           **({"simulation": True} if simulation else {}))
     journal.definir(regle=None, execution_id=None)
     return bilan
+
+
+# --------------------------------------------------------------------------- #
+# Fins decidees HORS de l'execution (deblocage, duree maximale, processus disparu)
+# --------------------------------------------------------------------------- #
+def _execution_externe(regle, entete, base, no, journal, execution_id):
+    execution = ExecutionRegle(regle, entete, base, no, journal, execution_id=execution_id)
+    try:
+        execution._preparer_chemins()
+    except Exception:                                   # les variables de chemin resteront vides
+        pass
+    return execution
+
+
+def trier_apres_arret(regle, entete, base, no, journal, execution_id):
+    """A appeler quand l'execution d'une regle vient d'etre ARRETEE de l'exterieur (deblocage, duree
+    maximale) et avant de liberer son drapeau : les intentions de livraison laissees par la copie
+    interrompue sont examinees tout de suite (voir `ExecutionRegle.trier_intentions`). Renvoie le nombre
+    de livraisons de resultat inconnu ; la regle les affichera dans --etat et --trancher-incertain
+    peut les resoudre sans attendre une reprise."""
+    if regle is None or regle.mode == MODE_SYNCHRO:
+        return 0
+    journal.definir(regle=regle.id, execution_id=execution_id)
+    try:
+        execution = _execution_externe(regle, entete, base, no, journal, execution_id)
+        deja, nouveaux = execution.trier_intentions()
+        for chemin_source, chemin_cible in ([(i[1], i[2]) for i in deja]
+                                            + [(i["chemin_source"], i["chemin_cible"]) for i in nouveaux]):
+            journal.evenement("livraison_incertaine", "ERREUR", fichier=chemin_source, cible=chemin_cible,
+                              message="resultat inconnu apres un arret brutal : decision d'exploitation requise")
+        return len(deja) + len(nouveaux)
+    except modele_base.ErreurBase:
+        raise
+    except Exception as e:                              # un examen impossible n'empeche pas le deblocage
+        journal.evenement("livraison_tri_impossible", "WARNING", message="%s: %s" % (type(e).__name__, e))
+        return 0
+    finally:
+        journal.definir(regle=None, execution_id=None)
+
+
+def notifier_erreur(regle, entete, base, no, journal, execution_id, situation, message):
+    """Programme `sur_erreur` d'une regle dont l'ERREUR a ete constatee hors de son execution : deblocage,
+    duree maximale depassee, processus disparu. Meme appel que pour une erreur ordinaire (variables
+    COPIE_SITUATION et COPIE_MESSAGE), pour que l'alerte parte dans tous les cas. Le resultat du programme
+    est seulement journalise : un echec de la notification ne change rien a l'ERREUR deja enregistree."""
+    if regle is None or regle.programmes.get("sur_erreur") is None:
+        return
+    journal.definir(regle=regle.id, execution_id=execution_id)
+    try:
+        execution = _execution_externe(regle, entete, base, no, journal, execution_id)
+        bilan = Bilan()
+        bilan.statut = "ERREUR"
+        bilan.motif = message
+        bilan.situation_finale = situation
+        bilan.erreur = {"situation": situation, "message": message}
+        execution._sur_erreur(bilan)
+    except Exception as e:
+        journal.evenement("programme_appele", "WARNING", point="sur_erreur", sortie="%s: %s" % (type(e).__name__, e))
+    finally:
+        journal.definir(regle=None, execution_id=None)

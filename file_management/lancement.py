@@ -14,7 +14,7 @@ import time
 
 from file_management import base as modele_base
 from file_management import planification, processus
-from file_management.execution import lancer_regle, nom_hote
+from file_management.execution import lancer_regle, nom_hote, notifier_erreur, trier_apres_arret
 from file_management.orchestrateur import Orchestrateur
 
 
@@ -65,7 +65,7 @@ def synchroniser(parametrage, base, journal, lancement):
     return numeros
 
 
-def _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant):
+def _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant, entete=None):
     """Une execution d'un AUTRE lancement, vivante mais au-dela de `duree_max_sec` : on applique
     `si_duree_depassee` (on ne tient pas son Job Object : arret de l'arbre par taskkill /T)."""
     if regle is None or not ligne["debut_traitement"] or ligne["debut_traitement"] + regle.duree_max_sec >= maintenant:
@@ -79,6 +79,9 @@ def _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant):
         return
     processus.tuer_arbre(ligne["pid"])
     lancement.compteurs["depassees"] += 1
+    relance = regle.si_duree_depassee == "relancer" and (ligne["relances"] or 0) < regle.relances_max
+    if not relance and entete is not None:
+        trier_apres_arret(regle, entete, base, ligne["no"], journal, ligne["execution_id"])
     if regle.si_duree_depassee == "relancer" and (ligne["relances"] or 0) < regle.relances_max:
         base.liberer_flag(ligne["no"], message + " : relance", statut_regle="ARRETEE")
         base.incrementer_relances(ligne["no"])
@@ -87,11 +90,14 @@ def _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant):
         journal.evenement("duree_depassee", "WARNING", regle=ligne["id"], message=message + " : arret puis relance",
                           action="relancer")
         return
-    base.liberer_flag(ligne["no"], message, statut_regle="ERREUR", arret_apres_erreur=regle.apres_erreur == "arreter",
-                      erreur={"situation": "duree_depassee", "message": message})
+    liberee = base.liberer_flag(ligne["no"], message, statut_regle="ERREUR",
+                                arret_apres_erreur=regle.apres_erreur == "arreter",
+                                erreur={"situation": "duree_depassee", "message": message})
     lancement.noter("ERREUR")
     journal.evenement("duree_depassee", "ERREUR", regle=ligne["id"], message=message + " : arbre de processus arrete",
                       action="erreur")
+    if entete is not None and liberee:
+        notifier_erreur(regle, entete, base, ligne["no"], journal, ligne["execution_id"], "duree_depassee", message)
 
 
 def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None, maintenant=time.time):
@@ -104,7 +110,7 @@ def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None, mainten
             continue
         regle = regles.get(ligne["id"].lower())
         if processus.vivant(ligne["pid"], ligne["pid_cree_le"]):
-            _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant())
+            _traiter_trop_long(ligne, regle, base, journal, lancement, maintenant(), parametrage.entete)
             continue
         arret = regle is None or regle.apres_erreur == "arreter"
         message = "processus %s disparu pendant l'execution %s" % (ligne["pid"], ligne["execution_id"])
@@ -113,6 +119,8 @@ def nettoyer_orphelins(parametrage, base, journal, lancement, hote=None, mainten
             lancement.compteurs["nettoyees"] += 1
             lancement.noter("ERREUR")
             journal.evenement("arret_anormal", "ERREUR", regle=ligne["id"], message=message)
+            notifier_erreur(regle, parametrage.entete, base, ligne["no"], journal, ligne["execution_id"],
+                            "arret_anormal", message)
 
 
 def purger_base(parametrage, base, journal, lancement):
@@ -217,6 +225,9 @@ def debloquer(parametrage, base, journal, ident, utilisateur, commentaire=None, 
         arrete = True
     regle = next((r for r in parametrage.regles if r.id and r.id.lower() == ident.lower()), None)
     arret = regle is None or regle.apres_erreur == "arreter"
+    # la copie interrompue laisse des intentions de livraison : on les examine tout de suite (avant de liberer
+    # le drapeau), l'incertitude est ainsi visible et tranchable sans attendre la reprise
+    incertaines = trier_apres_arret(regle, parametrage.entete, base, no, journal, ligne["execution_id"])
     message = "execution %s debloquee par %s" % (ligne["execution_id"], utilisateur)
     if commentaire:
         message += " : " + commentaire
@@ -228,11 +239,16 @@ def debloquer(parametrage, base, journal, ident, utilisateur, commentaire=None, 
                       utilisateur=utilisateur, commentaire=commentaire, processus_arrete=arrete, pid=pid)
     texte = "%s debloquee : %s" % (ligne["id"], "processus %s et ses descendants arretes" % pid if arrete
                                   else "le processus n'existait plus")
+    if incertaines:
+        texte += (" ; %d livraison(s) de resultat inconnu : verifier la cible puis les trancher "
+                  "(livree ou a relivrer) avant la reprise" % incertaines)
     if arret:
         texte += " ; une reprise est necessaire pour la relancer"
+    if liberee:                         # sinon l'orchestrateur a constate la fin avant nous et a deja notifie
+        notifier_erreur(regle, parametrage.entete, base, no, journal, ligne["execution_id"], "deblocage", message)
     return {"regle": ligne["id"], "execution_id": ligne["execution_id"], "pid": pid,
             "processus_arrete": arrete, "drapeau_libere": liberee, "reprise_necessaire": arret,
-            "message": texte}
+            "livraisons_incertaines": incertaines, "message": texte}
 
 
 # --------------------------------------------------------------------------- #

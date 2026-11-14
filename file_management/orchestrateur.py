@@ -12,7 +12,8 @@ import sys
 import time
 
 from file_management import dependances, planification, processus
-from file_management.execution import NIVEAU_STATUT, RegleDejaEnCours, lancer_regle, nom_hote
+from file_management.execution import (NIVEAU_STATUT, RegleDejaEnCours, lancer_regle, nom_hote, notifier_erreur,
+                                       trier_apres_arret)
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DELAI_ARRET_FILS_SEC = 30
@@ -157,7 +158,8 @@ class Orchestrateur(object):
                 self.journal.evenement("regle_non_due", "INFO", regle=regle.id, motif="deja en cours")
                 progres += 1
                 continue
-            evaluation = (dependances.evaluer(regle, ligne, lignes, self.base, self.bloquees)
+            evaluation = (dependances.evaluer(regle, ligne, lignes, self.base, self.bloquees,
+                                              reprise=decision.declencheur == "reprise")
                           if regle.apres else dependances.Evaluation(dependances.PRETE))
             self.evaluations[regle.id] = evaluation
             if evaluation.etat == dependances.BLOQUEE:
@@ -303,14 +305,16 @@ class Orchestrateur(object):
 
     def _fin_anormale_sans_fils(self, regle, no, execution_id, message):
         arret = regle.apres_erreur == "arreter"
-        self.base.liberer_flag(no, message, statut_regle="ERREUR", arret_apres_erreur=arret,
-                               erreur={"situation": "arret_anormal", "message": message})
+        liberee = self.base.liberer_flag(no, message, statut_regle="ERREUR", arret_apres_erreur=arret,
+                                         erreur={"situation": "arret_anormal", "message": message})
         self.journal.evenement("arret_anormal", "ERREUR", regle=regle.id, execution_id=execution_id,
                                message=message)
         self._journaliser_fin(regle, execution_id, {
             "statut": "ERREUR", "motif": message, "duree_ms": 0,
             "compteurs": {"selectionnes": 0, "livres": 0, "ignores": 0, "erreurs": 1, "en_attente": 0,
                           "octets": 0}})
+        if liberee:                       # sinon un deblocage a deja libere la regle et notifie
+            notifier_erreur(regle, self.entete, self.base, no, self.journal, execution_id, "arret_anormal", message)
 
     # ------------------------------------------------------------------ #
     # Duree maximale (docs/02, section 2, etape 3)
@@ -348,6 +352,7 @@ class Orchestrateur(object):
             message += " ; %d relance(s) epuisee(s)" % regle.relances_max
         arret = regle.apres_erreur == "arreter"
         erreur = {"situation": "duree_depassee", "message": message}
+        trier_apres_arret(regle, self.entete, base, fils.no, self.journal, fils.execution_id)
         base.terminer_execution(fils.execution_id, fils.no, "ERREUR", motif=message,
                                 compteurs={"erreurs": 1}, situation_finale="duree_depassee", message=message,
                                 erreur=erreur, arret_apres_erreur=arret)
@@ -357,6 +362,7 @@ class Orchestrateur(object):
             "statut": "ERREUR", "motif": message, "duree_ms": regle.duree_max_sec * 1000,
             "compteurs": {"selectionnes": 0, "livres": 0, "ignores": 0, "erreurs": 1, "en_attente": 0,
                           "octets": 0}})
+        notifier_erreur(regle, self.entete, base, fils.no, self.journal, fils.execution_id, "duree_depassee", message)
         return True
 
     def _tuer(self, fils):
