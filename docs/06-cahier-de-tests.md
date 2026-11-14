@@ -79,7 +79,7 @@ Environnement de développement : Windows 10 (19045), Python 3.14.10, SQLite 3.5
 
 Testé le 2026-11-03 sur Windows 10, Python 3.14.10 : 91 tests au total (33 de J0, 58 pour J1), tous OK ; contrôles manuels J1-M03 et J1-M05 à J1-M07 déjà rejoués sur le PC avec PowerShell 5.1.
 
-Commande de vérification (provisoire, le lanceur `file_management.py` reste la v1 jusqu'à la livraison) :
+Commande de vérification (le lanceur `file_management.py` de la racine équivaut à `python -m file_management`) :
 
 ```powershell
 C:\Python314\python.exe -m file_management --config exemples\production.jsonl --verifier --syntaxe-seule [--format json] [--periode-declencheur-sec 300]
@@ -273,7 +273,7 @@ Testé le 2026-11-04 sur Windows 10, Python 3.14.10 : 375 tests au total (307 pr
 
 La planification est vérifiée avec une **horloge simulée** et un **fuseau fictif (France 2026)** : les tests de changement d'heure donnent le même résultat quel que soit le fuseau du poste. Les tests manuels sur le serveur contrôlent le comportement avec la vraie horloge et le vrai fuseau.
 
-Commandes (provisoires, le lanceur `file_management.py` reste la v1) :
+Commandes (le lanceur `file_management.py` de la racine équivaut à `python -m file_management`) :
 
 ```powershell
 # lancement de l'environnement : exécute les règles dues, l'une après l'autre
@@ -512,13 +512,13 @@ C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recet
 
 | ID | Ce qui est vérifié | PC | Serveur |
 |---|---|---|---|
-| J11-A01 | **Lecture de `copies.conf`** : la conf d'exemple du dépôt est analysée **comme le fait l'ancien script** (comparaison champ par champ avec lui), formats acceptés (BOM, commentaires, `oui`/`0`, `J - 7`, `ALL`), erreurs cumulées avec numéros de ligne, fichier absent ou vide | OK | |
+| J11-A01 | **Lecture de `copies.conf`** : la conf d'exemple du dépôt (`Legacy\copies.conf`) est analysée **comme le fait l'ancien script** (comparaison champ par champ avec lui), formats acceptés (BOM, commentaires, `oui`/`0`, `J - 7`, `ALL`), erreurs cumulées avec numéros de ligne, fichier absent ou vide | OK | |
 | J11-A02 | **Conversion** : critères `TOUT`, `J`, `J-N`, masques, récursivité, comportement de l'ancien script conservé (`recopier`, `ecraser`), rétention toujours supérieure à la fenêtre (pas de R08), identifiants uniques, valides et bornés à 64 caractères, règles inactives par défaut, planification par défaut ou choisie, notes de revue, **jamais d'écrasement d'un paramétrage**, nom de sortie = environnement, accents conservés, défauts signalés par le contrôle standard | OK | |
 | J11-A03 | **Commandes** : `--migrer-ancien` sans `--config`, sortie JSON, erreurs (conf invalide, option manquante, paramétrage généré refusé = code 2) | OK | |
 | J11-A04 | **Import de l'historique** : versions copiées → `TERMINE` avec la bonne clé et les bonnes dates, **idempotent** et tracé, entrées sans règle (autre dossier, autre cible, autre nom, mauvais masque, sous-dossier d'une règle non récursive), règles récursives, choix de la règle par le masque, casse et variables d'environnement, historique absent / cassé / mal formé, entrées incomplètes, 20 000 entrées en quelques secondes | OK | |
 | J11-A05 | **Parcours réel ancien script → nouveau** : l'ancien script copie vraiment, on migre, on importe → le nouveau moteur **ne relivre rien** (trois fichiers ignorés) ; **sans l'import il aurait tout relivré** ; une nouveauté et une version modifiée sont livrées comme avant, le résultat est identique à celui de l'ancien script ; un fichier perdu par la cible est recopié comme avant | OK | |
 | J11-A06 | **Comparateur de dossiers** : identiques, absents d'un côté, taille ou contenu différent, casse, masque, temporaires ignorés, dates, codes retour | OK | |
-| J11-A07 | Lanceur `file_management_v2.py` équivalent à `python -m file_management` | OK | |
+| J11-A07 | Lanceur `file_management.py` (racine) équivalent à `python -m file_management` | OK | |
 
 ### 12.2 Tests manuels sur le serveur (sur des copies, puis en recette)
 
@@ -532,7 +532,7 @@ C:\Python314\python.exe outils\comparer_dossiers.py D:\Recette\cible_v1 D:\Recet
 | J11-M06 | **Bascule d'une règle** | Étape 5 du guide (import, ancienne ligne commentée, règle `actif: true`) | Premier lancement : seules les nouveautés livrées, aucun doublon, journaux lisibles | |
 | J11-M07 | **Retour arrière** | Après J11-M06 : règle v2 inactive, ligne `copies.conf` rétablie | L'ancien script reprend sans rien relivrer d'inutile ni perdre de fichier | |
 | J11-M08 | Bascule de toutes les règles, une par une | Une règle par jour, la plus critique en dernier | Chaque bascule observée une journée complète avant la suivante | |
-| J11-M09 | Fin de migration | Renommage des lanceurs (étape 7), jobs Jenkins inchangés | `python file_management.py --config … --verifier` répond ; `file_management_v1.py` conservé | |
+| J11-M09 | Fin de migration | Renommage des lanceurs (étape 7, fait dans le dépôt : l'ancien script est dans `Legacy\`), jobs Jenkins inchangés | `python file_management.py --config … --verifier` répond ; `Legacy\file_management_v1.py` conservé | |
 | J11-M10 | **Restauration de la base** | Restaurer la dernière sauvegarde dans un dossier de recette et ouvrir (J2-M06) après quelques jours de production v2 | La base restaurée connaît les fichiers livrés ; un lancement ne relivre rien | |
 
 ## 13. Jalon J12 — Purge des journaux et des archives

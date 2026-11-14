@@ -1,6 +1,6 @@
 ﻿# Migration et recette
 
-Passage de l'ancien script (`file_management.py` v1 + `copies.conf` + historique JSON) à la v2, **règle par règle**, sans relivrer ce qui a déjà été livré et sans trou. L'ancien script n'est jamais modifié : il reste le plan de repli.
+Passage de l'ancien script (`Legacy\file_management_v1.py` + `Legacy\copies.conf` + historique JSON) à la v2, **règle par règle**, sans relivrer ce qui a déjà été livré et sans trou. L'ancien script n'est jamais modifié : il reste le plan de repli.
 
 ## 1. Outils fournis
 
@@ -9,7 +9,7 @@ Passage de l'ancien script (`file_management.py` v1 + `copies.conf` + historique
 | `python -m file_management --migrer-ancien COPIES.CONF --environnement E --base B [--sortie F] [--frequence-sec N] [--actives]` | Convertit `copies.conf` en fichier de paramétrage. **Ne demande pas `--config`**. Règles **inactives** par défaut ; refuse d'écraser un fichier existant ; le nom du fichier doit être `<environnement>.jsonl` |
 | `python -m file_management --config F --importer-historique HISTORIQUE.JSON --utilisateur U [--commentaire C]` | Importe l'historique de l'ancien script dans la base : les fichiers déjà copiés ne seront **pas relivrés**. Idempotent, tracé |
 | `outils\comparer_dossiers.py ANCIEN NOUVEAU [--masque *.csv] [--dates]` | Compare deux dossiers cibles (présence, taille, SHA-256) : preuve que la v2 livre la même chose que la v1. Lecture seule |
-| `file_management_v2.py` | Lanceur de la v2 (équivalent de `python -m file_management`) ; deviendra `file_management.py` à la fin (§6) |
+| `file_management.py` | Lanceur de la v2 (équivalent de `python -m file_management`) ; l'ancien script est dans `Legacy\` |
 
 ## 2. Ce que la conversion fait (et ne fait pas)
 
@@ -95,7 +95,7 @@ L'historique de l'ancien script n'a pas été modifié ; il recopie ce que la v2
 ### Étape 7 — Fin de migration
 
 - Toutes les règles basculées et stables (au moins deux semaines).
-- Dans le dépôt de déploiement : renommer `file_management.py` en `file_management_v1.py` (conservé pour le retour arrière) et `file_management_v2.py` en `file_management.py` ; dans les jobs Jenkins, rien à changer si le lanceur s'appelait déjà `file_management.py` (sinon `lanceur: 'file_management.py'`). Les tests de caractérisation du dépôt importent alors `file_management_v1`.
+- Dans le dépôt, c'est fait : l'ancien script et sa configuration sont dans `Legacy\` (`file_management_v1.py`, `copies.conf`, conservés pour le retour arrière) et le lanceur de la v2 s'appelle `file_management.py`. Dans le dépôt de déploiement, reproduire ce rangement ; dans les jobs Jenkins, rien à changer si le lanceur s'appelait déjà `file_management.py` (sinon `lanceur: 'file_management.py'`). Un job qui lançait encore la v1 doit viser `Legacy\file_management_v1.py` tant qu'il n'est pas basculé. Les tests de caractérisation du dépôt chargent `Legacy\file_management_v1.py`.
 - Garder `copies.conf` et l'historique de l'ancien script archivés avec la dernière sauvegarde de la base.
 
 ## 5. Différences de comportement à connaître

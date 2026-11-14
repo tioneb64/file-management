@@ -7,7 +7,7 @@ Commandes : --verifier [--syntaxe-seule] [--precedent FICHIER] [--dossier-parame
 [--limite-evenements N], --modele-regle, --lancer-regle ID (une seule regle, planification
 ignoree). Avec --format json, TOUTES les commandes ecrivent un seul objet JSON UTF-8 sur la
 sortie standard (contrat : docs/07-contrat-moteur-frontend.md).
-Le lanceur file_management.py (v1) reste en place tant que la v2 n'est pas livree.
+Le lanceur file_management.py (racine du depot) equivaut a `python -m file_management` ; l'ancien script v1 est dans Legacy/.
 """
 import argparse
 import getpass

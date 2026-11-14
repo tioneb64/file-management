@@ -7,10 +7,10 @@ import unittest
 
 
 def charger_v1():
-    """L'ancien script (file_management.py, v1), charge par son chemin : le paquet file_management (v2) porte le
-    meme nom et masquerait le script a l'import."""
+    """L'ancien script (Legacy/file_management_v1.py), charge par son chemin : il n'est pas sur le chemin d'import."""
     import importlib.util
-    chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "file_management.py")
+    chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Legacy",
+                          "file_management_v1.py")
     spec = importlib.util.spec_from_file_location("file_management_v1", chemin)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

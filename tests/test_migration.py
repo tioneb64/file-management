@@ -43,7 +43,7 @@ class CasMigration(CasTemporaire):
 
 class TestLectureDeLAncienneConf(CasMigration):
     def test_la_conf_d_exemple_du_depot_equivaut_a_l_analyse_de_l_ancien_script(self):
-        chemin = os.path.join(RACINE, "copies.conf")
+        chemin = os.path.join(RACINE, "Legacy", "copies.conf")
         nouvelles = migration.lire_ancienne_conf(chemin)
         anciennes = v1.lire_parametrage(chemin)
         self.assertEqual(len(nouvelles), len(anciennes))
@@ -89,7 +89,7 @@ class TestConversion(CasMigration):
         self.assertIn("copies.conf", regle["description"])
 
     def test_le_fichier_produit_est_valide(self):
-        compte, sortie = self.convertir(open(os.path.join(RACINE, "copies.conf"), encoding="utf-8").read())
+        compte, sortie = self.convertir(open(os.path.join(RACINE, "Legacy", "copies.conf"), encoding="utf-8").read())
         self.assertTrue(compte["verification"].ok, compte["verification"].en_texte())
         self.assertEqual(len(compte["regles"]), 5)
         self.assertEqual(compte["verification"].codes(), [])
@@ -502,7 +502,7 @@ class TestLanceurV2(CasTemporaire):
         chemin = self.chemin("production.jsonl")
         with open(chemin, "w", encoding="utf-8") as f:
             f.write('{"version": 1, "environnement": "production", "base": "D:\\\\Copie\\\\production.db"}\n')
-        resultat = subprocess.run([sys.executable, os.path.join(RACINE, "file_management_v2.py"), "--config", chemin,
+        resultat = subprocess.run([sys.executable, os.path.join(RACINE, "file_management.py"), "--config", chemin,
                                    "--verifier", "--syntaxe-seule", "--format", "json"], cwd=self.racine,
                                   capture_output=True)
         self.assertEqual((resultat.returncode, resultat.stderr), (0, b""))

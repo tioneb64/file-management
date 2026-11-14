@@ -1,6 +1,6 @@
 """Tests de caracterisation du script actuel (v1).
 
-Ils figent le comportement observable de file_management.py avant la refonte : la v2 devra soit
+Ils figent le comportement observable de Legacy/file_management_v1.py avant la refonte : la v2 devra soit
 le reproduire, soit s'en ecarter volontairement (et ces tests seront alors modifies avec une
 explication). Ils ne modifient pas le script v1.
 """

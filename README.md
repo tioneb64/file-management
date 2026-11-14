@@ -64,7 +64,7 @@ powershell.exe -NoProfile -STA -File .\Gui\Tests\Run-Tests.ps1 -Python C:\Python
 
 ## Ancien script (v1)
 
-`file_management.py` et `copies.conf` restent en service jusqu'à la bascule, règle par règle. Leur documentation est conservée dans [docs/12-ancien-script-v1.md](docs/12-ancien-script-v1.md).
+L'ancien script (`Legacy\file_management_v1.py`) et sa configuration (`Legacy\copies.conf`) restent en service jusqu'à la bascule, règle par règle (retour arrière possible). Leur documentation est conservée dans [docs/12-ancien-script-v1.md](docs/12-ancien-script-v1.md).
 
 ## Responsable
 

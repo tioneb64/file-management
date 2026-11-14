@@ -1,4 +1,4 @@
-﻿> **Ancien script (v1).** Cette documentation décrit `file_management.py` et `copies.conf`, encore en service jusqu'à la bascule vers la v2 ([09-migration-et-recette](09-migration-et-recette.md)). La documentation de la v2 est à partir du [README](../README.md).
+﻿> **Ancien script (v1).** Cette documentation décrit `Legacy\file_management_v1.py` (appelé `file_management.py` dans la suite du document ; les commandes se lancent depuis le dossier `Legacy\` ou avec ce chemin) et `Legacy\copies.conf`, encore en service jusqu'à la bascule vers la v2 ([09-migration-et-recette](09-migration-et-recette.md)). La documentation de la v2 est à partir du [README](../README.md).
 
 # file_management.py
 

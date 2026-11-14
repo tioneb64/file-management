@@ -73,4 +73,4 @@ Lien entre un build et ses règles : tous les événements d'un lancement porten
 | Étiquette de l'agent | `file-management` dans les exemples |
 | `H/5 * * * *` | La lettre `H` répartit la charge ; pour un déclenchement exact toutes les 5 minutes : `*/5 * * * *` |
 | Chemins | `COPIE_PYTHON`, `COPIE_DEPOT`, `COPIE_LOGS` |
-| Remplacement du lanceur | Quand `file_management.py` v2 remplacera la v1, passer `lanceur: 'file_management.py'` à `fileManagement` |
+| Remplacement du lanceur | Le lanceur v2 est `file_management.py` à la racine du dépôt (la v1 est dans `Legacy\`) : passer `lanceur: 'file_management.py'` à `fileManagement` si le job ne lance pas déjà `-m file_management` |

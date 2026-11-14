@@ -10,7 +10,7 @@
  *   commande options du moteur ; vide = lancement des regles dues
  *   python   interpreteur (defaut : variable COPIE_PYTHON, sinon `python`)
  *   depot    dossier du depot file_management (defaut : variable COPIE_DEPOT)
- *   lanceur  `-m file_management` aujourd'hui ; `file_management.py` quand le lanceur v2 remplacera le v1
+ *   lanceur  `-m file_management` ou `file_management.py` (equivalents ; l'ancien script v1 est dans Legacy/)
  *
  * Codes retour du moteur : 0 -> SUCCESS ; 4 -> UNSTABLE (au moins un avertissement) ;
  * tout autre code -> FAILURE (1 : erreur pendant le lancement, 2 : parametrage ou base inutilisable).

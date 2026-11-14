@@ -2,7 +2,7 @@
 
 | Élément | Rôle |
 |---|---|
-| `tests/test_v1_caracterisation.py` | Fige le comportement du script actuel (`file_management.py`, v1) : paramétrage, copie vérifiée, historique, verrou, codes retour. |
+| `tests/test_v1_caracterisation.py` | Fige le comportement de l'ancien script (`Legacy\file_management_v1.py`, v1) : paramétrage, copie vérifiée, historique, verrou, codes retour. |
 | `tests/outils.py` | Classe de base `CasTemporaire` : dossier temporaire par test, création de fichiers datés. |
 | `outils/lancer_tests.ps1` | Lance tous les tests avec le Python choisi ; un avertissement de dépréciation fait échouer. |
 | `outils/controle_serveur.py` | À exécuter **sur le serveur de recette** avec Python 3.14 : vérifie SQLite (WAL, écritures concurrentes), espace disque, verrous, Job Object, remplacement atomique, partage réseau. |

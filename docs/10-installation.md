@@ -44,7 +44,7 @@ cd /d D:\Scripts\file_management
 C:\Python314\python.exe -m file_management --help
 ```
 
-Le moteur se lance toujours par `python -m file_management` depuis ce dossier (ou par `file_management_v2.py`, qui est équivalent). `file_management.py` reste l'**ancien** script v1 tant que la bascule n'est pas faite ([09-migration-et-recette](09-migration-et-recette.md)).
+Le moteur se lance toujours par `python -m file_management` depuis ce dossier (ou par `file_management.py`, qui est équivalent). L'**ancien** script v1 est conservé dans `Legacy\` (`file_management_v1.py`, `copies.conf`) pour le retour arrière ([09-migration-et-recette](09-migration-et-recette.md)).
 
 ## 3. Dossier de paramétrage protégé
 
