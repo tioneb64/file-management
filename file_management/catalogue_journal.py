@@ -61,6 +61,7 @@ MESSAGES = {
     "livraison_reprise": "Livraison reprise apres interruption : {fichier}",
     "livraison_a_refaire": "Livraison a refaire : {fichier}",
     "livraison_incertaine": "Livraison incertaine : {fichier}",
+    "livraison_tri_impossible": "Examen des livraisons interrompues impossible : {message}",
     "archivage_degrade": "Archivage degrade",
     "archivage_retabli": "Archivage retabli",
     "action_a_rejouer": "Action en attente rejouee : {type}",
