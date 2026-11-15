@@ -1177,6 +1177,14 @@ Le panneau du bas de la fenêtre montre ce que fait l'interface : ouverture, app
 
 Si `Journal.Dossier` est renseigné dans le fichier de configuration de l'interface (`Gestion-Copie.config.psd1`), le même journal est écrit chaque jour dans un fichier JSON Lines lu par la plateforme de surveillance (service `file_management.interface`, `context.utilisateur` = le compte ; une session = une trace). C'est **la trace de qui a fait quoi** côté interface : la base et le journal du moteur gardent leur propre trace. La barre d'état, tout en bas, indique si le journal fichier est actif (« journal fichier désactivé » sinon). Si le dossier n'existe pas au démarrage, l'interface **demande** s'il faut le créer (il n'est jamais créé en silence : une faute de frappe dans le chemin créerait un dossier au mauvais endroit) ; en cas de refus, ou si le chemin est invalide, le journal fichier est désactivé pour la session et le panneau du bas en donne la raison.
 
+### Le journal de l'API de règles
+
+Les modifications de règles faites **par un autre programme** (script PowerShell ou Python passant par l'API de règles, voir [14-api-regles](14-api-regles.md)) n'apparaissent pas dans le panneau du bas : elles ne passent pas par la fenêtre. Elles sont tracées dans un fichier à part, **dans le même dossier** que le journal de l'interface (`Journal.Dossier`) : `ApiRegles_AAAA-MM-JJ.jsonl`, un fichier par jour (service `file_management_api_regles`). Si `Journal.Dossier` est vide ou si le dossier n'existe pas, rien n'est écrit dans ce fichier (l'API n'a pas d'écran pour poser la question de création) ; la trace dans la base des versions reste.
+
+Chaque ligne est un objet JSON : `timestamp` (UTC), `action` (`ajout`, `modification`, `suppression`), `regle` (identifiant), `fichier`, `appelant` (nom donné par le programme), `compte` (compte Windows qui a lancé le programme), `etape` (`ok`, `conflit`, `refus`, `avertissements`, `droits`…), `succes` et `commentaire`. Les refus et les conflits y figurent aussi : c'est l'endroit où voir **qui a essayé de modifier quoi**, même sans succès.
+
+La version écrite garde aussi sa trace habituelle dans le dossier `versions\` : le commentaire y est préfixé `[API nom_du_programme]`, ce qui permet de reconnaître dans l'**historique** ([§13.1](#131-lire-lhistorique)) une version écrite par un programme plutôt que par une personne.
+
 Quand vous contactez l'exploitation à propos d'un problème, **copiez les dernières lignes de ce panneau** : on y lit la commande envoyée au moteur, son code retour et le message d'erreur exact.
 
 ---
