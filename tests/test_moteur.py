@@ -592,6 +592,49 @@ class TestEspaceDisque(CasMoteur):
         with mock.patch.object(chemins, "espace_disponible", return_value=1000):
             self.assertEqual(self.lancer(self.regle()).statut, "SUCCES")
 
+    # ----- ecrasement : l'ancienne version survit tant que la nouvelle ne peut pas etre accueillie ----- #
+    def _ecrasement_plus_gros(self, mode):
+        ancien = b"a" * 800
+        os.makedirs(self.dst, exist_ok=True)
+        with open(os.path.join(self.dst, "a.csv"), "wb") as f:
+            f.write(ancien)
+        self.source("a.csv", b"x" * 1000)
+        self.entete.marge_espace_mo = 0
+        return ancien, self.regle(mode=mode, si_existe_cible="ecraser")
+
+    def test_ecraser_sans_place_pour_la_nouvelle_version_garde_l_ancienne(self):
+        for mode in ("copie", "deplacement"):
+            with self.subTest(mode=mode):
+                ancien, r = self._ecrasement_plus_gros(mode)
+                # 999 o libres < 1000 o a livrer : l'espace de l'ancien fichier (800 o) n'est PAS compte,
+                # car il reste occupe pendant l'ecriture du temporaire (il ne se libere qu'au remplacement)
+                with mock.patch.object(chemins, "espace_disponible", return_value=999):
+                    bilan = self.lancer(r)
+                self.assertEqual((bilan.statut, bilan.situation_finale), ("ERREUR", "espace_insuffisant_cible"))
+                self.assertEqual(self.lire(os.path.join(self.dst, "a.csv")), ancien)
+                self.assertEqual(os.listdir(self.dst), ["a.csv"])               # ni temporaire ni reliquat
+                self.assertTrue(os.path.exists(os.path.join(self.src, "a.csv")))   # la source n'est jamais touchee
+                self.assertEqual(self.etats(), [])
+                os.remove(os.path.join(self.dst, "a.csv"))
+
+    def test_ecraser_avec_la_place_remplace_l_ancienne_version(self):
+        ancien, r = self._ecrasement_plus_gros("copie")
+        with mock.patch.object(chemins, "espace_disponible", return_value=1000):
+            self.assertEqual(self.lancer(r).statut, "SUCCES")
+        self.assertEqual(self.lire(os.path.join(self.dst, "a.csv")), b"x" * 1000)
+
+    def test_disque_plein_pendant_l_ecriture_garde_l_ancienne_version(self):
+        ancien, r = self._ecrasement_plus_gros("copie")
+
+        def disque_plein(descripteur):
+            raise OSError(28, "No space left on device")
+        with mock.patch.object(transfert.os, "fsync", disque_plein):
+            bilan = self.lancer(r, dormir=lambda secondes: None)
+        self.assertNotEqual(bilan.statut, "SUCCES")
+        self.assertEqual(self.lire(os.path.join(self.dst, "a.csv")), ancien)
+        self.assertEqual(os.listdir(self.dst), ["a.csv"])                       # le temporaire a ete supprime
+        self.assertEqual(self.etats(), [])
+
     def test_le_controle_ne_porte_que_sur_ce_qui_sera_livre(self):
         r = self.regle()
         self.source("deja.csv", b"x" * 5000)
