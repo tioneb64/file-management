@@ -9,6 +9,14 @@
 
 $moduleRoot = $PSScriptRoot
 
+# Noyau partagé : lecture et écriture du fichier de règles, appel du moteur, configuration. Il vit dans le module
+# FileManagement.Regles (seul habilité à modifier le fichier des règles) ; l'interface charge ces mêmes fichiers.
+$noyau = Join-Path (Split-Path -Parent $moduleRoot) 'FileManagement.Regles\Private'
+foreach ($fichier in @(Get-ChildItem -LiteralPath $noyau -Filter '*.ps1' -File | Sort-Object FullName)) {
+    try { . $fichier.FullName }
+    catch { throw ('FileManagement.Gui : chargement de {0} impossible : {1}' -f $fichier.FullName, $_.Exception.Message) }
+}
+
 $dossiers = 'Private', 'Views', 'Public'
 $publics = New-Object System.Collections.Generic.List[string]
 foreach ($dossier in $dossiers) {

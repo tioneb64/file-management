@@ -21,6 +21,7 @@ Aucune perte (l'original n'est touché qu'après copie vérifiée par taille et 
 |---|---|
 | **Installer** | [docs/10-installation.md](docs/10-installation.md) |
 | **Utiliser l'interface** (suivre, modifier, exploiter) | [docs/11-guide-utilisateur.md](docs/11-guide-utilisateur.md) |
+| **Ajouter ou modifier des règles depuis un autre programme** (PowerShell, Python) | [docs/14-api-regles.md](docs/14-api-regles.md) |
 | Écrire ou comprendre un fichier de paramétrage | [docs/01-parametrage.md](docs/01-parametrage.md) (exemple : `exemples\production.jsonl`) |
 | Comprendre le comportement du moteur | [docs/02-moteur.md](docs/02-moteur.md), [docs/03-base-de-donnees.md](docs/03-base-de-donnees.md) |
 | Configurer Jenkins | [docs/08-jenkins.md](docs/08-jenkins.md) |

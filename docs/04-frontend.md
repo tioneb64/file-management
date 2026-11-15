@@ -140,6 +140,8 @@ Dernier onglet de la fenêtre, après ceux des environnements ; il concerne **le
 
 Le formulaire ne recopie ni les valeurs de secours ni les listes de valeurs : il les demande au moteur (`--modele-regle`, [07-contrat-json](07-contrat-json.md)). Un champ absent du fichier prend la valeur de secours du moteur ; le front-end écrit toujours le réglage complet de la règle. Après un refus du moteur ou des avertissements non acceptés, le formulaire se rouvre avec la saisie. Avant toute action, le fichier est relu : s'il a changé depuis son affichage, la vue est rechargée et l'action abandonnée.
 
+**Un seul écrivain.** Ce protocole (lecture, empreinte, brouillon, vérification du moteur, versions, `File.Replace`) est le code du module **`FileManagement.Regles`** (`Gui\FileManagement.Regles\Private\Edition.ps1`) ; l'interface charge ces mêmes fichiers. Les autres programmes (PowerShell, Python) qui veulent ajouter ou modifier des règles passent par ce module (fonctions `*-CopieApiRegle`, `Invoke-RegleApi.ps1`, client Python) et obtiennent les mêmes garanties : voir [14-api-regles](14-api-regles.md).
+
 Écriture du fichier en PowerShell 5.1 :
 
 - UTF-8 **sans BOM** : `[System.IO.File]::WriteAllText($chemin, $texte, (New-Object System.Text.UTF8Encoding $false))` (`Set-Content -Encoding UTF8` ajoute un BOM, accepté par le moteur mais inutile ; `Out-File` écrit en UTF-16 par défaut).

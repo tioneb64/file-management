@@ -22,6 +22,7 @@ Ces documents décrivent la **cible (v2)**. Le [README](../README.md) présente 
 | [07-contrat-moteur-frontend](07-contrat-moteur-frontend.md) | Commandes, codes retour et JSON échangés entre le moteur et le front-end |
 | [06-cahier-de-tests](06-cahier-de-tests.md) | Tests joués sur le poste de développement puis sur le serveur de recette, complété à chaque jalon |
 | [10-installation](10-installation.md) | **Installation** pas à pas : Python, moteur, dossier protégé, base, Jenkins, journaux, interface, JEA, vérification |
+| [14-api-regles](14-api-regles.md) | **API de règles** : ajouter, modifier ou supprimer des règles depuis un autre programme (PowerShell, Python) en passant par le module qui est le seul à écrire le fichier |
 | [11-guide-utilisateur](11-guide-utilisateur.md) | **Guide d'utilisation** de l'interface : consulter, modifier, exploiter, promouvoir, historique |
 | [12-ancien-script-v1](12-ancien-script-v1.md) | Documentation de l'ancien script (v1), conservée jusqu'à la bascule |
 
