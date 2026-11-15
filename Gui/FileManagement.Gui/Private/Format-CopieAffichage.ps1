@@ -83,6 +83,11 @@ function Format-CopiePlanification {
         }
         'quotidien' { return ('à {0}, {1}' -f (Get-CopieValeur $Planification 'heure' '?'), $joursTexte) }
         'apres_dependances' { return 'après ses dépendances' }
+        'unique' {
+            $dateHeure = ("$(Get-CopieValeur $Planification 'date_heure' '')".Trim()) -replace 'T', ' '
+            if ($dateHeure -match '^(\S+) (\S+)$') { return ('une seule fois, le {0} à {1}' -f $Matches[1], $Matches[2]) }
+            return 'une seule fois'
+        }
         default { return ('planification « {0} »' -f $type) }
     }
 }

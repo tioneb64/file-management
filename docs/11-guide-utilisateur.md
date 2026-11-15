@@ -254,6 +254,7 @@ Aide au choix entre `copie`, `deplacement` et `archivage` : demandez-vous **ce q
 |---|---|---|
 | **à intervalle régulier** dans une plage horaire | `intervalle` | toutes les 5 minutes, de 05:00 à 19:00, du lundi au vendredi |
 | **une fois par jour**, à heure fixe | `quotidien` | chaque jour ouvré à 07:15 |
+| **une seule fois**, à une date et une heure précises (OneShot) | `unique` | le 1er décembre 2026 à 07:15, puis la règle est terminée |
 | **dès que d'autres règles ont fini**, sans heure | `apres_dependances` | « après `flux_ventes` » |
 
 Quelques repères :
@@ -503,6 +504,15 @@ Le premier champ, **Type de planification**, change les champs suivants.
 | **Heure de lancement \*** | `HH:MM` (heure du serveur) |
 | **Jours \*** | Les jours où la règle part |
 | **Rattrapage d'un créneau manqué** | Si Jenkins était arrêté ou la règle déjà en cours à l'heure prévue, elle part dès que possible **si le créneau a moins de cette durée**. Sinon le créneau est perdu. Plusieurs créneaux manqués donnent **un seul** départ |
+
+**`unique`** (OneShot) : la règle part **une seule fois**, à la date et à l'heure indiquées, puis elle est terminée.
+
+| Champ | Sens |
+|---|---|
+| **Date et heure de lancement \*** | `AAAA-MM-JJ HH:MM`, heure du serveur (exemple : `2026-12-01 07:15`). L'interface exige une avance d'au moins **deux fois la période du déclencheur** (10 minutes avec un moteur lancé toutes les 5 minutes) : le moteur doit avoir « vu » la règle avant sa date, sinon elle serait considérée comme manquée |
+| **Rattrapage d'un créneau manqué** | Si le moteur n'a pas tourné à l'heure dite, la règle part au lancement suivant ; avec un rattrapage, elle ne part que si le retard est inférieur à cette durée. Vide : elle part dès que possible |
+
+Après son exécution, la règle est affichée comme **inactive** (colonne « Active » : Non, ligne grise, statut `INACTIVE`, motif « planification unique exécutée le … »). Le fichier de paramétrage n'est pas modifié (le moteur ne l'écrit jamais) : la case « Règle active » y reste cochée. Pour la **rejouer**, changez la date. « Lancer maintenant » reste possible. Une exécution en erreur ne termine pas la règle : elle attend une reprise ou un acquittement comme les autres. Le mode `synchro` ne s'utilise pas avec ce type.
 
 **`apres_dependances`** : pas d'heure, la règle part quand ses dépendances sont remplies.
 

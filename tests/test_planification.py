@@ -293,5 +293,96 @@ class TestChangementDHeure(unittest.TestCase):
         self.assertEqual(len(automne), 288)                    # 24 h x 12 : l'heure repetee n'ajoute rien
 
 
+UNIQUE = {"type": "unique", "date_heure": "2026-11-20 14:30"}
+
+
+class TestUnique(unittest.TestCase):
+    """Planification `unique` (OneShot) : un seul creneau, puis la regle est terminee."""
+
+    def r(self, **kw):
+        return regle(dict(UNIQUE, **kw))
+
+    def evaluer(self, r, etat_, maintenant):
+        return planification.evaluer(r, etat_, maintenant, PARIS)
+
+    def test_creneaux(self):
+        p = self.r().planification
+        creneau = paris(2026, 11, 20, 14, 30)
+        self.assertIsNone(planification.dernier_creneau_echu(p, creneau - 1, PARIS))
+        self.assertEqual(planification.dernier_creneau_echu(p, creneau, PARIS), creneau)
+        self.assertEqual(planification.dernier_creneau_echu(p, creneau + 86400 * 30, PARIS), creneau)
+        self.assertEqual(planification.prochain_creneau(p, creneau - 1, PARIS), creneau)
+        self.assertIsNone(planification.prochain_creneau(p, creneau, PARIS))
+
+    def test_libelle(self):
+        self.assertEqual(planification.libelle(self.r().planification), "une seule fois, le 2026-11-20 a 14:30")
+
+    def test_regle_enregistree_avant_la_date_part_a_la_date_puis_une_seule_fois(self):
+        r = self.r()
+        enregistree = etat(dernier_creneau=None, dernier_lancement=None)       # vue par le moteur avant la date
+        d = self.evaluer(r, enregistree, paris(2026, 11, 20, 14, 29))
+        self.assertEqual((d.due, d.motif), (False, "aucun creneau"))
+        d = self.evaluer(r, enregistree, paris(2026, 11, 20, 14, 30))
+        self.assertEqual((d.due, d.declencheur, d.creneau), (True, "planifie", paris(2026, 11, 20, 14, 30)))
+        pris = etat(dernier_creneau=paris(2026, 11, 20, 14, 30))
+        d = self.evaluer(r, pris, paris(2026, 11, 20, 14, 31))
+        self.assertEqual((d.due, d.motif), (False, "creneau deja pris"))
+        self.assertFalse(self.evaluer(r, pris, paris(2027, 5, 1)).due)
+
+    def test_regle_nouvelle_dont_la_date_est_passee_n_est_pas_rejouee(self):
+        d = self.evaluer(self.r(), None, paris(2026, 12, 1))
+        self.assertEqual((d.due, d.nouvelle, d.creneau), (False, True, paris(2026, 11, 20, 14, 30)))
+
+    def test_regle_nouvelle_a_date_future_est_enregistree_sans_creneau(self):
+        d = self.evaluer(self.r(), None, paris(2026, 11, 19))
+        self.assertEqual((d.due, d.nouvelle, d.creneau), (False, True, None))
+
+    def test_rattrapage(self):
+        r = self.r(rattrapage_sec=600)
+        enregistree = etat(dernier_creneau=None, dernier_lancement=None)
+        self.assertTrue(self.evaluer(r, enregistree, paris(2026, 11, 20, 14, 40)).due)
+        d = self.evaluer(r, enregistree, paris(2026, 11, 20, 14, 41))
+        self.assertEqual(d.due, False)
+        self.assertIn("expire", d.motif)
+
+    def test_sans_rattrapage_une_date_manquee_est_rattrapee_au_prochain_lancement(self):
+        enregistree = etat(dernier_creneau=None, dernier_lancement=None)
+        self.assertTrue(self.evaluer(self.r(), enregistree, paris(2026, 11, 22)).due)
+
+    def test_reprise_et_lancement_manuel_apres_la_fin(self):
+        pris = etat(dernier_creneau=paris(2026, 11, 20, 14, 30))
+        self.assertEqual(self.evaluer(self.r(), dict(pris, reprise=1), paris(2026, 11, 21)).declencheur, "reprise")
+        self.assertEqual(self.evaluer(self.r(), dict(pris, lancement_manuel=1), paris(2026, 11, 21)).declencheur, "manuel")
+
+    def test_changer_la_date_rearme_la_regle(self):
+        pris = etat(dernier_creneau=paris(2026, 11, 20, 14, 30))
+        r = self.r(date_heure="2026-12-24 08:00")
+        self.assertFalse(self.evaluer(r, pris, paris(2026, 12, 24, 7, 59)).due)
+        self.assertTrue(self.evaluer(r, pris, paris(2026, 12, 24, 8, 0)).due)
+
+    def test_une_seule_execution_meme_avec_un_lancement_par_minute(self):
+        r = self.r()
+        executions = rejouer(r, paris(2026, 11, 20, 0), paris(2026, 11, 22, 0), pas=60)
+        # `rejouer` suppose la regle deja connue : son dernier creneau initial est celui d'avant le debut (aucun)
+        self.assertEqual(executions, [paris(2026, 11, 20, 14, 30)])
+
+    def test_unique_executee(self):
+        p = self.r().planification
+        creneau = paris(2026, 11, 20, 14, 30)
+        ligne = {"dernier_creneau": creneau, "en_cours": 0, "reprise": 0, "lancement_manuel": 0,
+                 "arret_apres_erreur": 0, "dernier_statut": "SUCCES"}
+        f = planification.unique_executee
+        self.assertTrue(f(p, ligne, creneau + 60, PARIS))
+        self.assertTrue(f(p, dict(ligne, dernier_statut="WARNING"), creneau + 60, PARIS))
+        self.assertFalse(f(p, None, creneau + 60, PARIS))                                       # jamais en base
+        self.assertFalse(f(p, dict(ligne, dernier_creneau=None), creneau + 60, PARIS))          # pas encore partie
+        self.assertFalse(f(p, dict(ligne, dernier_creneau=creneau - 86400), creneau + 60, PARIS))   # date changee
+        self.assertFalse(f(p, ligne, creneau - 1, PARIS))                                       # date repoussee
+        for cle, valeur in (("en_cours", 1), ("reprise", 1), ("lancement_manuel", 1), ("arret_apres_erreur", 1),
+                            ("dernier_statut", "ERREUR")):
+            self.assertFalse(f(p, dict(ligne, **{cle: valeur}), creneau + 60, PARIS), cle)
+        self.assertFalse(f(regle(QUOTIDIEN).planification, ligne, creneau + 60, PARIS))         # autre type
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,7 @@ CLES_COMMUNES = {"version_contrat", "ok", "code_retour", "message"}
 CLES_REGLE_ETAT = {"id", "description", "actif", "mode", "planification", "en_cours", "statut", "attente",
                    "motif", "dernier_lancement", "dernier_creneau", "prochain_creneau", "dernier_succes",
                    "derniere_erreur", "derniere_execution", "reprise", "lancement_manuel",
-                   "arret_apres_erreur", "archivage_degrade", "actions_en_attente", "livraisons_incertaines", "incertains"}
+                   "arret_apres_erreur", "unique_executee", "archivage_degrade", "actions_en_attente", "livraisons_incertaines", "incertains"}
 CLES_COMPTEURS_LANCEMENT = {"regles", "lancees", "SUCCES", "WARNING", "ERREUR", "non_dues", "non_lancees",
                             "orphelines", "nettoyees", "en_attente", "bloquees", "depassees"}
 

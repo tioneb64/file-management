@@ -52,6 +52,9 @@ function ConvertTo-CopieLigneRegle {
         [AllowNull()] $Entete = $null
     )
     $actif = Get-CopieValeur $Regle 'actif' $true
+    # planification « unique » déjà jouée : le moteur n'écrit jamais le fichier (actif y reste vrai), la fin se lit dans l'état
+    $uniqueExecutee = [bool](Get-CopieValeur $Etat 'unique_executee' $false)
+    $actifEffectif = $actif -and -not $uniqueExecutee
     if ($null -ne $Etat) {
         $statut = "$(Get-CopieValeur $Etat 'statut' '')"
         $planification = "$(Get-CopieValeur $Etat 'planification' '')"
@@ -67,7 +70,7 @@ function ConvertTo-CopieLigneRegle {
     $enCours = [bool](Get-CopieValeur $Etat 'en_cours' $false)
     $attente = "$(Get-CopieValeur $Etat 'attente' '')"
     # Aspect de la ligne dans la grille : inactive (grise) prime sur erreur (rouge).
-    $aspect = $(if (-not $actif) { 'inactive' } elseif ($statut -in 'ERREUR', 'ARRETEE' -or $attente -eq 'BLOQUEE') { 'erreur' } else { '' })
+    $aspect = $(if (-not $actifEffectif) { 'inactive' } elseif ($statut -in 'ERREUR', 'ARRETEE' -or $attente -eq 'BLOQUEE') { 'erreur' } else { '' })
     [pscustomobject]@{
         PSTypeName     = 'Copie.LigneRegle'
         Id             = "$(Get-CopieValeur $Regle 'id' '')"
@@ -78,7 +81,7 @@ function ConvertTo-CopieLigneRegle {
         Attente        = $attente
         Aspect         = $aspect
         Planification  = $planification
-        Actif          = $(if ($actif) { 'Oui' } else { 'Non' })
+        Actif          = $(if ($actifEffectif) { 'Oui' } else { 'Non' })
         Statut         = $(if ($statut) { $statut } else { [string][char]0x2014 })
         StatutCouleur  = (Get-CopieCouleurStatut -Statut $statut)
         Motif          = "$(Get-CopieValeur $Etat 'motif' '')"
@@ -159,10 +162,14 @@ function ConvertTo-CopieGroupeRegle {
         (New-CopieLigne 'Si le fichier existe dans l''archive' (& $v $Regle 'si_existe_archive')),
         (New-CopieLigne 'Nom dans la cible' (Format-CopieTexte (Get-CopieValeur $Regle 'renommage_cible') 'nom conservé')),
         (New-CopieLigne 'Nom dans l''archive' (Format-CopieTexte (Get-CopieValeur $Regle 'renommage_archive') 'nom conservé')))
-    & $ajouter 'Planification' @(
+    $lignesPlanification = @(
         (New-CopieLigne 'En clair' (Format-CopiePlanification -Planification (Get-CopieValeur $Regle 'planification'))),
-        (New-CopieLigne 'Type' (Format-CopieTexte (Get-CopieValeur (Get-CopieValeur $Regle 'planification') 'type') ([string][char]0x2014))),
-        (New-CopieLigne 'Rattrapage (s)' (Format-CopieTexte (Get-CopieValeur (Get-CopieValeur $Regle 'planification') 'rattrapage_sec') 'aucun')))
+        (New-CopieLigne 'Type' (Format-CopieTexte (Get-CopieValeur (Get-CopieValeur $Regle 'planification') 'type') ([string][char]0x2014))))
+    if ("$(Get-CopieValeur (Get-CopieValeur $Regle 'planification') 'type' '')" -eq 'unique') {
+        $lignesPlanification += New-CopieLigne 'Date et heure' (Format-CopieTexte (Get-CopieValeur (Get-CopieValeur $Regle 'planification') 'date_heure') ([string][char]0x2014))
+    }
+    $lignesPlanification += New-CopieLigne 'Rattrapage (s)' (Format-CopieTexte (Get-CopieValeur (Get-CopieValeur $Regle 'planification') 'rattrapage_sec') 'aucun')
+    & $ajouter 'Planification' $lignesPlanification
     & $ajouter 'Dépendances' @(
         (New-CopieLigne 'Après' (Format-CopieTexte (Get-CopieValeur $Regle 'apres') 'aucune')),
         (New-CopieLigne 'Condition' (& $v $Regle 'condition')),
@@ -222,15 +229,19 @@ function ConvertTo-CopieGroupeEtat {
     $t = { param($nom, $defaut) Format-CopieTexte (Get-CopieValeur $Etat $nom) $defaut }
     $exec = Get-CopieValeur $Etat 'derniere_execution'
     $err = Get-CopieValeur $Etat 'derniere_erreur'
+    $lignesResume = @(
+        (New-CopieLigne 'Statut' (& $t 'statut' $tiret)),
+        (New-CopieLigne 'Motif' (& $t 'motif' $tiret)),
+        (New-CopieLigne 'Attente' (& $t 'attente' $tiret)),
+        (New-CopieLigne 'Dernier lancement' (Format-CopieDate (Get-CopieValeur $Etat 'dernier_lancement'))),
+        (New-CopieLigne 'Dernier créneau' (Format-CopieDate (Get-CopieValeur $Etat 'dernier_creneau'))),
+        (New-CopieLigne 'Prochain créneau' (Format-CopieDate (Get-CopieValeur $Etat 'prochain_creneau'))),
+        (New-CopieLigne 'Dernier succès' (Format-CopieDate (Get-CopieValeur $Etat 'dernier_succes'))))
+    if ([bool](Get-CopieValeur $Etat 'unique_executee' $false)) {
+        $lignesResume += New-CopieLigne 'Planification unique' 'exécutée : la règle est terminée (changer la date pour la réarmer)'
+    }
     $groupes = @(
-        [pscustomobject]@{ Titre = 'Résumé'; Lignes = @(
-                (New-CopieLigne 'Statut' (& $t 'statut' $tiret)),
-                (New-CopieLigne 'Motif' (& $t 'motif' $tiret)),
-                (New-CopieLigne 'Attente' (& $t 'attente' $tiret)),
-                (New-CopieLigne 'Dernier lancement' (Format-CopieDate (Get-CopieValeur $Etat 'dernier_lancement'))),
-                (New-CopieLigne 'Dernier créneau' (Format-CopieDate (Get-CopieValeur $Etat 'dernier_creneau'))),
-                (New-CopieLigne 'Prochain créneau' (Format-CopieDate (Get-CopieValeur $Etat 'prochain_creneau'))),
-                (New-CopieLigne 'Dernier succès' (Format-CopieDate (Get-CopieValeur $Etat 'dernier_succes')))) },
+        [pscustomobject]@{ Titre = 'Résumé'; Lignes = $lignesResume },
         [pscustomobject]@{ Titre = 'Dernière exécution'; Lignes = @(
                 (New-CopieLigne 'Statut' (Format-CopieTexte (Get-CopieValeur $exec 'statut') $tiret)),
                 (New-CopieLigne 'Fichiers livrés' (Format-CopieTexte (Get-CopieValeur $exec 'nb_livres') $tiret)),

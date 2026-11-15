@@ -103,13 +103,14 @@ Gravité des codes d'accès : `A01` `A02` `A04` `A05` refus ; `A03` `A06` averti
              "dernier_succes": 1793605500,
              "derniere_erreur": {"le": 1793520000, "situation": "fichier_verrouille", "message": "..."},
              "derniere_execution": {"statut": "WARNING", "nb_livres": 4, "nb_erreurs": 0, "declencheur": "planifie", "duree_sec": 11},
-             "reprise": false, "lancement_manuel": false, "arret_apres_erreur": false,
+             "reprise": false, "lancement_manuel": false, "arret_apres_erreur": false, "unique_executee": false,
              "archivage_degrade": true, "actions_en_attente": 12, "livraisons_incertaines": 0, "incertains": []}]}
 ```
 
 | Champ d'une règle | Type | Sens |
 |---|---|---|
 | `statut` | texte | `JAMAIS_LANCEE`, `SUCCES`, `WARNING`, `ERREUR`, `ATTENTE`, `ACQUITTEE`, `ARRETEE`, `EN_COURS`, `EN_ATTENTE`, `BLOQUEE`, `INACTIVE` |
+| `unique_executee` | booléen | Planification `unique` (OneShot) déjà jouée : la règle est terminée, son `statut` est `INACTIVE`. `actif` reste à `true` (le moteur n'écrit jamais le paramétrage, G5). Champ ajouté après le premier jet du contrat (version inchangée : ajout compatible) |
 | `attente`, `motif` | texte ou `null` | `EN_ATTENTE` / `BLOQUEE` et son explication (nomme la règle bloquante) ; `motif` reprend sinon le motif de la dernière exécution |
 | `planification` | texte | Planification en clair |
 | `dernier_lancement`, `dernier_creneau`, `prochain_creneau`, `dernier_succes` | entier ou `null` | **Secondes depuis 1970, UTC** (à convertir pour l'affichage) |

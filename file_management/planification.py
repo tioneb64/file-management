@@ -58,8 +58,30 @@ def _creneau_mural(jour, secondes):
     return datetime.datetime.combine(jour, datetime.time.min) + datetime.timedelta(seconds=secondes)
 
 
+def _instant_unique(planification, fuseau):
+    """Instant (secondes) du creneau unique d'une planification `unique`, ou None si la date est absente."""
+    return None if planification.date_heure is None else fuseau.epoch(planification.date_heure)
+
+
+def unique_executee(planification, ligne, maintenant, fuseau=FUSEAU):
+    """Une planification `unique` dont le creneau a ete pris, sans suite en attente : la regle est
+    consideree comme terminee (le moteur n'ecrit jamais le fichier de parametrage : `actif` y reste a true).
+    `ligne` : ligne de la table `regles` (dict) ou None. Une reprise, un lancement manuel, une execution en
+    cours, un arret apres erreur ou une derniere execution en ERREUR gardent la regle "vivante"."""
+    if planification is None or planification.type != "unique" or ligne is None:
+        return False
+    instant = _instant_unique(planification, fuseau)
+    if instant is None or instant > maintenant or ligne["dernier_creneau"] is None or ligne["dernier_creneau"] < instant:
+        return False
+    return not (ligne["en_cours"] or ligne["reprise"] or ligne["lancement_manuel"] or ligne["arret_apres_erreur"]
+                or ligne["dernier_statut"] == "ERREUR")
+
+
 def dernier_creneau_echu(planification, maintenant, fuseau=FUSEAU):
     """Le plus recent creneau anterieur ou egal a `maintenant`, ou None."""
+    if planification is not None and planification.type == "unique":
+        instant = _instant_unique(planification, fuseau)
+        return instant if instant is not None and instant <= maintenant else None
     if planification is None or planification.type not in ("quotidien", "intervalle"):
         return None
     aujourdhui = fuseau.local(maintenant).date()
@@ -74,6 +96,9 @@ def dernier_creneau_echu(planification, maintenant, fuseau=FUSEAU):
 
 def prochain_creneau(planification, maintenant, fuseau=FUSEAU):
     """Le premier creneau strictement posterieur a `maintenant`, ou None."""
+    if planification is not None and planification.type == "unique":
+        instant = _instant_unique(planification, fuseau)
+        return instant if instant is not None and instant > maintenant else None
     if planification is None or planification.type not in ("quotidien", "intervalle"):
         return None
     aujourdhui = fuseau.local(maintenant).date()
@@ -102,7 +127,9 @@ def evaluer(regle, etat, maintenant, fuseau=FUSEAU):
     if etat["lancement_manuel"]:
         return Decision(True, "manuel", echu, "lancement manuel demande")
     apres_dependances = planification is not None and planification.type == "apres_dependances"
-    if not apres_dependances and etat["dernier_creneau"] is None and etat["dernier_lancement"] is None:
+    unique = planification is not None and planification.type == "unique"
+    # une regle `unique` deja enregistree (creneau a venir) n'est pas « nouvelle » : son creneau doit pouvoir partir
+    if not apres_dependances and not unique and etat["dernier_creneau"] is None and etat["dernier_lancement"] is None:
         # jamais vue : son dernier creneau echu est considere comme deja pris (docs/02, section 4.5)
         return Decision(False, motif="regle nouvelle", creneau=echu, nouvelle=True)
     if etat["arret_apres_erreur"]:
@@ -127,6 +154,9 @@ def libelle(planification):
         return ""
     if planification.type == "apres_dependances":
         return "apres ses dependances"
+    if planification.type == "unique":
+        d = planification.date_heure
+        return "une seule fois, le %s a %s" % (d.strftime("%Y-%m-%d"), d.strftime("%H:%M")) if d else "une seule fois"
     jours = planification.jours
     if len(jours) == 7:
         texte_jours = "tous les jours"

@@ -583,5 +583,75 @@ class TestCommandes(CasLancement):
         self.assertIn("fichier_a_livrer", sortie)
 
 
+class TestPlanificationUnique(CasLancement):
+    """OneShot : la regle part une seule fois a la date indiquee, puis elle est terminee (statut INACTIVE
+    dans l'etat) ; le fichier de parametrage n'est jamais modifie."""
+
+    def etat_regle(self):
+        with modele_base.ouvrir(self.chemin_base, "production", lecture_seule=True) as ro:
+            return lancement.etat(self.parametrage(), ro, maintenant=self.ts)["regles"][0]
+
+    def livre(self, nom):
+        return os.path.exists(os.path.join(self.dst, nom))
+
+    def test_une_seule_fois_puis_terminee_puis_rearmee_par_une_nouvelle_date(self):
+        self.brute(planification={"type": "unique", "date_heure": "2026-07-15 10:00"})
+        self.fichier("a.csv")
+        self.lancer_env()                                              # 06:00 : la regle est enregistree
+        r = self.etat_regle()
+        self.assertEqual((r["statut"], r["unique_executee"], r["actif"]), ("JAMAIS_LANCEE", False, True))
+        self.assertEqual(r["prochain_creneau"], int((self.jour + datetime.timedelta(hours=10)).timestamp()))
+        self.assertEqual(r["planification"], "une seule fois, le 2026-07-15 a 10:00")
+        self.heure(9, 59)
+        self.lancer_env()
+        self.assertFalse(self.livre("a.csv"))                          # pas avant la date
+        self.heure(10, 0)
+        self.lancer_env()
+        self.assertTrue(self.livre("a.csv"))                           # a la date
+        r = self.etat_regle()
+        self.assertEqual((r["statut"], r["unique_executee"], r["actif"], r["prochain_creneau"]),
+                         ("INACTIVE", True, True, None))
+        self.assertIn("planification unique executee", r["motif"])
+        self.fichier("b.csv")
+        for h in (10, 11):
+            self.heure(h, 30)
+            self.lancer_env()
+        self.assertFalse(self.livre("b.csv"))                          # jamais deux fois
+        self.assertEqual(self.etat_regle()["statut"], "INACTIVE")
+        self.brutes_remplacer(date_heure="2026-07-15 12:00")           # nouvelle date : la regle est rearmee
+        self.assertFalse(self.etat_regle()["unique_executee"])
+        self.heure(12, 0)
+        self.lancer_env()
+        self.assertTrue(self.livre("b.csv"))
+        self.assertTrue(self.etat_regle()["unique_executee"])
+
+    def test_erreur_de_la_regle_unique_reste_visible_et_la_reprise_fonctionne(self):
+        self.brute(source=self.chemin("absente"), planification={"type": "unique", "date_heure": "2026-07-15 10:00"})
+        self.lancer_env()
+        self.heure(10, 0)
+        self.lancer_env()
+        r = self.etat_regle()
+        self.assertEqual((r["statut"], r["unique_executee"], r["arret_apres_erreur"]), ("ERREUR", False, True))
+        self.b.poser_reprise("r1", "benoit")
+        self.assertTrue(self.etat_regle()["reprise"])
+
+    def test_lancement_manuel_apres_la_fin(self):
+        self.brute(planification={"type": "unique", "date_heure": "2026-07-15 10:00"})
+        self.lancer_env()
+        self.fichier("a.csv")
+        self.heure(10, 0)
+        self.lancer_env()
+        self.assertTrue(self.etat_regle()["unique_executee"])
+        self.fichier("b.csv")
+        self.heure(11, 0)
+        self.b.poser_lancement_manuel("r1", "benoit")
+        self.assertFalse(self.etat_regle()["unique_executee"])         # demande en attente : la regle est de nouveau vivante
+        self.lancer_env()
+        self.assertTrue(self.livre("b.csv"))
+
+    def brutes_remplacer(self, **planif):
+        self.regles_brutes[0]["planification"] = dict(self.regles_brutes[0]["planification"], **planif)
+
+
 if __name__ == "__main__":
     unittest.main()

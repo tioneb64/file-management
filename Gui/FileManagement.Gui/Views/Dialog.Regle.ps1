@@ -190,7 +190,7 @@ function New-CopieOngletPlanification {
     $type.SelectedItem = $(if ($initial) { $initial } else { 'quotidien' })
     if ($null -eq $type.SelectedItem) { $type.SelectedIndex = 0 }
     Add-CopieLigneFormulaire -Panneau $Panneau -Libelle 'Type de planification' -Obligatoire $true -Controle $type `
-        -Aide 'quotidien : une fois par jour à une heure fixe. intervalle : toutes les N secondes dans une plage horaire. apres_dependances : se lance après les règles dont elle dépend.'
+        -Aide 'quotidien : une fois par jour à une heure fixe. intervalle : toutes les N secondes dans une plage horaire. apres_dependances : se lance après les règles dont elle dépend. unique (OneShot) : une seule fois, à une date et une heure précises, puis la règle est terminée.'
     $etat.Type = $type
 
     $champ = {
@@ -204,6 +204,7 @@ function New-CopieOngletPlanification {
         $e
     }
     $etat.Heure = & $champ 'heure' 'Heure de lancement' 'texte' 'Format HH:MM, exemple 07:00.'
+    $etat.DateHeure = & $champ 'date_heure' 'Date et heure de lancement' 'texte' 'Format AAAA-MM-JJ HH:MM, heure locale du serveur (exemple : 2026-12-01 07:15). La règle part une seule fois à cette date, puis elle est terminée ; changer la date la réarme.'
     $etat.Frequence = & $champ 'frequence_sec' 'Fréquence' 'duree' 'Délai entre deux lancements dans la plage horaire. Moins de 5 minutes provoque un avertissement du moteur.'
     $etat.Debut = & $champ 'debut' 'Début de plage' 'texte' 'Format HH:MM.'
     $etat.Fin = & $champ 'fin' 'Fin de plage' 'texte' 'Format HH:MM, postérieur au début.'
@@ -240,9 +241,10 @@ function Update-CopiePlanificationVisible {
     $type = "$($pl.Type.SelectedItem)"
     $v = { param($visible) if ($visible) { 'Visible' } else { 'Collapsed' } }
     $pl.Heure.Boite.Visibility = & $v ($type -eq 'quotidien')
+    $pl.DateHeure.Boite.Visibility = & $v ($type -eq 'unique')
     foreach ($n in 'Frequence', 'Debut', 'Fin') { $pl[$n].Boite.Visibility = & $v ($type -eq 'intervalle') }
     $pl.BoiteJours.Visibility = & $v ($type -in 'quotidien', 'intervalle')
-    $pl.Rattrapage.Boite.Visibility = & $v ($type -in 'quotidien', 'intervalle')
+    $pl.Rattrapage.Boite.Visibility = & $v ($type -in 'quotidien', 'intervalle', 'unique')
 }
 
 function Update-CopieHorodatageDisponible {
@@ -425,6 +427,28 @@ function Read-CopieFormulaire {
     $planif = [ordered]@{ type = $type }
     $lire = { param($e) $r = Read-CopieControleChamp -Entree $e; if (-not $r.Ok) { $erreurs.Add($r.Erreur) }; $r.Valeur }
     if ($type -eq 'quotidien') { $planif.heure = & $lire $pl.Heure }
+    if ($type -eq 'unique') {
+        $planif.date_heure = & $lire $pl.DateHeure
+        $planif.rattrapage_sec = & $lire $pl.Rattrapage
+        $texteDate = "$($planif.date_heure)".Trim()
+        $date = [datetime]::MinValue
+        if ($texteDate -and -not [datetime]::TryParseExact($texteDate, [string[]]@('yyyy-MM-dd HH:mm', 'yyyy-MM-ddTHH:mm'), [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::None, [ref]$date)) {
+            $erreurs.Add('Date et heure de lancement : format AAAA-MM-JJ HH:MM attendu (exemple : 2026-12-01 07:15).')
+        }
+        elseif ($texteDate) {
+            # Le moteur ne démarre une règle unique que s'il l'a vue avant sa date : sinon, à son premier passage, la date est déjà
+            # passée, la règle est « nouvelle » donc considérée comme manquée. Il faut donc au moins deux périodes du déclencheur.
+            $periode = $(if ($Etat.ContainsKey('PeriodeDeclencheurSec')) { [int]$Etat.PeriodeDeclencheurSec } else { 300 })
+            $limite = (Get-Date).AddSeconds(2 * $periode)
+            if ($date -le $limite) {
+                # n'est refusée que la date qui vient d'être saisie : l'édition d'une règle déjà jouée reste possible
+                $initiale = "$(Get-CopieValeur (Get-CopieValeur $Etat.Base 'planification') 'date_heure' '')".Trim()
+                if ($Etat.Mode -ne 'modification' -or $texteDate -ne $initiale) {
+                    $erreurs.Add(("Date et heure de lancement : au moins {0} min d'avance (deux fois la période du déclencheur Jenkins) : le moteur doit voir la règle avant sa date, sinon elle est considérée comme manquée et ne part pas. Date minimale : {1:yyyy-MM-dd HH:mm}." -f [math]::Ceiling(2 * $periode / 60), $limite))
+                }
+            }
+        }
+    }
     if ($type -eq 'intervalle') {
         $planif.frequence_sec = & $lire $pl.Frequence
         $planif.debut = & $lire $pl.Debut
@@ -558,9 +582,14 @@ function New-CopieFormulaireRegle {
     }
     $programmes = New-CopieOngletProgrammes -Modele $Modele -Regle $Regle -Panneau (& $creerOnglet 'Programmes')
 
+    # période du déclencheur Jenkins : une planification unique doit laisser au moins deux périodes au moteur pour voir la règle
+    $periode = 300
+    if ($Contexte.ContainsKey('Config') -and [int](Get-CopieValeur (Get-CopieValeur $Contexte.Config 'Parametrage') 'PeriodeDeclencheurSec' 0) -gt 0) {
+        $periode = [int]$Contexte.Config.Parametrage.PeriodeDeclencheurSec
+    }
     $fenetre.Tag = @{
         Champs = $champs.ToArray(); Planif = $planif; Situations = $situations; Programmes = $programmes
-        Base = $Regle; Mode = $Mode; IdsExistants = $IdsExistants; Resultat = $null
+        Base = $Regle; Mode = $Mode; IdsExistants = $IdsExistants; Resultat = $null; PeriodeDeclencheurSec = $periode
     }
     Update-CopiePlanificationVisible -Fenetre $fenetre
     $champMode = $champs | Where-Object { $_.Spec.Chemin -eq 'mode' } | Select-Object -First 1

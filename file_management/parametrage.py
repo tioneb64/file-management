@@ -3,6 +3,7 @@
 Les controles qui comparent plusieurs regles entre elles sont dans controles.py.
 Specification : docs/01-parametrage.md.
 """
+import datetime
 import json
 import os
 import re
@@ -26,6 +27,7 @@ def deduire_code_environnement(nom):
     return nom if nom in CODES_ENVIRONNEMENT else ALIAS_CODES_ENVIRONNEMENT.get(nom)
 RE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 RE_HEURE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+RE_DATE_HEURE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[ T]([01]\d|2[0-3]):([0-5]\d)$")
 RE_MODIFIE_DEPUIS = re.compile(r"^(TOUT|J|J-(\d+))$")
 
 MODES = ("copie", "deplacement", "archivage", "suppression", "count", "size", "synchro")
@@ -49,7 +51,7 @@ SI_EXISTE_CIBLE = ("erreur", "ecraser", "ignorer", "suffixe")
 SI_EXISTE_ARCHIVE = ("suffixe", "ecraser", "erreur")
 SI_DUREE_DEPASSEE = ("erreur", "relancer", "alerter")
 APRES_ERREUR = ("arreter", "continuer")
-TYPES_PLANIFICATION = ("intervalle", "quotidien", "apres_dependances")
+TYPES_PLANIFICATION = ("intervalle", "quotidien", "unique", "apres_dependances")
 CONDITIONS = ("termine", "succes", "fichiers")
 JOURS = ("lun", "mar", "mer", "jeu", "ven", "sam", "dim")
 PROGRAMMES = ("avant_lot", "avant_fichier", "apres_fichier", "apres_lot", "sur_erreur", "reprise")
@@ -151,6 +153,7 @@ class Planification(object):
         self.debut = None            # minutes depuis minuit
         self.fin = None
         self.heure = None
+        self.date_heure = None       # type unique : datetime naif, heure locale du serveur
         self.jours = frozenset(range(7))
         self.rattrapage_sec = None
 
@@ -462,6 +465,17 @@ def lire_heure(texte):
     return int(m.group(1)) * 60 + int(m.group(2)) if m else None
 
 
+def lire_date_heure(texte):
+    """'AAAA-MM-JJ HH:MM' (ou avec un T) -> datetime naif, ou None si le texte n'est pas une date et une heure valides."""
+    m = RE_DATE_HEURE.match(texte.strip()) if isinstance(texte, str) else None
+    if not m:
+        return None
+    try:
+        return datetime.datetime(*(int(g) for g in m.groups()))
+    except ValueError:
+        return None
+
+
 def _lire_selection(objet, ligne, regle, rapport):
     s = Selection()
     lecteur = Lecteur(objet, rapport, ligne, regle.id, "selection")
@@ -499,6 +513,8 @@ def _lire_planification(objet, ligne, regle, rapport):
     if p.type is not None and p.type not in TYPES_PLANIFICATION:
         lecteur.signaler("P01", "planification.type : '%s' inconnu (attendu : %s)"
                          % (p.type, ", ".join(TYPES_PLANIFICATION)))
+    if p.type == "unique":
+        p.rattrapage_sec = lecteur.entier("rattrapage_sec", None, minimum=0, nullable=True)
     if p.type in ("intervalle", "quotidien"):
         jours = lecteur.valeur("jours", "texte", "tous")
         lus = lire_jours(jours)
@@ -531,6 +547,14 @@ def _lire_planification(objet, ligne, regle, rapport):
             lecteur.signaler("P01", "planification.heure est obligatoire pour un quotidien")
         elif p.heure is None:
             lecteur.signaler("P01", "planification.heure : '%s' n'est pas une heure HH:MM" % texte)
+    elif p.type == "unique":
+        texte = lecteur.valeur("date_heure", "texte", None)
+        p.date_heure = lire_date_heure(texte)
+        if texte is None:
+            lecteur.signaler("P01", "planification.date_heure est obligatoire pour une planification unique")
+        elif p.date_heure is None:
+            lecteur.signaler("P01", "planification.date_heure : '%s' n'est pas une date et une heure valides "
+                             "(format AAAA-MM-JJ HH:MM)" % texte)
     lecteur.inconnus()
     return p
 

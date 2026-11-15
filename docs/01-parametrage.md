@@ -146,6 +146,7 @@ Le moteur est lancé souvent par Jenkins (toutes les 1 ou 5 minutes). Chaque rè
 "planification": {"type": "intervalle", "frequence_sec": 300, "debut": "05:00", "fin": "19:00",
                   "jours": "lun-ven", "rattrapage_sec": null}
 "planification": {"type": "quotidien", "heure": "07:15", "jours": "tous", "rattrapage_sec": 14400}
+"planification": {"type": "unique", "date_heure": "2026-12-01 07:15", "rattrapage_sec": null}
 "planification": {"type": "apres_dependances"}
 ```
 
@@ -153,11 +154,13 @@ Le moteur est lancé souvent par Jenkins (toutes les 1 ou 5 minutes). Chaque rè
 |---|---|---|
 | `intervalle` | `frequence_sec`, `debut`, `fin`, `jours`, `rattrapage_sec` | `debut`, `debut + frequence_sec`, … jusqu'à `fin` inclus, les jours indiqués |
 | `quotidien` | `heure`, `jours`, `rattrapage_sec` | Un créneau par jour indiqué, à `heure` |
+| `unique` (OneShot) | `date_heure`, `rattrapage_sec` | **Un seul créneau**, à la date et à l'heure indiquées : la règle part une fois, puis elle est **terminée** (voir ci-dessous) |
 | `apres_dependances` | — | Pas d'horaire : la règle part dès que ses dépendances sont remplies (§3.6) |
 
-- Heures au format `HH:MM`, **heure locale** du serveur d'exécution.
+- Heures au format `HH:MM`, **heure locale** du serveur d'exécution. `date_heure` au format `AAAA-MM-JJ HH:MM` (un `T` à la place de l'espace est accepté), même heure locale ; date invalide ou absente : **P01**.
 - `jours` : `tous`, `lun-ven`, `lun,mer,ven`.
 - Règles de décision au §4 de [02-moteur](02-moteur.md).
+- **`unique` (OneShot)** : la règle part **une seule fois**, au premier lancement du moteur qui suit `date_heure` (sans `rattrapage_sec`, un lancement manqué est rattrapé dès que possible ; avec, il est perdu au-delà de cette durée). Elle ne repart plus ensuite. **Le moteur n'écrit jamais le fichier de paramétrage** (G5) : `actif` y reste à `true`. La fin se lit dans l'état (`--etat`) : statut `INACTIVE`, champ `unique_executee` à `true`, motif « planification unique exécutée le … ». L'interface affiche alors la règle comme inactive. **Changer `date_heure`** (nouvelle date postérieure à la dernière exécution) **réarme** la règle ; « Lancer maintenant » et « Reprise » restent possibles. Une règle jamais vue du moteur dont la date est déjà passée est considérée comme manquée (comme toute règle nouvelle, §4 de 02) : elle ne part pas ; l'interface refuse d'enregistrer une date qui laisse moins de **deux périodes du déclencheur Jenkins** (`Parametrage.PeriodeDeclencheurSec`, 300 s par défaut : 10 minutes d'avance) : le moteur doit avoir vu la règle avant sa date, sinon, à son premier passage, la date est déjà passée et la règle est considérée comme manquée. Une exécution en `ERREUR` ne termine pas la règle : elle reste en erreur, en attente d'une reprise ou d'un acquittement. Le mode `synchro` n'admet pas ce type.
 
 ### 3.6 Dépendances
 

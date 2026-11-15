@@ -193,6 +193,8 @@ Describe 'Mise en forme' {
             Format-CopiePlanification $q | Should -Be 'à 07:15, tous les jours'
             Format-CopiePlanification ('{"type":"apres_dependances"}' | ConvertFrom-Json) | Should -Be 'après ses dépendances'
             Format-CopiePlanification $null | Should -Be 'non planifiée'
+            Format-CopiePlanification ('{"type":"unique","date_heure":"2026-12-01 07:15"}' | ConvertFrom-Json) | Should -Be 'une seule fois, le 2026-12-01 à 07:15'
+            Format-CopiePlanification ('{"type":"unique","date_heure":"2026-12-01T07:15"}' | ConvertFrom-Json) | Should -Be 'une seule fois, le 2026-12-01 à 07:15'
         }
     }
     It 'donne une couleur à chaque statut du contrat, et une couleur neutre aux autres' {
@@ -225,6 +227,22 @@ Describe 'Mise en forme' {
             $avec.Planification | Should -Be 'du moteur'
             $avec.StatutCouleur | Should -Be (Get-CopieCouleurStatut 'ERREUR')
             $avec.ProchainCreneau | Should -Be ([string][char]0x2014)
+        }
+    }
+    It 'une règle OneShot déjà jouée apparaît inactive dans la grille, sans que le fichier change' {
+        InModuleScope FileManagement.Gui {
+            $regle = '{"id":"u","mode":"copie","source":"S","cible":"C","actif":true,"planification":{"type":"unique","date_heure":"2026-12-01 07:15"}}' | ConvertFrom-Json
+            $avant = '{"statut":"SUCCES","planification":"une seule fois, le 2026-12-01 a 07:15","unique_executee":false}' | ConvertFrom-Json
+            $apres = '{"statut":"INACTIVE","planification":"une seule fois, le 2026-12-01 a 07:15","unique_executee":true,"motif":"planification unique executee"}' | ConvertFrom-Json
+            $l = ConvertTo-CopieLigneRegle -Regle $regle -Etat $avant
+            ($l.Actif, $l.Aspect) -join '|' | Should -Be 'Oui|'
+            $l = ConvertTo-CopieLigneRegle -Regle $regle -Etat $apres
+            ($l.Actif, $l.Aspect, $l.Statut) -join '|' | Should -Be 'Non|inactive|INACTIVE'
+            $groupes = ConvertTo-CopieGroupeEtat -Etat $apres
+            (($groupes | ForEach-Object { $_.Lignes } | ForEach-Object { $_.Libelle }) -contains 'Planification unique') | Should -BeTrue
+            $detail = ConvertTo-CopieGroupeRegle -Regle $regle
+            $planif = $detail | Where-Object { $_.Titre -eq 'Planification' }
+            ($planif.Lignes | Where-Object { $_.Libelle -eq 'Date et heure' }).Valeur | Should -Be '2026-12-01 07:15'
         }
     }
     It 'regroupe le détail d''une règle et tolère les champs absents' {

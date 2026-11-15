@@ -184,6 +184,59 @@ Describe 'Formulaire de règle' -Skip:(-not ($Script:PythonDisponible -and $Scri
             $pl.Frequence.Boite.Visibility | Should -Be 'Visible'
             $pl.Type.SelectedItem = 'apres_dependances'
             $pl.BoiteJours.Visibility | Should -Be 'Collapsed'
+            $pl.Type.SelectedItem = 'unique'
+            $pl.DateHeure.Boite.Visibility | Should -Be 'Visible'
+            $pl.Rattrapage.Boite.Visibility | Should -Be 'Visible'
+            foreach ($n in 'Heure', 'Frequence', 'Debut', 'Fin') { $pl[$n].Boite.Visibility | Should -Be 'Collapsed' -Because $n }
+            $pl.BoiteJours.Visibility | Should -Be 'Collapsed'
+            $pl.Type.SelectedItem = 'quotidien'
+            $pl.DateHeure.Boite.Visibility | Should -Be 'Collapsed'
+        }
+    }
+    It 'planification unique (OneShot) : lit la date, refuse une date mal écrite, passée ou trop proche du prochain passage du moteur' {
+        $o = & $Script:Construire $null 'ajout'
+        InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
+            param($f)
+            $t = $f.Tag
+            foreach ($e in $t.Champs) { switch ($e.Spec.Chemin) { 'id' { $e.Controle.Text = 'once' }; 'source' { $e.Controle.Text = 'S' }; 'cible' { $e.Controle.Text = 'C' } } }
+            $t.Planif.Type.SelectedItem = 'unique'
+            $futur = (Get-Date).AddDays(30).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
+            $t.Planif.DateHeure.Controle.Text = $futur
+            $lecture = Read-CopieFormulaire -Etat $t
+            $lecture.Erreurs.Count | Should -Be 0 -Because ($lecture.Erreurs -join '|')
+            $lecture.Regle.planification.type | Should -Be 'unique'
+            $lecture.Regle.planification.date_heure | Should -Be $futur
+            $lecture.Regle.planification.PSObject.Properties.Name | Should -Not -Contain 'jours'
+            $t.Planif.DateHeure.Controle.Text = '01/12/2026 07:15'
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match 'AAAA-MM-JJ HH:MM'
+            $t.Planif.DateHeure.Controle.Text = '2020-01-01 10:00'
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match 'd''avance'
+            # la garde : au moins deux périodes du déclencheur (300 s par défaut = 10 min) avant la date
+            $texte = { param($minutes) (Get-Date).AddMinutes($minutes).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture) }
+            $t.Planif.DateHeure.Controle.Text = (& $texte 4)
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match '10 min d''avance'
+            $t.Planif.DateHeure.Controle.Text = (& $texte 12)
+            (Read-CopieFormulaire -Etat $t).Erreurs.Count | Should -Be 0
+            $t.PeriodeDeclencheurSec = 60                      # déclencheur toutes les minutes : 2 min d'avance suffisent
+            $t.Planif.DateHeure.Controle.Text = (& $texte 3)
+            (Read-CopieFormulaire -Etat $t).Erreurs.Count | Should -Be 0
+            $t.Planif.DateHeure.Controle.Text = (& $texte 1)
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match '2 min d''avance'
+            $t.Planif.DateHeure.Controle.Text = ''
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match 'Date et heure de lancement'
+        }
+    }
+    It 'planification unique : une règle déjà jouée reste modifiable sans changer sa date passée' {
+        $jouee = '{"id":"r1","source":"S","cible":"C","mode":"copie","planification":{"type":"unique","date_heure":"2020-01-01 10:00","rattrapage_sec":null}}' | ConvertFrom-Json
+        $o = & $Script:Construire $jouee 'modification'
+        InModuleScope FileManagement.Gui -Parameters @{ f = $o.Fenetre } {
+            param($f)
+            $t = $f.Tag
+            $t.Planif.Type.SelectedItem | Should -Be 'unique'
+            $t.Planif.DateHeure.Controle.Text | Should -Be '2020-01-01 10:00'
+            (Read-CopieFormulaire -Etat $t).Erreurs.Count | Should -Be 0
+            $t.Planif.DateHeure.Controle.Text = '2020-02-02 10:00'
+            ((Read-CopieFormulaire -Etat $t).Erreurs -join '|') | Should -Match 'd''avance'
         }
     }
     It 'une règle saisie dans le formulaire est acceptée par le moteur et enregistrée' {

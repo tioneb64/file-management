@@ -277,7 +277,7 @@ def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre
                   "prochain_creneau": _entier(planification.prochain_creneau(regle.planification, maintenant, fuseau)),
                   "dernier_succes": None, "derniere_erreur": None, "derniere_execution": None,
                   "reprise": False, "lancement_manuel": False, "arret_apres_erreur": False,
-                  "archivage_degrade": False, "actions_en_attente": 0, "livraisons_incertaines": 0,
+                  "unique_executee": False, "archivage_degrade": False, "actions_en_attente": 0, "livraisons_incertaines": 0,
                   "incertains": []}
         if ligne is not None:
             no = ligne["no"]
@@ -303,7 +303,13 @@ def etat(parametrage, base, maintenant=None, fuseau=planification.FUSEAU, filtre
                     "statut": derniere["statut"], "nb_livres": derniere["nb_livres"],
                     "nb_erreurs": derniere["nb_erreurs"], "declencheur": derniere["declencheur"],
                     "duree_sec": (fin - derniere["debut"]) if fin else None}
-        if not regle.actif:
+        if planification.unique_executee(regle.planification, ligne, maintenant, fuseau):
+            # planification `unique` deja jouee : la regle est terminee. Le moteur n'ecrit jamais le parametrage
+            # (`actif` y reste a true) : la fin se lit ici, dans l'etat.
+            entree["unique_executee"] = True
+            entree["motif"] = ("planification unique executee le %s : modifier la date pour la rearmer"
+                               % _heure(ligne["dernier_lancement"]))
+        if not regle.actif or entree["unique_executee"]:
             entree["statut"] = "INACTIVE"
         elif entree["en_cours"]:
             entree["statut"] = "EN_COURS"

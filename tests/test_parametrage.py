@@ -410,8 +410,26 @@ class TestPlanification(CasParametrage):
                        dict(i, debut="20:00"), dict(i, jours="lundi"), dict(i, jours="ven-lun"),
                        dict(i, jours="lun-"), {k: v for k, v in i.items() if k != "frequence_sec"},
                        {k: v for k, v in i.items() if k != "debut"},
-                       dict(q, heure="7:15"), {"type": "quotidien"}, dict(q, jours="")):
+                       dict(q, heure="7:15"), {"type": "quotidien"}, dict(q, jours=""),
+                       {"type": "unique"}, {"type": "unique", "date_heure": "2026-12-01"},
+                       {"type": "unique", "date_heure": "2026-13-01 07:15"},
+                       {"type": "unique", "date_heure": "2026-02-30 07:15"},
+                       {"type": "unique", "date_heure": "01/12/2026 07:15"},
+                       {"type": "unique", "date_heure": "2026-12-01 24:00"}):
             self.assertIn("P01", self.codes([regle(planification=planif)]), planif)
+
+    def test_planification_unique_valide(self):
+        for texte in ("2026-12-01 07:15", "2026-12-01T07:15", " 2026-12-01 07:15 "):
+            self.assertCodes([regle(planification={"type": "unique", "date_heure": texte})], [])
+        self.assertCodes([regle(planification={"type": "unique", "date_heure": "2026-12-01 07:15",
+                                               "rattrapage_sec": 3600})], [])
+        # les champs des autres types n'ont pas de sens pour une planification unique
+        self.assertIn("E06", self.codes([regle(planification={"type": "unique", "date_heure": "2026-12-01 07:15",
+                                                                "jours": "lun"})]))
+
+    def test_mode_synchro_refuse_la_planification_unique(self):
+        self.assertIn("P01", self.codes([regle(mode="synchro", cible=None,
+                                               planification={"type": "unique", "date_heure": "2026-12-01 07:15"})]))
 
     def test_p01_frequence_zero_est_une_borne(self):
         self.assertCodes([regle(planification={"type": "intervalle", "frequence_sec": 0,
