@@ -7,7 +7,7 @@
         Les objets (selection, planification, situations...) sont fusionnés champ par champ ; une liste ou une
         valeur simple est remplacée. Pour passer un champ à « vide », fournir null. La règle est ensuite
         complétée avec le modèle du moteur (un champ ajouté au format par une évolution apparaît avec sa valeur de secours).
-        Même garanties que Add-CopieApiRegle.
+        Même garanties que Add-CopieApiRegle, dont le délai minimal d'une planification « unique » (une date non modifiée n'est pas contrôlée).
 
     .PARAMETER Fichier
         Fichier de paramétrage (parametrage\<env>.jsonl).
@@ -51,6 +51,8 @@
         $base = Copy-CopieObjet -Objet $cible
         $base.PSObject.Properties.Remove('Ligne')
         $modifiee = Merge-CopieRegle -Modele $modele -Existante (Merge-CopieApiPatch -Base $base -Patch $patch)
+        $tropProche = Test-CopieApiDelai -Regle $modifiee -Initiale $cible -Argument $a
+        if ($null -ne $tropProche) { return $tropProche }
         $liste = foreach ($r in $regles) { if ($r -eq $cible) { $modifiee } else { $r } }
         @{ Regles = @($liste); Id = $Id; Regle = $modifiee }
     }

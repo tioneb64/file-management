@@ -436,17 +436,12 @@ function Read-CopieFormulaire {
             $erreurs.Add('Date et heure de lancement : format AAAA-MM-JJ HH:MM attendu (exemple : 2026-12-01 07:15).')
         }
         elseif ($texteDate) {
-            # Le moteur ne démarre une règle unique que s'il l'a vue avant sa date : sinon, à son premier passage, la date est déjà
-            # passée, la règle est « nouvelle » donc considérée comme manquée. Il faut donc au moins deux périodes du déclencheur.
+            # délai minimal de deux périodes du déclencheur : contrôle partagé avec l'API de règles (Get-CopieErreurDelaiUnique)
             $periode = $(if ($Etat.ContainsKey('PeriodeDeclencheurSec')) { [int]$Etat.PeriodeDeclencheurSec } else { 300 })
-            $limite = (Get-Date).AddSeconds(2 * $periode)
-            if ($date -le $limite) {
-                # n'est refusée que la date qui vient d'être saisie : l'édition d'une règle déjà jouée reste possible
-                $initiale = "$(Get-CopieValeur (Get-CopieValeur $Etat.Base 'planification') 'date_heure' '')".Trim()
-                if ($Etat.Mode -ne 'modification' -or $texteDate -ne $initiale) {
-                    $erreurs.Add(("Date et heure de lancement : au moins {0} min d'avance (deux fois la période du déclencheur Jenkins) : le moteur doit voir la règle avant sa date, sinon elle est considérée comme manquée et ne part pas. Date minimale : {1:yyyy-MM-dd HH:mm}." -f [math]::Ceiling(2 * $periode / 60), $limite))
-                }
-            }
+            # n'est refusée que la date qui vient d'être saisie : l'édition d'une règle déjà jouée reste possible
+            $initiale = $(if ($Etat.Mode -eq 'modification') { "$(Get-CopieValeur (Get-CopieValeur $Etat.Base 'planification') 'date_heure' '')".Trim() } else { $null })
+            $refus = Get-CopieErreurDelaiUnique -Planification ([pscustomobject]@{ type = 'unique'; date_heure = $texteDate }) -PeriodeSec $periode -Initiale $initiale
+            if ($null -ne $refus) { $erreurs.Add($refus.Message) }
         }
     }
     if ($type -eq 'intervalle') {

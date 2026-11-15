@@ -109,6 +109,30 @@ Describe 'API de règles' -Skip:(-not $Script:PythonDisponible) {
         $ok.Succes | Should -BeTrue -Because $ok.Message
     }
 
+    It 'planification unique : refuse une date à moins de deux périodes du déclencheur (étape delai), sans rien écrire' {
+        $avant = (Get-CopieApiRegle -Fichier $Script:Fichier).Empreinte
+        $texte = { param($minutes) (Get-Date).AddMinutes($minutes).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture) }
+        $unique = { param($minutes) $r = & $Script:Nouvelle; $r.id = 'u1'; $r.source = $Script:Dossier + '\su'; $r.cible = $Script:Dossier + '\cu'; $r.planification = @{ type = 'unique'; date_heure = (& $texte $minutes); rattrapage_sec = $null }; $r }
+        $proche = Add-CopieApiRegle -Fichier $Script:Fichier -Config $Script:Config -Regle (& $unique 4) -Commentaire 'trop proche' -Appelant 'pester'
+        $proche.Succes | Should -BeFalse
+        $proche.Etape | Should -Be 'delai'
+        $proche.DateMinimale | Should -Match '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$'
+        $proche.Message | Should -Match '10 min d''avance'
+        (Get-CopieApiRegle -Fichier $Script:Fichier).Empreinte | Should -Be $avant
+        $r30 = & $unique 30
+        $ok = Add-CopieApiRegle -Fichier $Script:Fichier -Config $Script:Config -Regle $r30 -Commentaire 'assez loin' -Appelant 'pester'
+        $ok.Succes | Should -BeTrue -Because $ok.Message
+        $modif = Set-CopieApiRegle -Fichier $Script:Fichier -Config $Script:Config -Id 'u1' -Modification @{ planification = @{ date_heure = (& $texte 5) } } -Commentaire 'rapprochée'
+        $modif.Etape | Should -Be 'delai'
+        (Get-CopieApiRegle -Fichier $Script:Fichier -Id 'u1').Regle.planification.date_heure | Should -Be $r30.planification.date_heure
+        # une date non modifiée n'est pas contrôlée (règle déjà jouée, ou proche de sa date) : le reste de la règle reste modifiable
+        $reste = Set-CopieApiRegle -Fichier $Script:Fichier -Config $Script:Config -Id 'u1' -Modification @{ description = 'autre champ' } -Commentaire 'sans toucher la date'
+        $reste.Succes | Should -BeTrue -Because $reste.Message
+        $loin = Set-CopieApiRegle -Fichier $Script:Fichier -Config $Script:Config -Id 'u1' -Modification @{ planification = @{ date_heure = (& $texte 60) } } -Commentaire 'reportée' -AccepterAvertissements
+        $loin.Succes | Should -BeTrue -Because $loin.Message
+        (Remove-CopieApiRegle -Fichier $Script:Fichier -Config $Script:Config -Id 'u1' -Commentaire 'nettoyage' -AccepterAvertissements).Succes | Should -BeTrue
+    }
+
     It 'refuse un compte hors Acces.GroupesAdmin, sans rien écrire' {
         $avant = (Get-CopieApiRegle -Fichier $Script:Fichier).Empreinte
         $r = Add-CopieApiRegle -Fichier $Script:Fichier -Config $Script:ConfigLecture -Regle @{ id = 'r9'; source = 'a'; cible = 'b'; mode = 'copie' } -Commentaire 'x'

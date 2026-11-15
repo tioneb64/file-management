@@ -6,6 +6,8 @@
     .DESCRIPTION
         Le module est le seul à écrire le fichier : même contrôle de conflit, mêmes versions conservées et même
         vérification du moteur que l'interface graphique. Réservé aux comptes de Acces.GroupesAdmin.
+        Une planification « unique » à moins de deux périodes du déclencheur Jenkins (10 minutes par défaut) est refusée
+        (étape delai, DateMinimale renseignée) : le moteur ne la verrait pas à temps et l'ordre ne partirait jamais.
         Ne fournissez que ce qui compte (id, source, cible, mode, planification...) ; un champ inconnu du format
         est refusé par le moteur (refus E06), jamais écrit en silence.
 
@@ -50,6 +52,8 @@
             return New-CopieApiResultat $false 'existe' ('Une règle porte déjà l''id ' + $id + ' : utilisez Set-CopieApiRegle.')
         }
         $nouvelle = Merge-CopieRegle -Modele $modele -Existante $entree
+        $tropProche = Test-CopieApiDelai -Regle $nouvelle -Initiale $null -Argument $a
+        if ($null -ne $tropProche) { return $tropProche }
         @{ Regles = @($regles) + @($nouvelle); Id = $id; Regle = $nouvelle }
     }
     Invoke-CopieApiModification -Fichier $Fichier -Config $Config -Transformer $transformer -Argument @{ Id = $id; Entree = $entree } -Action 'ajout' -Commentaire $Commentaire `

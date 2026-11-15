@@ -5,7 +5,7 @@
     .PARAMETER Succes
         L'opération est terminée avec succès.
     .PARAMETER Etape
-        ok, droits, configuration, lecture, version, conflit, introuvable, existe, invalide, moteur, refus, avertissements, ecriture.
+        ok, droits, configuration, lecture, version, conflit, introuvable, existe, invalide, delai, moteur, refus, avertissements, ecriture.
     .PARAMETER Message
         Texte lisible.
     .PARAMETER Refus
@@ -18,13 +18,15 @@
         Empreinte du nouveau fichier.
     .PARAMETER Regle
         Règle écrite (complète).
+    .PARAMETER DateMinimale
+        Étape delai : première date acceptée pour une planification unique (AAAA-MM-JJ HH:MM).
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
-    param([bool] $Succes, [string] $Etape, [string] $Message, $Refus = @(), $Avertissements = @(), $Version = $null, $Empreinte = $null, $Regle = $null)
+    param([bool] $Succes, [string] $Etape, [string] $Message, $Refus = @(), $Avertissements = @(), $Version = $null, $Empreinte = $null, $Regle = $null, $DateMinimale = $null)
     [pscustomobject]@{
         PSTypeName = 'Copie.ApiResultat'; Succes = $Succes; Etape = $Etape; Message = $Message
-        Refus = @($Refus); Avertissements = @($Avertissements); Version = $Version; Empreinte = $Empreinte; Regle = $Regle
+        Refus = @($Refus); Avertissements = @($Avertissements); Version = $Version; Empreinte = $Empreinte; Regle = $Regle; DateMinimale = $DateMinimale
         VersionApi = $Script:VersionApi
     }
 }
@@ -113,6 +115,28 @@ function Open-CopieApiContexte {
     @{ Config = $cfg; Modele = $reponse.Json }
 }
 
+function Test-CopieApiDelai {
+    <#
+    .SYNOPSIS
+        Planification unique : refuse une date à moins de deux périodes du déclencheur (même contrôle que l'interface).
+    .PARAMETER Regle
+        Règle complète à écrire.
+    .PARAMETER Initiale
+        Règle actuelle (modification) ou $null (ajout) : sa date, si elle n'est pas changée, n'est pas refusée.
+    .PARAMETER Argument
+        Argument du transformateur (PeriodeSec).
+    .OUTPUTS
+        $null si la date convient ; sinon un résultat d'échec (étape delai).
+    #>
+    [CmdletBinding()]
+    param($Regle, $Initiale, $Argument)
+    $initiale = $null
+    if ($null -ne $Initiale) { $initiale = "$(Get-CopieValeur (Get-CopieValeur $Initiale 'planification') 'date_heure' '')" }
+    $e = Get-CopieErreurDelaiUnique -Planification (Get-CopieValeur $Regle 'planification') -PeriodeSec $Argument.PeriodeSec -Initiale $initiale
+    if ($null -eq $e) { return $null }
+    New-CopieApiResultat $false 'delai' ($e.Message + ' Aucune règle n''a été écrite : un ordre trop proche de sa date ne partirait jamais.') -DateMinimale $e.DateMinimale
+}
+
 function Invoke-CopieApiModification {
     <#
     .SYNOPSIS
@@ -168,6 +192,9 @@ function Invoke-CopieApiModification {
     $accord = $AccepterAvertissements.IsPresent
     $confirmer = { param($avertissements) $null = $avertissements; $accord }.GetNewClosure()
 
+    $argumentComplet = @{}
+    foreach ($k in $Argument.Keys) { $argumentComplet[$k] = $Argument[$k] }
+    $argumentComplet.PeriodeSec = [int]$cfg.Parametrage.PeriodeDeclencheurSec
     $res = $null
     $t = $null
     for ($essai = 1; $essai -le 3; $essai++) {
@@ -181,7 +208,7 @@ function Invoke-CopieApiModification {
         if ($Empreinte -and $Empreinte -ne $p.Empreinte) {
             return New-CopieApiResultat $false 'conflit' 'Le fichier a changé depuis la lecture dont vient l''empreinte : rien n''a été enregistré. Relisez-le.'
         }
-        $t = & $Transformer $p.Regles $contexte.Modele.regle $Argument
+        $t = & $Transformer $p.Regles $contexte.Modele.regle $argumentComplet
         if ($t -is [pscustomobject] -and $t.PSObject.TypeNames -contains 'Copie.ApiResultat') { return $t }
 
         $res = Save-CopieParametrage -Config $cfg -Fichier $Fichier -EmpreinteAttendue $p.Empreinte -Entete $p.Entete `

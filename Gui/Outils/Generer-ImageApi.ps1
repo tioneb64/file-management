@@ -54,11 +54,6 @@ $fleche = {
     $stylo.CustomEndCap = New-Object System.Drawing.Drawing2D.AdjustableArrowCap 5, 6
     $g.DrawLine($stylo, $x1, $y1, $x2, $y2)
 }
-$etiquette = {
-    param($x, $y, $l, $texte, $gras)
-    $g.DrawString($texte, (& $police 9 $gras), (New-Object System.Drawing.SolidBrush $bleu), (New-Object System.Drawing.RectangleF $x, $y, $l, 20), $centre)
-}
-
 $g.DrawString("API de règles : un seul module écrit le fichier des règles", (& $police 14 $true), (New-Object System.Drawing.SolidBrush $encre), (New-Object System.Drawing.RectangleF 0, 8, $largeur, 30), $centre)
 
 # Appelants

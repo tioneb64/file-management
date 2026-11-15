@@ -44,6 +44,14 @@ Remove-CopieApiRegle -Fichier $f -Id flux_x -Commentaire 'flux arrêté'
 
 Paramètres communs d'écriture : `-Commentaire` (**obligatoire**, tracé), `-Appelant`, `-Empreinte` (concurrence optimiste, voir §4), `-AccepterAvertissements`, `-Config`.
 
+### Planification unique : délai minimal
+
+Le moteur ne démarre une règle `unique` que s'il l'a **vue avant sa date** ; une règle enregistrée trop près de sa date serait vue pour la première fois après elle et ne partirait jamais. L'API applique donc **le même contrôle que l'interface** (code commun `Get-CopieErreurDelaiUnique`) : la date doit être postérieure à `maintenant + 2 × Parametrage.PeriodeDeclencheurSec` (10 minutes par défaut).
+
+- **Ajout ou modification d'une règle dont la date est trop proche : erreur** (`Etape` = `delai`, `Succes` = faux, `DateMinimale` renseignée), **rien n'est écrit**. L'API ne décale jamais la date toute seule : un ordre exécuté à une autre heure que celle demandée serait pire qu'un refus explicite. L'appelant peut redemander avec `DateMinimale` ou plus tard.
+- Une date **non modifiée** n'est pas contrôlée (règle déjà jouée, ou date proche d'une règle qu'on modifie par ailleurs) : les autres champs restent modifiables.
+- Le contrôle compare à l'heure du poste qui exécute l'API ; la période est celle de la configuration (`Gestion-Copie.config.psd1`).
+
 ### Résultat
 
 Chaque écriture renvoie un objet `Copie.ApiResultat` : `Succes`, `Etape`, `Message`, `Refus` (liste `code`, `message`, `regle`, `ligne`), `Avertissements`, `Version` (fichier de la version précédente conservée), `Empreinte` (du nouveau fichier), `Regle` (règle écrite, complète), `VersionApi`.
@@ -55,6 +63,7 @@ Chaque écriture renvoie un objet `Copie.ApiResultat` : `Succes`, `Etape`, `Mess
 | `configuration` / `moteur` / `version` | Configuration inutilisable, moteur injoignable, **version de format non prise en charge** (fichier ou moteur) : l'API refuse d'écrire plutôt que de deviner |
 | `lecture` | Fichier introuvable ou illisible |
 | `invalide` | Appel incomplet (pas d'`id`, commentaire vide, JSON illisible) |
+| `delai` | Planification `unique` (OneShot) à **moins de deux périodes du déclencheur Jenkins** (10 minutes avec le réglage par défaut) : rien n'est écrit, `DateMinimale` (`date_minimale` en JSON) donne la première date acceptée. Voir §2 bis |
 | `existe` / `introuvable` | Ajout d'un id déjà pris / modification ou suppression d'une règle absente |
 | `conflit` | Le fichier a changé (voir §4) |
 | `refus` | Le moteur refuse le paramétrage : `Refus` donne les codes, le fichier n'est pas touché |
