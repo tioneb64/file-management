@@ -1179,6 +1179,10 @@ Si `Journal.Dossier` est renseigné dans le fichier de configuration de l'interf
 
 ### Le journal de l'API de règles
 
+![Schéma de l'API de règles : trois appelants, un module qui écrit seul, trois traces](images/80-api-regles.png)
+
+*Figure 46 : l'API de règles. L'interface, un script PowerShell et un script Python passent par le même module, qui est le seul à écrire le fichier ; chaque modification laisse une version, une fiche et une ligne de journal.*
+
 Les modifications de règles faites **par un autre programme** (script PowerShell ou Python passant par l'API de règles, voir [14-api-regles](14-api-regles.md)) n'apparaissent pas dans le panneau du bas : elles ne passent pas par la fenêtre. Elles sont tracées dans un fichier à part, **dans le même dossier** que le journal de l'interface (`Journal.Dossier`) : `ApiRegles_AAAA-MM-JJ.jsonl`, un fichier par jour (service `file_management_api_regles`). Si `Journal.Dossier` est vide ou si le dossier n'existe pas, rien n'est écrit dans ce fichier (l'API n'a pas d'écran pour poser la question de création) ; la trace dans la base des versions reste.
 
 Chaque ligne est un objet JSON : `timestamp` (UTC), `action` (`ajout`, `modification`, `suppression`), `regle` (identifiant), `fichier`, `appelant` (nom donné par le programme), `compte` (compte Windows qui a lancé le programme), `etape` (`ok`, `conflit`, `refus`, `avertissements`, `droits`…), `succes` et `commentaire`. Les refus et les conflits y figurent aussi : c'est l'endroit où voir **qui a essayé de modifier quoi**, même sans succès.
@@ -1408,5 +1412,6 @@ Le script a besoin de Windows PowerShell 5.1 en mode STA et d'un poste avec écr
 | 50 à 53 | Commentaire, promotion, purge, livraisons incertaines |
 | 60 à 63 | Environnements : création, modification, copie, suppression |
 | 70 | Historique |
+| 80 | Schéma de l'API de règles (§16) : **pas une fenêtre**, dessiné par `Gui\Outils\Generer-ImageApi.ps1` (sans moteur ni environnement d'exemple ; `-Sortie`, `-Echelle`). À relancer si les étapes ou les noms de l'API changent |
 
 Quand un **champ** est ajouté, renommé ou retiré du formulaire d'une règle, mettre à jour le [§6](#6-le-formulaire-dune-règle-champ-par-champ) en même temps que les images ; quand un **code de contrôle** change, le [§18](#18-les-messages-de-contrôle-les-plus-fréquents) et [01-parametrage](01-parametrage.md).
